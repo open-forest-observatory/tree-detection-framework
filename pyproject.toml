@@ -8,7 +8,8 @@ readme = "README.md"
 packages = [{include = "tree_detection_framework"}]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
+torchgeo = "^0.6.0"
 
 
 [build-system]
