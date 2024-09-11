@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "tree-detection-framework"
+version = "0.1.0"
+description = "Framework for detecting trees in remote sensing data"
+authors = ["David Russell <djrussell@ucdavis.edu>"]
+license = "BSD-3"
+readme = "README.md"
+packages = [{include = "tree_detection_framework"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
