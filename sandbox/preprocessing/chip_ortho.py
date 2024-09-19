@@ -13,16 +13,16 @@ class CustomOrthoDataset(RasterDataset):
     is_image = True
     separate_files = False
 
-def chip_orthomosaics(root, size, stride, units = "pixel", save_dir = None, visualize_n = None):
+def chip_orthomosaics(root, size, stride, units="pixel", res=None, save_dir=None, visualize_n=None):
     # create dataset instance
-    dataset = CustomOrthoDataset(paths = root, res = 0.1)
+    dataset = CustomOrthoDataset(paths=root, res=res)
 
     # define sampler with size, stride, and unit types (CRS or pixels)
     units = Units.CRS if units == "meters" else Units.PIXELS
-    sampler = GridGeoSampler(dataset, size = size, stride = stride, units = units)
+    sampler = GridGeoSampler(dataset, size=size, stride=stride, units=units)
     
     # dataloader for processing tiles
-    dataloader = DataLoader(dataset, sampler = sampler, collate_fn = stack_samples)
+    dataloader = DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
 
     # save each tile to a folder
     if save_dir:
@@ -42,6 +42,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Chipping orthomosaic images")
     parser.add_argument('--path', type=str, required=True, help="Path to folder or individual orthomosaic")
+    parser.add_argument('--res', type=float, required=False, help="Resolution of the dataset in units of CRS (defaults to the resolution of the first file found)")
     parser.add_argument('--size', type=int, required=True, help="Tile size in pixels or meters")
     parser.add_argument('--stride', type=int, required=True, help="Stride for chipping")
     parser.add_argument('--units', type=str, required=False, choices=["pixel", "meters"], default="pixel", help="Units for tile size and stride")
@@ -55,6 +56,7 @@ if __name__ == "__main__":
         size=args.size,
         stride=args.stride,
         units=args.units,
+        res=args.res,
         save_dir=args.save_dir,
         #visualize_n=args.visualize_n
     )
