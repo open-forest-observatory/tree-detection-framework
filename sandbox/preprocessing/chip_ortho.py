@@ -24,7 +24,8 @@ def chip_orthomosaics(root, size, stride, units="pixel", res=None, save_dir=None
 
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        i = 0
+            
+        i = 0 # To store tile count
         for batch in dataloader:
             sample = unbind_samples(batch)[0]
             image = sample['image']
@@ -35,7 +36,7 @@ def chip_orthomosaics(root, size, stride, units="pixel", res=None, save_dir=None
         print("Saved "+str(i)+" tiles")
 
     if visualize_n:
-        sampler = RandomGeoSampler(dataset, size=size, length=visualize_n) # Randomly selects 'visualize_n' number of tiles
+        sampler = RandomGeoSampler(dataset, size=size, length=visualize_n) # Randomly samples 'visualize_n' number of tiles
         dataloader = DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
         for batch in dataloader:
             sample = unbind_samples(batch)[0]
@@ -43,7 +44,7 @@ def chip_orthomosaics(root, size, stride, units="pixel", res=None, save_dir=None
             plt.axis('off')
             plt.show()
 
-# could be moved to a separate utils file
+# Could be moved to a separate utils file
 def plot(sample):
     image = sample['image'].permute(1, 2, 0)
     image = torch.clamp(image / 255.0, min=0, max=1).numpy()
@@ -51,8 +52,7 @@ def plot(sample):
     ax.imshow(image)
     return fig
 
-if __name__ == "__main__":
-
+def parse_args():
     parser = argparse.ArgumentParser(description="Chipping orthomosaic images")
     parser.add_argument('--path', type=str, required=True, help="Path to folder or individual orthomosaic")
     parser.add_argument('--res', type=float, required=False, help="Resolution of the dataset in units of CRS (defaults to the resolution of the first file found)")
@@ -61,9 +61,13 @@ if __name__ == "__main__":
     parser.add_argument('--units', type=str, required=False, choices=["pixels", "meters"], default="pixels", help="Units for tile size and stride")
     parser.add_argument('--save_dir', type=str, required=False, help="Directory to save chips")
     parser.add_argument('--visualize_n', type=int, required=False, help="Number of tiles to visualize")
+    # to add: arg to accept different regex patterns
 
     args = parser.parse_args()
+    return args
 
+if __name__ == "__main__":
+    args = parse_args()
     chip_orthomosaics(
         root=args.path,
         size=args.size,
