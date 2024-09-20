@@ -1,5 +1,5 @@
 from torchgeo.datasets import RasterDataset, stack_samples, unbind_samples
-from torchgeo.samplers import GridGeoSampler, Units
+from torchgeo.samplers import GridGeoSampler, RandomGeoSampler, Units
 from torch.utils.data import DataLoader
 import torch
 import random
@@ -16,16 +16,12 @@ class CustomOrthoDataset(RasterDataset):
 def chip_orthomosaics(root, size, stride, units="pixel", res=None, save_dir=None, visualize_n=None):
     # create dataset instance
     dataset = CustomOrthoDataset(paths=root, res=res)
-
-    # define sampler with size, stride, and unit types (CRS or pixels)
     units = Units.CRS if units == "meters" else Units.PIXELS
-    sampler = GridGeoSampler(dataset, size=size, stride=stride, units=units)
-    
-    # dataloader for processing tiles
-    dataloader = DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
 
-    # save each tile to a folder
     if save_dir:
+        sampler = GridGeoSampler(dataset, size=size, stride=stride, units=units) #GridGeoSampler to get contiguous tiles
+        dataloader = DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
+
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         i = 0
@@ -38,16 +34,33 @@ def chip_orthomosaics(root, size, stride, units="pixel", res=None, save_dir=None
             i += 1
         print("Saved "+str(i)+" tiles")
 
+    if visualize_n:
+        sampler = RandomGeoSampler(dataset, size=size, length=visualize_n) # Randomly selects 'visualize_n' number of tiles
+        dataloader = DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
+        for batch in dataloader:
+            sample = unbind_samples(batch)[0]
+            plot(sample)
+            plt.axis('off')
+            plt.show()
+
+# could be moved to a separate utils file
+def plot(sample):
+    image = sample['image'].permute(1, 2, 0)
+    image = torch.clamp(image / 255.0, min=0, max=1).numpy()
+    fig, ax = plt.subplots()
+    ax.imshow(image)
+    return fig
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Chipping orthomosaic images")
     parser.add_argument('--path', type=str, required=True, help="Path to folder or individual orthomosaic")
     parser.add_argument('--res', type=float, required=False, help="Resolution of the dataset in units of CRS (defaults to the resolution of the first file found)")
-    parser.add_argument('--size', type=int, required=True, help="Tile size in pixels or meters")
-    parser.add_argument('--stride', type=int, required=True, help="Stride for chipping")
-    parser.add_argument('--units', type=str, required=False, choices=["pixel", "meters"], default="pixel", help="Units for tile size and stride")
+    parser.add_argument('--size', type=int, required=True, help="Single value used for height and width dim")
+    parser.add_argument('--stride', type=int, required=True, help="Distance to skip between each patch")
+    parser.add_argument('--units', type=str, required=False, choices=["pixels", "meters"], default="pixels", help="Units for tile size and stride")
     parser.add_argument('--save_dir', type=str, required=False, help="Directory to save chips")
-    #parser.add_argument('--visualize_n', type=int, required=False, help="Number of tiles to visualize")
+    parser.add_argument('--visualize_n', type=int, required=False, help="Number of tiles to visualize")
 
     args = parser.parse_args()
 
@@ -58,7 +71,7 @@ if __name__ == "__main__":
         units=args.units,
         res=args.res,
         save_dir=args.save_dir,
-        #visualize_n=args.visualize_n
+        visualize_n=args.visualize_n
     )
 
 
