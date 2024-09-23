@@ -15,12 +15,20 @@ class CustomOrthoDataset(RasterDataset):
     is_image = True
     separate_files = False
 
-def chip_orthomosaics(path, size, stride, units="pixel", res=None, use_units_meters=False, save_dir=None, visualize_n=None):
+def chip_orthomosaics(path, size, stride=None, overlap=None, units="pixel", res=None, use_units_meters=False, save_dir=None, visualize_n=None):
     # Create dataset instance
     dataset = CustomOrthoDataset(paths=path, res=res)
     units = Units.CRS if use_units_meters == True else Units.PIXELS
     print("Units = ", units)
 
+    # Calculate stride if overlap is provided
+    if overlap is not None:
+        stride = size * (1 - overlap / 100.0)
+        print("Calculated stride based on overlap: "+str(stride))
+    elif stride is None:
+        raise ValueError("Either 'stride' or 'overlap' must be provided.")
+    print("Stride = ", stride)
+    
     #GridGeoSampler to get contiguous tiles
     sampler = GridGeoSampler(dataset, size=size, stride=stride, units=units)
     dataloader = DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
@@ -76,7 +84,8 @@ def parse_args():
     parser.add_argument('--path', type=str, required=True, help="Path to folder or individual orthomosaic")
     parser.add_argument('--res', type=float, required=False, help="Resolution of the dataset in units of CRS (defaults to the resolution of the first file found)")
     parser.add_argument('--size', type=float, required=True, help="Single value used for height and width dim")
-    parser.add_argument('--stride', type=float, required=True, help="Distance to skip between each patch")
+    parser.add_argument('--stride', type=float, required=False, help="Distance to skip between each patch")
+    parser.add_argument('--overlap', type=float, required=False, help="Percentage overlap between the tiles (0-100%)")
     parser.add_argument('--use-units-meters', action='store_true', help="Whether to set units for tile size and stide as meters")
     parser.add_argument('--save-dir', type=str, required=False, help="Directory to save chips")
     parser.add_argument('--visualize-n', type=int, required=False, help="Number of tiles to visualize")
