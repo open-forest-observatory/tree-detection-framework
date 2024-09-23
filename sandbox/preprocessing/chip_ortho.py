@@ -1,5 +1,6 @@
 import argparse
 import random
+import json
 
 import matplotlib.pyplot as plt
 import torch
@@ -41,6 +42,14 @@ def chip_orthomosaics(path, size, stride, units="pixel", res=None, use_units_met
             pil_image = ToPILImage()(image_tensor)
             pil_image.save(Path(save_dir) / f'tile_{i}.png')
 
+            # Save tile metadata to a json file
+            metadata = {
+                "crs": sample['crs'].to_string(),  
+                "bounds": list(sample['bounds']),
+            }
+            with open(Path(save_dir) / f'tile_{i}.json', 'w') as f:
+                json.dump(metadata, f, indent=4)
+
         # Visualization logic
         if visualize_n and i in visualize_indices:
             plot(sample)
@@ -79,7 +88,4 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     chip_orthomosaics(**args.__dict__)
-
-
-
 
