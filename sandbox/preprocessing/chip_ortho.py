@@ -1,12 +1,12 @@
 import argparse
-import os
 import random
 
 import matplotlib.pyplot as plt
 import torch
+from pathlib import Path
 from torch.utils.data import DataLoader
 from torchgeo.datasets import RasterDataset, stack_samples, unbind_samples
-from torchgeo.samplers import GridGeoSampler, RandomGeoSampler, Units
+from torchgeo.samplers import GridGeoSampler, Units
 from torchvision.transforms import ToPILImage
 
 class CustomOrthoDataset(RasterDataset):
@@ -14,10 +14,11 @@ class CustomOrthoDataset(RasterDataset):
     is_image = True
     separate_files = False
 
-def chip_orthomosaics(root, size, stride, units="pixel", res=None, save_dir=None, visualize_n=None):
+def chip_orthomosaics(path, size, stride, units="pixel", res=None, use_units_meters=False, save_dir=None, visualize_n=None):
     # Create dataset instance
-    dataset = CustomOrthoDataset(paths=root, res=res)
-    units = Units.CRS if units == "meters" else Units.PIXELS
+    dataset = CustomOrthoDataset(paths=path, res=res)
+    units = Units.CRS if use_units_meters == True else Units.PIXELS
+    print("Units = ", units)
 
     #GridGeoSampler to get contiguous tiles
     sampler = GridGeoSampler(dataset, size=size, stride=stride, units=units)
@@ -27,18 +28,18 @@ def chip_orthomosaics(root, size, stride, units="pixel", res=None, save_dir=None
     # Randomly pick indices for visualization if visualize_n is specified
     visualize_indices = random.sample(range(total_tiles), visualize_n) if visualize_n else []
 
-    if save_dir and not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    # Creates save directory if it doesn't exist
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
 
     for i, batch in enumerate(dataloader):
         sample = unbind_samples(batch)[0]
-        image = sample['image']
-        image_tensor = torch.clamp(image / 255.0, min=0, max=1)
 
         # Saving logic
         if save_dir:
+            image = sample['image']
+            image_tensor = torch.clamp(image / 255.0, min=0, max=1)
             pil_image = ToPILImage()(image_tensor)
-            pil_image.save(save_dir + '/tile_' + str(i) + '.png')
+            pil_image.save(Path(save_dir) / f'tile_{i}.png')
 
         # Visualization logic
         if visualize_n and i in visualize_indices:
@@ -56,7 +57,7 @@ def chip_orthomosaics(root, size, stride, units="pixel", res=None, save_dir=None
 # Could be moved to a separate utils file
 def plot(sample):
     image = sample['image'].permute(1, 2, 0)
-    image = torch.clamp(image / 255.0, min=0, max=1).numpy()
+    image = image.byte().numpy()
     fig, ax = plt.subplots()
     ax.imshow(image)
     return fig
@@ -65,11 +66,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Chipping orthomosaic images")
     parser.add_argument('--path', type=str, required=True, help="Path to folder or individual orthomosaic")
     parser.add_argument('--res', type=float, required=False, help="Resolution of the dataset in units of CRS (defaults to the resolution of the first file found)")
-    parser.add_argument('--size', type=int, required=True, help="Single value used for height and width dim")
-    parser.add_argument('--stride', type=int, required=True, help="Distance to skip between each patch")
-    parser.add_argument('--units', type=str, required=False, choices=["pixels", "meters"], default="pixels", help="Units for tile size and stride")
-    parser.add_argument('--save_dir', type=str, required=False, help="Directory to save chips")
-    parser.add_argument('--visualize_n', type=int, required=False, help="Number of tiles to visualize")
+    parser.add_argument('--size', type=float, required=True, help="Single value used for height and width dim")
+    parser.add_argument('--stride', type=float, required=True, help="Distance to skip between each patch")
+    parser.add_argument('--use-units-meters', action='store_true', help="Whether to set units for tile size and stide as meters")
+    parser.add_argument('--save-dir', type=str, required=False, help="Directory to save chips")
+    parser.add_argument('--visualize-n', type=int, required=False, help="Number of tiles to visualize")
     # to add: arg to accept different regex patterns
 
     args = parser.parse_args()
@@ -77,16 +78,7 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    chip_orthomosaics(
-        root=args.path,
-        size=args.size,
-        stride=args.stride,
-        units=args.units,
-        res=args.res,
-        save_dir=args.save_dir,
-        visualize_n=args.visualize_n
-    )
-
+    chip_orthomosaics(**args.__dict__)
 
 
 
