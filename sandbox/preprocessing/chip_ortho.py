@@ -2,6 +2,7 @@ import argparse
 import json
 import random
 from pathlib import Path
+from typing import Optional, Dict
 
 import matplotlib.pyplot as plt
 import pyproj
@@ -24,22 +25,21 @@ class CustomOrthoDataset(RasterDataset):
         separate_files (bool): True if data is stored in a separate file for each band, else False.
     """
 
-    filename_glob = "*.tif"  # To match all TIFF files
-    is_image = True
-    separate_files = False
+    filename_glob: str = "*.tif"  # To match all TIFF files
+    is_image: bool = True
+    separate_files: bool = False
 
 
 def chip_orthomosaics(
-    path,
-    size,
-    stride=None,
-    overlap=None,
-    units="pixel",
-    res=None,
-    use_units_meters=False,
-    save_dir=None,
-    visualize_n=None,
-):
+    path: str,
+    size: float,
+    stride: Optional[float] = None,
+    overlap: Optional[float] = None,
+    res: Optional[float] = None,
+    use_units_meters: bool = False,
+    save_dir: Optional[str] = None,
+    visualize_n: Optional[int] = None,
+) -> None:
     """
     Splits an orthomosaic image into smaller tiles with optional reprojection to a meters-based CRS. Tiles can be saved to a directory and visualized.
 
@@ -48,7 +48,6 @@ def chip_orthomosaics(
         size (float): Tile size in units of pixels or meters, depending on `use_units_meters`.
         stride (float, optional): The distance between the start of one tile and the next in pixels or meters.
         overlap (float, optional): Percentage overlap between consecutive tiles (0-100%). Used to calculate stride if provided.
-        units (str, optional): Unit of measurement for the tile size and stride ('pixel' or 'meters'). Default is 'pixel'.
         res (float, optional): Resolution of the dataset in units of the CRS (if not specified, defaults to the resolution of the first image).
         use_units_meters (bool, optional): Whether to use meters instead of pixels for tile size and stride.
         save_dir (str, optional): Directory where the tiles and metadata should be saved.
@@ -94,13 +93,14 @@ def chip_orthomosaics(
     if save_dir:
         # Creates save directory if it doesn't exist
         Path(save_dir).mkdir(parents=True, exist_ok=True)
-
+        
+        transform_to_pil = ToPILImage()
         for i, batch in enumerate(dataloader):
             sample = unbind_samples(batch)[0]
 
             image = sample["image"]
             image_tensor = torch.clamp(image / 255.0, min=0, max=1)
-            pil_image = ToPILImage()(image_tensor)
+            pil_image = transform_to_pil(image_tensor)
             pil_image.save(Path(save_dir) / f"tile_{i}.png")
 
             # Save tile metadata to a json file
@@ -116,7 +116,7 @@ def chip_orthomosaics(
 
 # Helper functions (could be moved to a separate utils file)
 
-def get_sample_from_index(dataset, sampler, index):
+def get_sample_from_index(dataset: CustomOrthoDataset, sampler: GridGeoSampler, index: int) -> Dict:
     # Access the specific index from the sampler containing bounding boxes
     sample_indices = list(sampler)
     sample_idx = sample_indices[index]
@@ -125,7 +125,8 @@ def get_sample_from_index(dataset, sampler, index):
     sample = dataset[sample_idx]
     return sample
 
-def plot(sample):
+
+def plot(sample: Dict) -> plt.Figure:
     image = sample["image"].permute(1, 2, 0)
     image = image.byte().numpy()
     fig, ax = plt.subplots()
@@ -133,7 +134,7 @@ def plot(sample):
     return fig
 
 
-def get_projected_CRS(lat, lon, assume_western_hem=True):
+def get_projected_CRS(lat: float, lon: float, assume_western_hem: bool = True) -> pyproj.CRS:
     if assume_western_hem and lon > 0:
         lon = -lon
     epgs_code = 32700 - round((45 + lat) / 90) * 100 + round((183 + lon) / 6)
@@ -141,7 +142,7 @@ def get_projected_CRS(lat, lon, assume_western_hem=True):
     return crs
 
 
-def reproject_raster_to_crs(dataset_path, projected_crs):
+def reproject_raster_to_crs(dataset_path: str, projected_crs: pyproj.CRS) -> str:
 
     with rasterio.open(dataset_path) as src:
         transform, width, height = calculate_default_transform(
@@ -159,8 +160,9 @@ def reproject_raster_to_crs(dataset_path, projected_crs):
             }
         )
 
-        # Create a new reprojected file (path - undecided)
-        with rasterio.open("reprojected.tif", "w", **kwargs) as dst:
+        # Create a new reprojected file
+        new_path = Path(dataset_path) / "reprojected.tif"
+        with rasterio.open(new_path, "w", **kwargs) as dst:
             for i in range(1, src.count + 1):
                 reproject(
                     source=rasterio.band(src, i),
@@ -172,10 +174,10 @@ def reproject_raster_to_crs(dataset_path, projected_crs):
                     resampling=Resampling.nearest,
                 )
 
-    return "reprojected.tif"  # New path
+    return new_path  # New path
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Chipping orthomosaic images")
     parser.add_argument(
         "--path", type=str, required=True, help="Path to folder containing orthomosaic"
