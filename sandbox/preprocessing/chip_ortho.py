@@ -64,10 +64,11 @@ def chip_orthomosaics(
 
     if use_units_meters and dataset.crs.is_geographic:
         # Reproject the dataset to a meters-based CRS
-        lat, lon = dataset.bounds[1], dataset.bounds[0]
+        print("Projecting to meters-based CRS...")
+        lat, lon = dataset.bounds[2], dataset.bounds[0]
         projected_crs = get_projected_CRS(lat, lon)
-        reprojected_path = reproject_raster_to_crs(path, projected_crs)
-        dataset = CustomOrthoDataset(paths=reprojected_path, res=res)
+        projected_crs = rasterio.crs.CRS.from_wkt(projected_crs.to_wkt())
+        dataset = CustomOrthoDataset(paths=path, crs=projected_crs)
 
     # Calculate stride if overlap is provided
     if overlap:
@@ -114,7 +115,7 @@ def chip_orthomosaics(
         print("Saved " + str(i + 1) + " tiles to " + save_dir)
 
 
-# Helper functions (could be moved to a separate utils file)
+# Helper functions
 
 def get_sample_from_index(dataset: CustomOrthoDataset, sampler: GridGeoSampler, index: int) -> Dict:
     # Access the specific index from the sampler containing bounding boxes
@@ -140,41 +141,6 @@ def get_projected_CRS(lat: float, lon: float, assume_western_hem: bool = True) -
     epgs_code = 32700 - round((45 + lat) / 90) * 100 + round((183 + lon) / 6)
     crs = pyproj.CRS.from_epsg(epgs_code)
     return crs
-
-
-def reproject_raster_to_crs(dataset_path: str, projected_crs: pyproj.CRS) -> str:
-
-    with rasterio.open(dataset_path) as src:
-        transform, width, height = calculate_default_transform(
-            src.crs, projected_crs, src.width, src.height, *src.bounds
-        )
-
-        # Set up the metadata for the reprojected dataset
-        kwargs = src.meta.copy()
-        kwargs.update(
-            {
-                "crs": projected_crs,
-                "transform": transform,
-                "width": width,
-                "height": height,
-            }
-        )
-
-        # Create a new reprojected file
-        new_path = Path(dataset_path) / "reprojected.tif"
-        with rasterio.open(new_path, "w", **kwargs) as dst:
-            for i in range(1, src.count + 1):
-                reproject(
-                    source=rasterio.band(src, i),
-                    destination=rasterio.band(dst, i),
-                    src_transform=src.transform,
-                    src_crs=src.crs,
-                    dst_transform=transform,
-                    dst_crs=projected_crs,
-                    resampling=Resampling.nearest,
-                )
-
-    return new_path  # New path
 
 
 def parse_args() -> argparse.Namespace:
@@ -217,7 +183,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--visualize-n", type=int, required=False, help="Number of tiles to visualize"
     )
-    # to add: arg to accept different regex patterns
 
     args = parser.parse_args()
     return args
