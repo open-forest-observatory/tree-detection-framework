@@ -56,9 +56,6 @@ def chip_orthomosaics(
 
     Raises:
         ValueError: If neither `stride` nor `overlap` are provided.
-
-    Returns:
-        None
     """
 
     # Create dataset instance
@@ -85,20 +82,22 @@ def chip_orthomosaics(
     sampler = GridGeoSampler(dataset, size=size, stride=stride, units=units)
     dataloader = DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
 
-    total_tiles = len(sampler)
-    # Randomly pick indices for visualization if visualize_n is specified
-    visualize_indices = (
-        random.sample(range(total_tiles), visualize_n) if visualize_n else []
-    )
+    if visualize_n:
+        # Randomly pick indices for visualization if visualize_n is specified
+        visualize_indices = random.sample(range(len(sampler)), visualize_n)
 
-    # Creates save directory if it doesn't exist
-    Path(save_dir).mkdir(parents=True, exist_ok=True)
+        for i in visualize_indices:
+            plot(get_sample_from_index(dataset, sampler, i))
+            plt.axis("off")
+            plt.show()    
 
-    for i, batch in enumerate(dataloader):
-        sample = unbind_samples(batch)[0]
+    if save_dir:
+        # Creates save directory if it doesn't exist
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-        # Saving logic
-        if save_dir:
+        for i, batch in enumerate(dataloader):
+            sample = unbind_samples(batch)[0]
+
             image = sample["image"]
             image_tensor = torch.clamp(image / 255.0, min=0, max=1)
             pil_image = ToPILImage()(image_tensor)
@@ -112,21 +111,19 @@ def chip_orthomosaics(
             with open(Path(save_dir) / f"tile_{i}.json", "w") as f:
                 json.dump(metadata, f, indent=4)
 
-        # Visualization logic
-        if visualize_n and i in visualize_indices:
-            plot(sample)
-            plt.axis("off")
-            plt.show()
-
-    # Action summary
-    if save_dir:
         print("Saved " + str(i + 1) + " tiles to " + save_dir)
-    if visualize_n:
-        print("Visualized " + str(len(visualize_indices)) + " tiles")
 
 
 # Helper functions (could be moved to a separate utils file)
 
+def get_sample_from_index(dataset, sampler, index):
+    # Access the specific index from the sampler containing bounding boxes
+    sample_indices = list(sampler)
+    sample_idx = sample_indices[index]
+
+    # Get the sample from the dataset using this index
+    sample = dataset[sample_idx]
+    return sample
 
 def plot(sample):
     image = sample["image"].permute(1, 2, 0)
