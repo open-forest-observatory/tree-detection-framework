@@ -1,6 +1,9 @@
 import argparse
 import json
 import random
+import numpy as np
+import geopandas as gpd
+from shapely.geometry import box
 from pathlib import Path
 from typing import Optional, Dict
 
@@ -8,14 +11,13 @@ import matplotlib.pyplot as plt
 import pyproj
 import rasterio
 import torch
-from rasterio.warp import Resampling, calculate_default_transform, reproject
 from torch.utils.data import DataLoader
-from torchgeo.datasets import RasterDataset, stack_samples, unbind_samples
+from torchgeo.datasets import RasterDataset, VectorDataset, IntersectionDataset, stack_samples, unbind_samples
 from torchgeo.samplers import GridGeoSampler, Units
 from torchvision.transforms import ToPILImage
 
 
-class CustomOrthoDataset(RasterDataset):
+class CustomRasterDataset(RasterDataset):
     """
     Custom dataset class for orthomosaic raster images. This class extends the `RasterDataset` from `torchgeo`.
 
@@ -29,12 +31,19 @@ class CustomOrthoDataset(RasterDataset):
     is_image: bool = True
     separate_files: bool = False
 
+class CustomVectorDataset(VectorDataset):
+    """
+    Custom dataset class for vector data which act as labels for the raster data. This class extends the `VectorDataset` from `torchgeo`.
+    """
+    filename_glob = "*.gpkg" #".*\.(gpkg|geojson)$"
+
 
 def chip_orthomosaics(
-    path: str,
+    raster_path: str,
+    vector_path: str,
     size: float,
     stride: Optional[float] = None,
-    overlap: Optional[float] = None,
+    overlap_percent: Optional[float] = None,
     res: Optional[float] = None,
     use_units_meters: bool = False,
     save_dir: Optional[str] = None,
@@ -57,67 +66,97 @@ def chip_orthomosaics(
         ValueError: If neither `stride` nor `overlap` are provided.
     """
 
-    # Create dataset instance
-    dataset = CustomOrthoDataset(paths=path, res=res)
+    # Stores image data
+    raster_dataset = CustomRasterDataset(paths=raster_path, res=res)
+
+    # Stores label data
+    vector_dataset = CustomVectorDataset(paths=vector_path, res=res)
+
     units = Units.CRS if use_units_meters == True else Units.PIXELS
     print("Units = ", units)
 
-    if use_units_meters and dataset.crs.is_geographic:
+    if use_units_meters and raster_dataset.crs.is_geographic:
         # Reproject the dataset to a meters-based CRS
         print("Projecting to meters-based CRS...")
-        lat, lon = dataset.bounds[2], dataset.bounds[0]
+        lat, lon = raster_dataset.bounds[2], raster_dataset.bounds[0]
+
+        # Return a new projected CRS value with meters units
         projected_crs = get_projected_CRS(lat, lon)
+
+        # Type conversion to rasterio.crs
         projected_crs = rasterio.crs.CRS.from_wkt(projected_crs.to_wkt())
-        dataset = CustomOrthoDataset(paths=path, crs=projected_crs)
+
+        # Recreating the raster and vector dataset objects with the new CRS value
+        raster_dataset = CustomRasterDataset(paths=raster_path, crs=projected_crs)
+        vector_dataset = CustomVectorDataset(paths=vector_path, crs=projected_crs)
+    
+    # Create an intersection dataset that combines raster and label data
+    intersection = IntersectionDataset(raster_dataset, vector_dataset)
 
     # Calculate stride if overlap is provided
-    if overlap:
-        stride = size * (1 - overlap / 100.0)
+    if overlap_percent:
+        stride = size * (1 - overlap_percent / 100.0)
         print("Calculated stride based on overlap: " + str(stride))
     elif stride is None:
         raise ValueError("Either 'stride' or 'overlap' must be provided.")
     print("Stride = ", stride)
 
     # GridGeoSampler to get contiguous tiles
-    sampler = GridGeoSampler(dataset, size=size, stride=stride, units=units)
-    dataloader = DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
+    sampler = GridGeoSampler(intersection, size=size, stride=stride, units=units)
+    dataloader = DataLoader(intersection, sampler=sampler, collate_fn=stack_samples)
 
     if visualize_n:
-        # Randomly pick indices for visualization if visualize_n is specified
+        # Randomly pick indices for visualizing tiles if visualize_n is specified
         visualize_indices = random.sample(range(len(sampler)), visualize_n)
 
         for i in visualize_indices:
-            plot(get_sample_from_index(dataset, sampler, i))
+            plot(get_sample_from_index(raster_dataset, sampler, i))
             plt.axis("off")
             plt.show()    
 
     if save_dir:
         # Creates save directory if it doesn't exist
         Path(save_dir).mkdir(parents=True, exist_ok=True)
-        
+
         transform_to_pil = ToPILImage()
         for i, batch in enumerate(dataloader):
             sample = unbind_samples(batch)[0]
 
+            # Save image as PNG
             image = sample["image"]
             image_tensor = torch.clamp(image / 255.0, min=0, max=1)
             pil_image = transform_to_pil(image_tensor)
             pil_image.save(Path(save_dir) / f"tile_{i}.png")
 
-            # Save tile metadata to a json file
-            metadata = {
-                "crs": sample["crs"].to_string(),
-                "bounds": list(sample["bounds"]),
-            }
-            with open(Path(save_dir) / f"tile_{i}.json", "w") as f:
-                json.dump(metadata, f, indent=4)
+            # Save the mask as a numpy file
+            mask = sample["mask"].squeeze().numpy()
+            np.save(Path(save_dir) / f"tile_{i}_mask.npy", mask)
 
+            # Save per-tile geojson files with crowns and other information
+            tile_bounds = sample["bounds"]
+
+            # Convert tile bounds to Polygon
+            tile_bounds = box(tile_bounds.minx, tile_bounds.miny, tile_bounds.maxx, tile_bounds.maxy)
+
+            # Read original vector data, create a new dataframe for the tile
+            crowns_gdf = gpd.read_file(vector_dataset.files[0])
+            tile_bbox = gpd.GeoDataFrame(
+                geometry=[tile_bounds],
+                crs=crowns_gdf.crs
+            )
+
+            # Spatial join of tile bounds and tree bounds within that region
+            crowns_tile = gpd.sjoin(crowns_gdf, tile_bbox, how="inner", predicate='intersects')
+            if not crowns_tile.empty:
+                crowns_tile.to_file(Path(save_dir) / f"tile_{i}_crowns.geojson", driver="GeoJSON")
+            else:
+                print("No crowns found for tile "+str(i))
         print("Saved " + str(i + 1) + " tiles to " + save_dir)
 
 
 # Helper functions
 
-def get_sample_from_index(dataset: CustomOrthoDataset, sampler: GridGeoSampler, index: int) -> Dict:
+def get_sample_from_index(dataset: CustomRasterDataset, sampler: GridGeoSampler, index: int) -> Dict:
     # Access the specific index from the sampler containing bounding boxes
     sample_indices = list(sampler)
     sample_idx = sample_indices[index]
@@ -146,7 +185,10 @@ def get_projected_CRS(lat: float, lon: float, assume_western_hem: bool = True) -
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Chipping orthomosaic images")
     parser.add_argument(
-        "--path", type=str, required=True, help="Path to folder containing orthomosaic"
+        "--raster-path", type=str, required=True, help="Path to folder containing single or multiple orthomosaic images."
+    )
+    parser.add_argument(
+        "--vector-path", type=str, required=True, help="Path to folder containing single or multiple vector datafiles."
     )
     parser.add_argument(
         "--res",
@@ -167,7 +209,7 @@ def parse_args() -> argparse.Namespace:
         help="Distance to skip between each patch",
     )
     parser.add_argument(
-        "--overlap",
+        "--overlap-percent",
         type=float,
         required=False,
         help="Percentage overlap between the tiles (0-100%)",
