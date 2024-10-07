@@ -4,6 +4,8 @@ import random
 import numpy as np
 import geopandas as gpd
 from shapely.geometry import box
+import shapely.geometry
+from shapely.affinity import affine_transform
 from pathlib import Path
 from typing import Optional, Dict
 
@@ -15,6 +17,13 @@ from torch.utils.data import DataLoader
 from torchgeo.datasets import RasterDataset, VectorDataset, IntersectionDataset, stack_samples, unbind_samples
 from torchgeo.samplers import GridGeoSampler, Units
 from torchvision.transforms import ToPILImage
+from torchgeo.datasets.utils import (
+    BoundingBox,
+    array_to_tensor,
+)
+import fiona
+import fiona.transform
+from typing import Any
 
 
 class CustomRasterDataset(RasterDataset):
@@ -35,7 +44,76 @@ class CustomVectorDataset(VectorDataset):
     """
     Custom dataset class for vector data which act as labels for the raster data. This class extends the `VectorDataset` from `torchgeo`.
     """
-    filename_glob = "*.gpkg" #".*\.(gpkg|geojson)$"
+    def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
+        """Retrieve image/mask and metadata indexed by query.
+
+        Args:
+            query: (minx, maxx, miny, maxy, mint, maxt) coordinates to index
+
+        Returns:
+            sample of image/mask and metadata at that index
+
+        Raises:
+            IndexError: if query is not found in the index
+        """
+        hits = self.index.intersection(tuple(query), objects=True)
+        filepaths = [hit.object for hit in hits]
+
+        if not filepaths:
+            raise IndexError(
+                f'query: {query} not found in index with bounds: {self.bounds}'
+            )
+
+        shapes = []
+        for filepath in filepaths:
+            with fiona.open(filepath) as src:
+                # We need to know the bounding box of the query in the source CRS
+                (minx, maxx), (miny, maxy) = fiona.transform.transform(
+                    self.crs.to_dict(),
+                    src.crs,
+                    [query.minx, query.maxx],
+                    [query.miny, query.maxy],
+                )
+
+                # Filter geometries to those that intersect with the bounding box
+                for feature in src.filter(bbox=(minx, miny, maxx, maxy)):
+                    # Warp geometries to requested CRS
+                    shape = fiona.transform.transform_geom(
+                        src.crs, self.crs.to_dict(), feature['geometry']
+                    )
+                    label = self.get_label(feature)
+                    shapes.append((shape, label))
+
+        # Rasterize geometries
+        width = (query.maxx - query.minx) / self.res
+        height = (query.maxy - query.miny) / self.res
+        transform = rasterio.transform.from_bounds(
+            query.minx, query.miny, query.maxx, query.maxy, width, height
+        )
+        if shapes:
+            masks = rasterio.features.rasterize(
+                shapes, out_shape=(round(height), round(width)), transform=transform
+            )
+        else:
+            # If no features are found in this query, return an empty mask
+            # with the default fill value and dtype used by rasterize
+            masks = np.zeros((round(height), round(width)), dtype=np.uint8)
+
+        shapely_shapes = [(shapely.geometry.shape(sh), i) for sh, i in shapes]
+        transformed = [(affine_transform(sh, (~transform).to_shapely()), i) for sh, i in shapely_shapes]
+
+        # Use array_to_tensor since rasterize may return uint16/uint32 arrays.
+        masks = array_to_tensor(masks)
+
+        masks = masks.to(self.dtype)
+        sample = {'mask': masks, 'crs': self.crs, 'bounds': query, 'shapes': transformed}
+
+        if self.transforms is not None:
+            sample = self.transforms(sample)
+
+        return sample
+
+    #filename_glob =  "*.geojson" #".*\.(gpkg|geojson)$", "*.geojson;*.gpkg"
 
 
 def chip_orthomosaics(
@@ -116,42 +194,40 @@ def chip_orthomosaics(
 
     if save_dir:
         # Creates save directory if it doesn't exist
-        Path(save_dir).mkdir(parents=True, exist_ok=True)
-
+        save_path = Path(save_dir)
+        save_path.mkdir(parents=True, exist_ok=True)
+        
         transform_to_pil = ToPILImage()
         for i, batch in enumerate(dataloader):
             sample = unbind_samples(batch)[0]
 
-            # Save image as PNG
             image = sample["image"]
             image_tensor = torch.clamp(image / 255.0, min=0, max=1)
             pil_image = transform_to_pil(image_tensor)
             pil_image.save(Path(save_dir) / f"tile_{i}.png")
 
-            # Save the mask as a numpy file
-            mask = sample["mask"].squeeze().numpy()
-            np.save(Path(save_dir) / f"tile_{i}_mask.npy", mask)
+            # Prepare to save tile metadata
+            metadata = {
+                "crs": sample["crs"].to_string(),
+                "bounds": list(sample["bounds"]),
+            }
 
-            # Save per-tile geojson files with crowns and other information
-            tile_bounds = sample["bounds"]
+            # Extract shapes (polygons and tree IDs)
+            shapes = sample['shapes']
+            crowns = [
+                {"treeID": tree_id, "crown": polygon.wkt}
+                for polygon, tree_id in shapes
+            ]
 
-            # Convert tile bounds to Polygon
-            tile_bounds = box(tile_bounds.minx, tile_bounds.miny, tile_bounds.maxx, tile_bounds.maxy)
+            # Add crowns to the metadata
+            metadata['crowns'] = crowns
 
-            # Read original vector data, create a new dataframe for the tile
-            crowns_gdf = gpd.read_file(vector_dataset.files[0])
-            tile_bbox = gpd.GeoDataFrame(
-                geometry=[tile_bounds],
-                crs=crowns_gdf.crs
-            )
+            # Save tile metadata to a json file
+            with open(Path(save_dir) / f"tile_{i}.json", "w") as f:
+                json.dump(metadata, f, indent=4)
 
-            # Spatial join of tile bounds and tree bounds within that region
-            crowns_tile = gpd.sjoin(crowns_gdf, tile_bbox, how="inner", predicate='intersects')
-            if not crowns_tile.empty:
-                crowns_tile.to_file(Path(save_dir) / f"tile_{i}_crowns.geojson", driver="GeoJSON")
-            else:
-                print("No crowns found for tile "+str(i))
         print("Saved " + str(i + 1) + " tiles to " + save_dir)
+
 
 
 # Helper functions
