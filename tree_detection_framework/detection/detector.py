@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Optional
-import lightning
 
+import lightning
 from torch.utils.data import DataLoader
 
 from tree_detection_framework.constants import PATH_TYPE
@@ -46,7 +46,9 @@ class LightningDetector(Detector):
         # Should be implemented in each derived class since it's algorithm-specific
         raise NotImplementedError()
 
-    def predict(self, inference_dataloader: DataLoader, **kwargs) -> RegionDetectionsSet:
+    def predict(
+        self, inference_dataloader: DataLoader, **kwargs
+    ) -> RegionDetectionsSet:
         # Should be implemented here
         raise NotImplementedError()
 
