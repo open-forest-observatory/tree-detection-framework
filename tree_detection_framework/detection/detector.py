@@ -1,7 +1,9 @@
+from abc import abstractmethod
+
 from torch.utils.data import DataLoader
+
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import RegionDetectionsSet
-from abc import abstractmethod
 
 
 class Detector:

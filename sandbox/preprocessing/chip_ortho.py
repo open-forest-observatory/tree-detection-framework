@@ -2,7 +2,7 @@ import argparse
 import json
 import random
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
 import pyproj
@@ -89,12 +89,12 @@ def chip_orthomosaics(
         for i in visualize_indices:
             plot(get_sample_from_index(dataset, sampler, i))
             plt.axis("off")
-            plt.show()    
+            plt.show()
 
     if save_dir:
         # Creates save directory if it doesn't exist
         Path(save_dir).mkdir(parents=True, exist_ok=True)
-        
+
         transform_to_pil = ToPILImage()
         for i, batch in enumerate(dataloader):
             sample = unbind_samples(batch)[0]
@@ -117,7 +117,10 @@ def chip_orthomosaics(
 
 # Helper functions
 
-def get_sample_from_index(dataset: CustomOrthoDataset, sampler: GridGeoSampler, index: int) -> Dict:
+
+def get_sample_from_index(
+    dataset: CustomOrthoDataset, sampler: GridGeoSampler, index: int
+) -> Dict:
     # Access the specific index from the sampler containing bounding boxes
     sample_indices = list(sampler)
     sample_idx = sample_indices[index]
@@ -135,7 +138,9 @@ def plot(sample: Dict) -> plt.Figure:
     return fig
 
 
-def get_projected_CRS(lat: float, lon: float, assume_western_hem: bool = True) -> pyproj.CRS:
+def get_projected_CRS(
+    lat: float, lon: float, assume_western_hem: bool = True
+) -> pyproj.CRS:
     if assume_western_hem and lon > 0:
         lon = -lon
     epgs_code = 32700 - round((45 + lat) / 90) * 100 + round((183 + lon) / 6)

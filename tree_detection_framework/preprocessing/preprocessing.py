@@ -1,9 +1,10 @@
-from typing import Optional, List
-from torch.utils.data import DataLoader
-import shapely
-import pyproj
+from typing import List, Optional
 
-from tree_detection_framework.constants import PATH_TYPE, BOUNDARY_TYPE, ARRAY_TYPE
+import pyproj
+import shapely
+from torch.utils.data import DataLoader
+
+from tree_detection_framework.constants import ARRAY_TYPE, BOUNDARY_TYPE, PATH_TYPE
 
 
 def create_spatial_split(

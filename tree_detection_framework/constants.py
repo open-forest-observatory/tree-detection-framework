@@ -1,8 +1,9 @@
-from typing import Union
 from pathlib import Path
+from typing import Union
+
 import geopandas as gpd
-import shapely
 import numpy as np
+import shapely
 
 PATH_TYPE = Union[str, Path]
 BOUNDARY_TYPE = Union[
