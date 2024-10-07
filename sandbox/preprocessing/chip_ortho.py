@@ -24,6 +24,10 @@ from torchgeo.datasets.utils import (
 import fiona
 import fiona.transform
 from typing import Any
+import logging
+
+# Set up logging configuration
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 class CustomRasterDataset(RasterDataset):
@@ -98,7 +102,8 @@ class CustomVectorDataset(VectorDataset):
             # If no features are found in this query, return an empty mask
             # with the default fill value and dtype used by rasterize
             masks = np.zeros((round(height), round(width)), dtype=np.uint8)
-
+        
+        # Converting `fiona` type shapes to `shapely` shape objects and transforming polygon coordinates into pixel values
         shapely_shapes = [(shapely.geometry.shape(sh), i) for sh, i in shapes]
         transformed = [(affine_transform(sh, (~transform).to_shapely()), i) for sh, i in shapely_shapes]
 
@@ -106,6 +111,8 @@ class CustomVectorDataset(VectorDataset):
         masks = array_to_tensor(masks)
 
         masks = masks.to(self.dtype)
+
+        # Added 'shapes' containing polygons and corresponding ID values
         sample = {'mask': masks, 'crs': self.crs, 'bounds': query, 'shapes': transformed}
 
         if self.transforms is not None:
@@ -113,13 +120,11 @@ class CustomVectorDataset(VectorDataset):
 
         return sample
 
-    #filename_glob =  "*.geojson" #".*\.(gpkg|geojson)$", "*.geojson;*.gpkg"
-
 
 def chip_orthomosaics(
     raster_path: str,
-    vector_path: str,
     size: float,
+    vector_path: Optional[str] = None,
     stride: Optional[float] = None,
     overlap_percent: Optional[float] = None,
     res: Optional[float] = None,
@@ -131,8 +136,9 @@ def chip_orthomosaics(
     Splits an orthomosaic image into smaller tiles with optional reprojection to a meters-based CRS. Tiles can be saved to a directory and visualized.
 
     Args:
-        path (str): Path to the folder containing the orthomosaic files.
+        raster_path (str): Path to the folder containing the orthomosaic files.
         size (float): Tile size in units of pixels or meters, depending on `use_units_meters`.
+        vector_path (str, optional): Path to the folder containing the vector data files.
         stride (float, optional): The distance between the start of one tile and the next in pixels or meters.
         overlap (float, optional): Percentage overlap between consecutive tiles (0-100%). Used to calculate stride if provided.
         res (float, optional): Resolution of the dataset in units of the CRS (if not specified, defaults to the resolution of the first image).
@@ -147,15 +153,15 @@ def chip_orthomosaics(
     # Stores image data
     raster_dataset = CustomRasterDataset(paths=raster_path, res=res)
 
-    # Stores label data
-    vector_dataset = CustomVectorDataset(paths=vector_path, res=res)
+    # Stores label data (hardcoded label_name for now)
+    vector_dataset = CustomVectorDataset(paths=vector_path, res=res, label_name='treeID') if vector_path else None
 
     units = Units.CRS if use_units_meters == True else Units.PIXELS
-    print("Units = ", units)
+    logging.info("Units = %s", units)
 
     if use_units_meters and raster_dataset.crs.is_geographic:
         # Reproject the dataset to a meters-based CRS
-        print("Projecting to meters-based CRS...")
+        logging.info("Projecting to meters-based CRS...")
         lat, lon = raster_dataset.bounds[2], raster_dataset.bounds[0]
 
         # Return a new projected CRS value with meters units
@@ -166,18 +172,18 @@ def chip_orthomosaics(
 
         # Recreating the raster and vector dataset objects with the new CRS value
         raster_dataset = CustomRasterDataset(paths=raster_path, crs=projected_crs)
-        vector_dataset = CustomVectorDataset(paths=vector_path, crs=projected_crs)
+        vector_dataset = CustomVectorDataset(paths=vector_path, crs=projected_crs, label_name='treeID') if vector_path else None
     
     # Create an intersection dataset that combines raster and label data
-    intersection = IntersectionDataset(raster_dataset, vector_dataset)
+    intersection = IntersectionDataset(raster_dataset, vector_dataset) if vector_path else raster_dataset
 
     # Calculate stride if overlap is provided
     if overlap_percent:
         stride = size * (1 - overlap_percent / 100.0)
-        print("Calculated stride based on overlap: " + str(stride))
+        logging.info("Calculated stride based on overlap: %s", stride)
     elif stride is None:
         raise ValueError("Either 'stride' or 'overlap' must be provided.")
-    print("Stride = ", stride)
+    logging.info("Stride = %s", stride)
 
     # GridGeoSampler to get contiguous tiles
     sampler = GridGeoSampler(intersection, size=size, stride=stride, units=units)
@@ -212,21 +218,23 @@ def chip_orthomosaics(
                 "bounds": list(sample["bounds"]),
             }
 
-            # Extract shapes (polygons and tree IDs)
-            shapes = sample['shapes']
-            crowns = [
-                {"treeID": tree_id, "crown": polygon.wkt}
-                for polygon, tree_id in shapes
-            ]
+            if vector_path:
+                # Extract shapes (polygons and tree IDs)
+                shapes = sample['shapes']
 
-            # Add crowns to the metadata
-            metadata['crowns'] = crowns
+                crowns = [
+                    {"treeID": tree_id, "crown": polygon.wkt}
+                    for polygon, tree_id in shapes
+                ]
+
+                # Add crowns to the metadata
+                metadata['crowns'] = crowns
 
             # Save tile metadata to a json file
             with open(Path(save_dir) / f"tile_{i}.json", "w") as f:
                 json.dump(metadata, f, indent=4)
 
-        print("Saved " + str(i + 1) + " tiles to " + save_dir)
+        logging.info("Saved %d tiles to %s", i + 1, save_dir)
 
 
 
@@ -264,7 +272,7 @@ def parse_args() -> argparse.Namespace:
         "--raster-path", type=str, required=True, help="Path to folder containing single or multiple orthomosaic images."
     )
     parser.add_argument(
-        "--vector-path", type=str, required=True, help="Path to folder containing single or multiple vector datafiles."
+        "--vector-path", type=str, required=False, help="Path to folder containing single or multiple vector datafiles."
     )
     parser.add_argument(
         "--res",
