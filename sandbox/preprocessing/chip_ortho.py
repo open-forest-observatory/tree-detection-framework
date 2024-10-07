@@ -1,33 +1,37 @@
 import argparse
 import json
+import logging
 import random
-import numpy as np
-import geopandas as gpd
-from shapely.geometry import box
-import shapely.geometry
-from shapely.affinity import affine_transform
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Any, Dict, Optional
 
-import matplotlib.pyplot as plt
-import pyproj
-import rasterio
-import torch
-from torch.utils.data import DataLoader
-from torchgeo.datasets import RasterDataset, VectorDataset, IntersectionDataset, stack_samples, unbind_samples
-from torchgeo.samplers import GridGeoSampler, Units
-from torchvision.transforms import ToPILImage
-from torchgeo.datasets.utils import (
-    BoundingBox,
-    array_to_tensor,
-)
 import fiona
 import fiona.transform
-from typing import Any
-import logging
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import numpy as np
+import pyproj
+import rasterio
+import shapely.geometry
+import torch
+from shapely.affinity import affine_transform
+from shapely.geometry import box
+from torch.utils.data import DataLoader
+from torchgeo.datasets import (
+    IntersectionDataset,
+    RasterDataset,
+    VectorDataset,
+    stack_samples,
+    unbind_samples,
+)
+from torchgeo.datasets.utils import BoundingBox, array_to_tensor
+from torchgeo.samplers import GridGeoSampler, Units
+from torchvision.transforms import ToPILImage
 
 # Set up logging configuration
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 
 class CustomRasterDataset(RasterDataset):
@@ -44,10 +48,12 @@ class CustomRasterDataset(RasterDataset):
     is_image: bool = True
     separate_files: bool = False
 
+
 class CustomVectorDataset(VectorDataset):
     """
     Custom dataset class for vector data which act as labels for the raster data. This class extends the `VectorDataset` from `torchgeo`.
     """
+
     def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
         """Retrieve image/mask and metadata indexed by query.
 
@@ -65,7 +71,7 @@ class CustomVectorDataset(VectorDataset):
 
         if not filepaths:
             raise IndexError(
-                f'query: {query} not found in index with bounds: {self.bounds}'
+                f"query: {query} not found in index with bounds: {self.bounds}"
             )
 
         shapes = []
@@ -83,7 +89,7 @@ class CustomVectorDataset(VectorDataset):
                 for feature in src.filter(bbox=(minx, miny, maxx, maxy)):
                     # Warp geometries to requested CRS
                     shape = fiona.transform.transform_geom(
-                        src.crs, self.crs.to_dict(), feature['geometry']
+                        src.crs, self.crs.to_dict(), feature["geometry"]
                     )
                     label = self.get_label(feature)
                     shapes.append((shape, label))
@@ -102,10 +108,13 @@ class CustomVectorDataset(VectorDataset):
             # If no features are found in this query, return an empty mask
             # with the default fill value and dtype used by rasterize
             masks = np.zeros((round(height), round(width)), dtype=np.uint8)
-        
+
         # Converting `fiona` type shapes to `shapely` shape objects and transforming polygon coordinates into pixel values
         shapely_shapes = [(shapely.geometry.shape(sh), i) for sh, i in shapes]
-        transformed = [(affine_transform(sh, (~transform).to_shapely()), i) for sh, i in shapely_shapes]
+        transformed = [
+            (affine_transform(sh, (~transform).to_shapely()), i)
+            for sh, i in shapely_shapes
+        ]
 
         # Use array_to_tensor since rasterize may return uint16/uint32 arrays.
         masks = array_to_tensor(masks)
@@ -113,7 +122,12 @@ class CustomVectorDataset(VectorDataset):
         masks = masks.to(self.dtype)
 
         # Added 'shapes' containing polygons and corresponding ID values
-        sample = {'mask': masks, 'crs': self.crs, 'bounds': query, 'shapes': transformed}
+        sample = {
+            "mask": masks,
+            "crs": self.crs,
+            "bounds": query,
+            "shapes": transformed,
+        }
 
         if self.transforms is not None:
             sample = self.transforms(sample)
@@ -154,7 +168,11 @@ def chip_orthomosaics(
     raster_dataset = CustomRasterDataset(paths=raster_path, res=res)
 
     # Stores label data (hardcoded label_name for now)
-    vector_dataset = CustomVectorDataset(paths=vector_path, res=res, label_name='treeID') if vector_path else None
+    vector_dataset = (
+        CustomVectorDataset(paths=vector_path, res=res, label_name="treeID")
+        if vector_path
+        else None
+    )
 
     units = Units.CRS if use_units_meters == True else Units.PIXELS
     logging.info("Units = %s", units)
@@ -172,10 +190,20 @@ def chip_orthomosaics(
 
         # Recreating the raster and vector dataset objects with the new CRS value
         raster_dataset = CustomRasterDataset(paths=raster_path, crs=projected_crs)
-        vector_dataset = CustomVectorDataset(paths=vector_path, crs=projected_crs, label_name='treeID') if vector_path else None
-    
+        vector_dataset = (
+            CustomVectorDataset(
+                paths=vector_path, crs=projected_crs, label_name="treeID"
+            )
+            if vector_path
+            else None
+        )
+
     # Create an intersection dataset that combines raster and label data
-    intersection = IntersectionDataset(raster_dataset, vector_dataset) if vector_path else raster_dataset
+    intersection = (
+        IntersectionDataset(raster_dataset, vector_dataset)
+        if vector_path
+        else raster_dataset
+    )
 
     # Calculate stride if overlap is provided
     if overlap_percent:
@@ -196,13 +224,13 @@ def chip_orthomosaics(
         for i in visualize_indices:
             plot(get_sample_from_index(raster_dataset, sampler, i))
             plt.axis("off")
-            plt.show()    
+            plt.show()
 
     if save_dir:
         # Creates save directory if it doesn't exist
         save_path = Path(save_dir)
         save_path.mkdir(parents=True, exist_ok=True)
-        
+
         transform_to_pil = ToPILImage()
         for i, batch in enumerate(dataloader):
             sample = unbind_samples(batch)[0]
@@ -220,7 +248,7 @@ def chip_orthomosaics(
 
             if vector_path:
                 # Extract shapes (polygons and tree IDs)
-                shapes = sample['shapes']
+                shapes = sample["shapes"]
 
                 crowns = [
                     {"treeID": tree_id, "crown": polygon.wkt}
@@ -228,7 +256,7 @@ def chip_orthomosaics(
                 ]
 
                 # Add crowns to the metadata
-                metadata['crowns'] = crowns
+                metadata["crowns"] = crowns
 
             # Save tile metadata to a json file
             with open(Path(save_dir) / f"tile_{i}.json", "w") as f:
@@ -237,10 +265,12 @@ def chip_orthomosaics(
         logging.info("Saved %d tiles to %s", i + 1, save_dir)
 
 
-
 # Helper functions
 
-def get_sample_from_index(dataset: CustomRasterDataset, sampler: GridGeoSampler, index: int) -> Dict:
+
+def get_sample_from_index(
+    dataset: CustomRasterDataset, sampler: GridGeoSampler, index: int
+) -> Dict:
     # Access the specific index from the sampler containing bounding boxes
     sample_indices = list(sampler)
     sample_idx = sample_indices[index]
@@ -258,7 +288,9 @@ def plot(sample: Dict) -> plt.Figure:
     return fig
 
 
-def get_projected_CRS(lat: float, lon: float, assume_western_hem: bool = True) -> pyproj.CRS:
+def get_projected_CRS(
+    lat: float, lon: float, assume_western_hem: bool = True
+) -> pyproj.CRS:
     if assume_western_hem and lon > 0:
         lon = -lon
     epgs_code = 32700 - round((45 + lat) / 90) * 100 + round((183 + lon) / 6)
@@ -269,10 +301,16 @@ def get_projected_CRS(lat: float, lon: float, assume_western_hem: bool = True) -
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Chipping orthomosaic images")
     parser.add_argument(
-        "--raster-path", type=str, required=True, help="Path to folder containing single or multiple orthomosaic images."
+        "--raster-path",
+        type=str,
+        required=True,
+        help="Path to folder containing single or multiple orthomosaic images.",
     )
     parser.add_argument(
-        "--vector-path", type=str, required=False, help="Path to folder containing single or multiple vector datafiles."
+        "--vector-path",
+        type=str,
+        required=False,
+        help="Path to folder containing single or multiple vector datafiles.",
     )
     parser.add_argument(
         "--res",
