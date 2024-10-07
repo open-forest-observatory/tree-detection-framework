@@ -2,7 +2,7 @@ import argparse
 import json
 import random
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
 import pyproj
