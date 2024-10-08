@@ -1,7 +1,5 @@
 from tree_detection_framework.detection.region_detections import (
-    RegionDetections,
-    RegionDetectionsSet,
-)
+    RegionDetections, RegionDetectionsSet)
 
 
 def single_region_NMS(detections: RegionDetections) -> RegionDetections:
