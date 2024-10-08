@@ -55,7 +55,8 @@ class CustomVectorDataset(VectorDataset):
     """
 
     def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
-        """Retrieve image/mask and metadata indexed by query.
+        """Retrieve image/mask and metadata indexed by query. 
+           This function is largely based on the `__getitem__` method from torchgeo's `VectorDataset`, with custom modifications for this implementation.
 
         Args:
             query: (minx, maxx, miny, maxy, mint, maxt) coordinates to index
@@ -109,24 +110,31 @@ class CustomVectorDataset(VectorDataset):
             # with the default fill value and dtype used by rasterize
             masks = np.zeros((round(height), round(width)), dtype=np.uint8)
 
-        # Converting `fiona` type shapes to `shapely` shape objects and transforming polygon coordinates into pixel values
-        shapely_shapes = [(shapely.geometry.shape(sh), i) for sh, i in shapes]
-        transformed = [
-            (affine_transform(sh, (~transform).to_shapely()), i)
-            for sh, i in shapely_shapes
-        ]
-
         # Use array_to_tensor since rasterize may return uint16/uint32 arrays.
         masks = array_to_tensor(masks)
 
         masks = masks.to(self.dtype)
 
-        # Added 'shapes' containing polygons and corresponding ID values
+        # Beginning of additions made to this function
+
+        # Invert the transform to convert geo coordinates to pixel values
+        inverse_transform = ~transform
+
+        # Convert `fiona` type shapes to `shapely` shape objects for easier manipulation
+        shapely_shapes = [(shapely.geometry.shape(sh), i) for sh, i in shapes]
+
+        # Apply the inverse transform to each shapely shape, converting geo coordinates to pixel coordinates
+        pixel_transformed_shapes = [
+            (affine_transform(sh, inverse_transform.to_shapely()), i)
+            for sh, i in shapely_shapes
+        ]
+
+        # Add 'shapes' containing polygons and corresponding ID values
         sample = {
             "mask": masks,
             "crs": self.crs,
             "bounds": query,
-            "shapes": transformed,
+            "shapes": pixel_transformed_shapes,
         }
 
         if self.transforms is not None:
@@ -139,6 +147,7 @@ def chip_orthomosaics(
     raster_path: str,
     size: float,
     vector_path: Optional[str] = None,
+    id_column_name: str = 'treeID',
     stride: Optional[float] = None,
     overlap_percent: Optional[float] = None,
     res: Optional[float] = None,
@@ -153,6 +162,7 @@ def chip_orthomosaics(
         raster_path (str): Path to the folder containing the orthomosaic files.
         size (float): Tile size in units of pixels or meters, depending on `use_units_meters`.
         vector_path (str, optional): Path to the folder containing the vector data files.
+        id_column_name (str): Column name in the vector dataframe containing IDs for the tree polygons. Defaults to 'treeID'.
         stride (float, optional): The distance between the start of one tile and the next in pixels or meters.
         overlap (float, optional): Percentage overlap between consecutive tiles (0-100%). Used to calculate stride if provided.
         res (float, optional): Resolution of the dataset in units of the CRS (if not specified, defaults to the resolution of the first image).
@@ -169,13 +179,13 @@ def chip_orthomosaics(
 
     # Stores label data (hardcoded label_name for now)
     vector_dataset = (
-        CustomVectorDataset(paths=vector_path, res=res, label_name="treeID")
-        if vector_path
+        CustomVectorDataset(paths=vector_path, res=res, label_name=id_column_name)
+        if vector_path is not None
         else None
     )
 
     units = Units.CRS if use_units_meters == True else Units.PIXELS
-    logging.info("Units = %s", units)
+    logging.info(f"Units = {units}")
 
     if use_units_meters and raster_dataset.crs.is_geographic:
         # Reproject the dataset to a meters-based CRS
@@ -192,30 +202,30 @@ def chip_orthomosaics(
         raster_dataset = CustomRasterDataset(paths=raster_path, crs=projected_crs)
         vector_dataset = (
             CustomVectorDataset(
-                paths=vector_path, crs=projected_crs, label_name="treeID"
+                paths=vector_path, crs=projected_crs, label_name=id_column_name
             )
             if vector_path
             else None
         )
 
-    # Create an intersection dataset that combines raster and label data
-    intersection = (
+    # Create an intersection dataset that combines raster and label data if given. Otherwise, proceed with just raster_dataset.
+    final_dataset = (
         IntersectionDataset(raster_dataset, vector_dataset)
-        if vector_path
+        if vector_path is not None
         else raster_dataset
     )
 
     # Calculate stride if overlap is provided
     if overlap_percent:
         stride = size * (1 - overlap_percent / 100.0)
-        logging.info("Calculated stride based on overlap: %s", stride)
+        logging.info(f"Calculated stride based on overlap: {stride}")
     elif stride is None:
         raise ValueError("Either 'stride' or 'overlap' must be provided.")
-    logging.info("Stride = %s", stride)
+    logging.info(f"Stride = {stride}")
 
     # GridGeoSampler to get contiguous tiles
-    sampler = GridGeoSampler(intersection, size=size, stride=stride, units=units)
-    dataloader = DataLoader(intersection, sampler=sampler, collate_fn=stack_samples)
+    sampler = GridGeoSampler(final_dataset, size=size, stride=stride, units=units)
+    dataloader = DataLoader(final_dataset, sampler=sampler, collate_fn=stack_samples)
 
     if visualize_n:
         # Randomly pick indices for visualizing tiles if visualize_n is specified
@@ -251,7 +261,7 @@ def chip_orthomosaics(
                 shapes = sample["shapes"]
 
                 crowns = [
-                    {"treeID": tree_id, "crown": polygon.wkt}
+                    {"ID": tree_id, "crown": polygon.wkt}
                     for polygon, tree_id in shapes
                 ]
 
@@ -262,7 +272,7 @@ def chip_orthomosaics(
             with open(Path(save_dir) / f"tile_{i}.json", "w") as f:
                 json.dump(metadata, f, indent=4)
 
-        logging.info("Saved %d tiles to %s", i + 1, save_dir)
+        logging.info(f"Saved {i + 1} tiles to {save_dir}")
 
 
 # Helper functions
@@ -311,6 +321,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         required=False,
         help="Path to folder containing single or multiple vector datafiles.",
+    )
+    parser.add_argument(
+        "--id-column-name",
+        type=str,
+        default='treeID',
+        help="Column name in the vector dataframe containing IDs for the tree polygons. Defaults to 'treeID'.",
     )
     parser.add_argument(
         "--res",
