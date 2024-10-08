@@ -4,7 +4,8 @@ import pyproj
 import shapely
 from torch.utils.data import DataLoader
 
-from tree_detection_framework.constants import ARRAY_TYPE, BOUNDARY_TYPE, PATH_TYPE
+from tree_detection_framework.constants import (ARRAY_TYPE, BOUNDARY_TYPE,
+                                                PATH_TYPE)
 
 
 def create_spatial_split(
