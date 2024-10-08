@@ -33,7 +33,8 @@ def create_spatial_split(
 def create_dataloader(
     raster_folder_path: PATH_TYPE,
     chip_size: float,
-    chip_stride: float,
+    chip_stride: Optional[float] = None,
+    chip_overlap_percentage: float = None,
     use_units_meters: bool = False,
     region_of_interest: Optional[BOUNDARY_TYPE] = None,
     output_resolution: Optional[float] = None,
@@ -48,8 +49,12 @@ def create_dataloader(
         raster_folder_path (PATH_TYPE): Path to the folder or raster files
         chip_size (float):
             Dimension of the chip. May be pixels or meters, based on `use_units_meters`.
-        chip_stride (float):
-            Stride of the chip. May be pixels or meters, based on `use_units_meters`.
+        chip_stride (Optional[float], optional):
+            Stride of the chip. May be pixels or meters, based on `use_units_meters`. If used,
+            `chip_overlap_percentage` should not be set. Defaults to None.
+        chip_overlap_percentage (Optional[float], optional):
+            Percent overlap of the chip from 0-100. If used, `chip_stride` should not be set.
+            Defaults to None.
         use_units_meters (bool, optional):
             Use units of meters rather than pixels when interpreting the `chip_size` and `chip_stride`.
             Defaults to False.
@@ -85,11 +90,24 @@ def visualize_dataloader(dataloader: DataLoader, n_tiles: int):
     raise NotImplementedError()
 
 
-def save_dataloader_contents(dataloader: DataLoader, save_folder: PATH_TYPE):
+def save_dataloader_contents(
+    dataloader: DataLoader,
+    save_folder: PATH_TYPE,
+    n_tiles: Optional[int] = None,
+    random_sample: bool = False,
+):
     """Save contents of the dataloader to a folder
 
     Args:
-        dataloader (DataLoader): Dataloader to save the contents of
-        save_folder (PATH_TYPE): Folder to save data to. Will be created if it doesn't exist.
+        dataloader (DataLoader):
+            Dataloader to save the contents of
+        save_folder (PATH_TYPE):
+            Folder to save data to. Will be created if it doesn't exist.
+        n_tiles (Optional[int], optional):
+            How many tiles to saved. Whether they are the first tiles or random is controlled by
+            `random_sample`. If unset, all tiles will be saved. Defaults to None.
+        random_sample: (bool, optional):
+            If `n_tiles` is set, should the tiles be randomly sampled rather than taken from the
+            beginning of the dataloader. Defaults to True.
     """
     raise NotImplementedError()
