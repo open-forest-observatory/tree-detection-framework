@@ -33,7 +33,6 @@ class Detector:
 
 class LightningDetector(Detector):
     model: lightning.LightningModule
-    trainer: lightning.Trainer
 
     def setup(self):
         # This method should implement setup tasks that are common to all LightningDetectors.
@@ -41,9 +40,27 @@ class LightningDetector(Detector):
         raise NotImplementedError()
 
     @abstractmethod
-    def setup_model(self):
-        """Set up the lightning model, including loading pretrained weights if required"""
+    def setup_model(self, param_dict: dict) -> lightning.LightningModule:
+        """Set up the lightning model, including loading pretrained weights if required
+
+        Args:
+            param_dict (dict): Dictionary of configuration paramters.
+
+        Returns:
+            lightning.LightningModule: A configured model
+        """
         # Should be implemented in each derived class since it's algorithm-specific
+        raise NotImplementedError()
+
+    def setup_trainer(self, param_dict: dict) -> lightning.Trainer:
+        """Create a pytorch lightning trainer from a parameter dictionary
+
+        Args:
+            param_dict (dict): Dictionary of configuration paramters.
+
+        Returns:
+            lightning.Trainer: A configured trainer
+        """
         raise NotImplementedError()
 
     def predict(
