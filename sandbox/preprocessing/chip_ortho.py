@@ -17,8 +17,13 @@ import torch
 from shapely.affinity import affine_transform
 from shapely.geometry import box
 from torch.utils.data import DataLoader
-from torchgeo.datasets import (IntersectionDataset, RasterDataset,
-                               VectorDataset, stack_samples, unbind_samples)
+from torchgeo.datasets import (
+    IntersectionDataset,
+    RasterDataset,
+    VectorDataset,
+    stack_samples,
+    unbind_samples,
+)
 from torchgeo.datasets.utils import BoundingBox, array_to_tensor
 from torchgeo.samplers import GridGeoSampler, Units
 from torchvision.transforms import ToPILImage
@@ -50,7 +55,7 @@ class CustomVectorDataset(VectorDataset):
     """
 
     def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
-        """Retrieve image/mask and metadata indexed by query. 
+        """Retrieve image/mask and metadata indexed by query.
            This function is largely based on the `__getitem__` method from torchgeo's `VectorDataset`, with custom modifications for this implementation.
 
         Args:
@@ -142,7 +147,7 @@ def chip_orthomosaics(
     raster_path: str,
     size: float,
     vector_path: Optional[str] = None,
-    id_column_name: str = 'treeID',
+    id_column_name: str = "treeID",
     stride: Optional[float] = None,
     overlap_percent: Optional[float] = None,
     res: Optional[float] = None,
@@ -256,8 +261,7 @@ def chip_orthomosaics(
                 shapes = sample["shapes"]
 
                 crowns = [
-                    {"ID": tree_id, "crown": polygon.wkt}
-                    for polygon, tree_id in shapes
+                    {"ID": tree_id, "crown": polygon.wkt} for polygon, tree_id in shapes
                 ]
 
                 # Add crowns to the metadata
@@ -320,7 +324,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--id-column-name",
         type=str,
-        default='treeID',
+        default="treeID",
         help="Column name in the vector dataframe containing IDs for the tree polygons. Defaults to 'treeID'.",
     )
     parser.add_argument(
