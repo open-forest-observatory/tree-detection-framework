@@ -17,13 +17,8 @@ import torch
 from shapely.affinity import affine_transform
 from shapely.geometry import box
 from torch.utils.data import DataLoader
-from torchgeo.datasets import (
-    IntersectionDataset,
-    RasterDataset,
-    VectorDataset,
-    stack_samples,
-    unbind_samples,
-)
+from torchgeo.datasets import (IntersectionDataset, RasterDataset,
+                               VectorDataset, stack_samples, unbind_samples)
 from torchgeo.datasets.utils import BoundingBox, array_to_tensor
 from torchgeo.samplers import GridGeoSampler, Units
 from torchvision.transforms import ToPILImage
