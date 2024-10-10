@@ -154,7 +154,7 @@ def chip_orthomosaics(
     use_units_meters: bool = False,
     save_dir: Optional[str] = None,
     visualize_n: Optional[int] = None,
-) -> None:
+) -> DataLoader:
     """
     Splits an orthomosaic image into smaller tiles with optional reprojection to a meters-based CRS. Tiles can be saved to a directory and visualized.
 
@@ -169,6 +169,9 @@ def chip_orthomosaics(
         use_units_meters (bool, optional): Whether to use meters instead of pixels for tile size and stride.
         save_dir (str, optional): Directory where the tiles and metadata should be saved.
         visualize_n (int, optional): Number of randomly selected tiles to visualize.
+
+    Returns:
+        A dataloader with chipped orthomosaic tiles.
 
     Raises:
         ValueError: If neither `stride` nor `overlap` are provided.
@@ -272,6 +275,8 @@ def chip_orthomosaics(
                 json.dump(metadata, f, indent=4)
 
         logging.info(f"Saved {i + 1} tiles to {save_dir}")
+    
+    return dataloader
 
 
 # Helper functions
