@@ -192,27 +192,47 @@ def save_dataloader_contents(
     n_tiles: Optional[int] = None,
     random_sample: bool = False,
 ):
-    """Save contents of the dataloader to a folder
+    """Save contents of the dataloader to a folder.
 
     Args:
         dataloader (DataLoader):
-            Dataloader to save the contents of
-        save_folder (PATH_TYPE):
+            Dataloader to save the contents of.
+        save_folder (Path):
             Folder to save data to. Will be created if it doesn't exist.
         n_tiles (Optional[int], optional):
-            How many tiles to saved. Whether they are the first tiles or random is controlled by
+            Number of tiles to save. Whether they are the first tiles or random is controlled by
             `random_sample`. If unset, all tiles will be saved. Defaults to None.
-        random_sample: (bool, optional):
+        random_sample (bool, optional):
             If `n_tiles` is set, should the tiles be randomly sampled rather than taken from the
             beginning of the dataloader. Defaults to False.
     """
-    # Creates save directory if it doesn't exist
+    # Create save directory if it doesn't exist
     save_folder.mkdir(parents=True, exist_ok=True)
 
     transform_to_pil = ToPILImage()
-    for i, batch in enumerate(dataloader):
+
+    # Collect all batches from the dataloader
+    all_batches = list(dataloader)
+
+    # Get total number of available tiles
+    dataset_size = len(all_batches)
+
+    # If `n_tiles` is set, limit the number of tiles to save
+    if n_tiles is not None:
+        if random_sample:
+            # Randomly sample `n_tiles`. If `n_tiles` is greater than `dataset_size`, include all tiles.
+            selected_batches = random.sample(all_batches, min(n_tiles, dataset_size))
+        else:
+            # Take first `n_tiles`
+            selected_batches = all_batches[:n_tiles]
+    else:
+        selected_batches = all_batches
+
+    # Iterate over the selected batches
+    for i, batch in enumerate(selected_batches):
         sample = unbind_samples(batch)[0]
 
+        # Process the image
         image = sample["image"]
         image_tensor = torch.clamp(image / 255.0, min=0, max=1)
         pil_image = transform_to_pil(image_tensor)
@@ -224,20 +244,16 @@ def save_dataloader_contents(
             "bounds": list(sample["bounds"]),
         }
 
-        # if vector dataset is part of the dataloader (i.e., includes 2 datasets), save crown metadata as well
+        # If vector dataset is part of the dataloader, save crown metadata
         if len(dataloader.dataset.datasets) == 2:
-            # Extract shapes (polygons and tree IDs)
             shapes = sample["shapes"]
-
             crowns = [
                 {"ID": tree_id, "crown": polygon.wkt} for polygon, tree_id in shapes
             ]
-
-            # Add crowns to the metadata
             metadata["crowns"] = crowns
 
-        # Save tile metadata to a json file
+        # Save metadata to a JSON file
         with open(save_folder / f"tile_{i}.json", "w") as f:
             json.dump(metadata, f, indent=4)
 
-    logging.info(f"Saved {i + 1} tiles to {save_folder}")
+    print(f"Saved {i + 1} tiles to {save_folder}")
