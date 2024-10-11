@@ -2,16 +2,12 @@ from typing import Any
 
 import fiona
 import fiona.transform
+import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 import shapely.geometry
 from shapely.affinity import affine_transform
-import matplotlib.pyplot as plt
-
-from torchgeo.datasets import (
-    RasterDataset,
-    VectorDataset,
-)
+from torchgeo.datasets import RasterDataset, VectorDataset
 from torchgeo.datasets.utils import BoundingBox, array_to_tensor
 
 
@@ -34,7 +30,7 @@ class CustomRasterDataset(RasterDataset):
         Plots an image from the dataset.
 
         Args:
-            sample (dict): 
+            sample (dict):
                 A dictionary containing the tile to plot. The 'image' key should have a tensor of shape (C, H, W).
 
         Returns:
@@ -42,13 +38,14 @@ class CustomRasterDataset(RasterDataset):
                 A figure containing the plotted image.
         """
         # Reorder and rescale the image
-        image = sample['image'].permute(1, 2, 0)
+        image = sample["image"].permute(1, 2, 0)
         image = image.byte().numpy()
 
         # Plot the image
         fig, ax = plt.subplots()
         ax.imshow(image)
         return fig
+
 
 class CustomVectorDataset(VectorDataset):
     """
