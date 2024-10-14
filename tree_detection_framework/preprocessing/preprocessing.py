@@ -10,15 +10,15 @@ import rasterio
 import shapely
 import torch
 from torch.utils.data import DataLoader
-from torchgeo.datasets import (IntersectionDataset, stack_samples,
-                               unbind_samples)
+from torchgeo.datasets import IntersectionDataset, stack_samples, unbind_samples
 from torchgeo.samplers import GridGeoSampler, Units
 from torchvision.transforms import ToPILImage
 
-from tree_detection_framework.constants import (ARRAY_TYPE, BOUNDARY_TYPE,
-                                                PATH_TYPE)
+from tree_detection_framework.constants import ARRAY_TYPE, BOUNDARY_TYPE, PATH_TYPE
 from tree_detection_framework.preprocessing.derived_geodatasets import (
-    CustomRasterDataset, CustomVectorDataset)
+    CustomRasterDataset,
+    CustomVectorDataset,
+)
 from tree_detection_framework.utils.geospatial import get_projected_CRS
 
 
