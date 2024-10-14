@@ -3,6 +3,7 @@ from typing import List, Optional, Union
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import pyproj
 import shapely
 from shapely.affinity import affine_transform
@@ -128,34 +129,57 @@ class RegionDetections:
             )
             # This no longer has a CRS, so set it to None
             pixel_coordinate_detections.crs = None
-            return pixel_coordinate_detections
+            return pixel_coordinate_detections.copy()
 
         # Return the data in geospatial coordinates
         else:
             # If no CRS is specified, return the data as-is, using the current CRS
             if CRS is None:
-                return self.detections
+                return self.detections.copy()
 
             # Transform the data to the requested CRS. Note that if no CRS is provided initially,
             # this will error out
             detections_in_new_CRS = self.detections.to_crs(CRS)
-            return detections_in_new_CRS
+            return detections_in_new_CRS.copy()
 
 
 class RegionDetectionsSet:
+    region_detections: List[RegionDetections]
+
     def __init__(self, region_detections: List[RegionDetections]):
         """Create a set of detections to conveniently perform operations on all of them
 
         Args:
             region_detections (List[RegionDetections]): A list of individual detections
         """
-        raise NotImplementedError()
+        self.region_detections = region_detections
 
-    def save(self, save_path: PATH_TYPE):
-        """Save the data to a geospatial file
+    def save(self, save_path: PATH_TYPE, region_ID_key: Optional[str] = "region_ID"):
+        """
+        Save the data to a geospatial file, by adding an additional attribute to specify the region
+        and then merging all the regions together.
 
         Args:
             save_path (PATH_TYPE):
                File to save the data to. The containing folder will be created if it does not exist.
+            region_ID_key (Optional[str], optional):
+                Create this column in the output dataframe identifying which region that data came
+                from using a zero-indexed integer. Defaults to "region_ID".
         """
-        raise NotImplementedError()
+        # Get the detections from each region detection object as geodataframes
+        detection_geodataframes = [rd.get_detections() for rd in self.region_detections]
+
+        # Add a column to each geodataframe identifying which region detection object it came from
+        # Note that dataframes in the original list are updated
+        for i, gdf in enumerate(detection_geodataframes):
+            gdf[region_ID_key] = i
+
+        # Concatenate the geodataframes together
+        concatenated_geodataframes = pd.concatenate(detection_geodataframes)
+
+        # Ensure that the folder to save them to exists
+        save_path = Path(save_path)
+        save_path.mkdir(exist_ok=True, parents=True)
+
+        # Save the data to the geofile
+        concatenated_geodataframes.to_file(save_path)
