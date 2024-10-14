@@ -78,7 +78,7 @@ def tile_data(
         vector_label_attribute=vector_label_attribute,
     )
 
-    # If `visualize_n_tiles` is specified, display the those many number of tiles.
+    # If `visualize_n_tiles` is specified, display those many number of tiles.
     if visualize_n_tiles is not None:
         visualize_dataloader(
             dataloader=dataloader,
