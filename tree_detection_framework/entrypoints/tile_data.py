@@ -24,7 +24,8 @@ def tile_data(
     random_sample: bool = False,
 ):
     """
-    Entrypoint script to test preprocessing functions.
+    Entrypoint script for testing preprocessing functions.
+    It enables creating a dataloader, visualizing sample tiles from the dataloader, and saving the contents of the dataloader to disk.
 
     Args:
         raster_folder_path (PATH_TYPE): Path to the folder or raster files.
@@ -63,7 +64,7 @@ def tile_data(
             If `save_n_tiles` is set, should the tiles be randomly sampled rather than taken from the
             beginning of the dataloader. Defaults to False.
     """
-
+    # Create the dataloader by passing folder path to raster data and optionally a path to the vector data folder.
     dataloader = create_dataloader(
         raster_folder_path=raster_folder_path,
         chip_size=chip_size,
@@ -77,12 +78,14 @@ def tile_data(
         vector_label_attribute=vector_label_attribute,
     )
 
+    # If `visualize_n_tiles` is specified, display the those many number of tiles.
     if visualize_n_tiles is not None:
         visualize_dataloader(
             dataloader=dataloader,
             n_tiles=visualize_n_tiles
         )
 
+    # If path to save tiles is given, save all the tiles (or `n_tiles`) from the dataloader to disk. Tiles can be randomly sampled or ordered.
     if save_folder is not None:
         save_dataloader_contents(
             dataloader=dataloader,

@@ -30,12 +30,10 @@ class CustomRasterDataset(RasterDataset):
         Plots an image from the dataset.
 
         Args:
-            sample (dict):
-                A dictionary containing the tile to plot. The 'image' key should have a tensor of shape (C, H, W).
+            sample (dict): A dictionary containing the tile to plot. The 'image' key should have a tensor of shape (C, H, W).
 
         Returns:
-            matplotlib.figure.Figure:
-                A figure containing the plotted image.
+            matplotlib.figure.Figure: A figure containing the plotted image.
         """
         # Reorder and rescale the image
         image = sample["image"].permute(1, 2, 0)
