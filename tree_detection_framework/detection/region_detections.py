@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List, Optional, Union
 
 import geopandas as gpd
@@ -7,6 +8,7 @@ import shapely
 from shapely.affinity import affine_transform
 
 from tree_detection_framework.constants import PATH_TYPE
+from tree_detection_framework.utils.geometric import get_shapely_transform_from_matrix
 
 
 class RegionDetections:
@@ -47,15 +49,10 @@ class RegionDetections:
 
         # Check if a pixel to CRS transform is provided
         if pixel_to_CRS_transform:
-            # Format the transform in the format expected by shapely: [a, b, d, e, xoff, y_off]
-            shapely_transform = [
-                pixel_to_CRS_transform[0, 0],
-                pixel_to_CRS_transform[0, 1],
-                pixel_to_CRS_transform[1, 0],
-                pixel_to_CRS_transform[1, 1],
-                pixel_to_CRS_transform[0, 2],
-                pixel_to_CRS_transform[1, 2],
-            ]
+            # Convert from the matrix representation to what is expected by shapely
+            shapely_transform = get_shapely_transform_from_matrix(
+                pixel_to_CRS_transform
+            )
             # Apply this transformation to each geometry to get the detections in a given CRS
             detection_geometries = [
                 affine_transform(geom=geom, matrix=shapely_transform)
@@ -83,35 +80,66 @@ class RegionDetections:
                 Path to a geofile to save the data to. The containing folder will be created if it
                 doesn't exist.
         """
-        raise NotImplementedError()
+        # Convert to a Path object and create the containing folder if not present
+        save_path = Path(save_path)
+        save_path.mkdir(parents=True, exist_ok=True)
 
-    def convert_pixels_to_CRS(self) -> gpd.GeoDataFrame:
-        """
-        Use the `self.CRS_to_pixels_transform` to convert the predictions from pixels to coordinates
-        of self.CRS
-
-
-        Returns:
-            gpd.GeoDataFrame: Dataframe of detections with the CRS=self.CRS.
-        """
-        raise NotImplementedError()
+        # Save the detections to a file. Note that the bounds and the CRS are currently lost.
+        self.detections.to_file(save_path)
 
     def get_detections(
         self, CRS: Optional[pyproj.CRS] = None, as_pixels: Optional[bool] = False
     ) -> gpd.GeoDataFrame:
-        """Get the detections, optionally in a specfied CRS
+        """Get the detections, optionally specifying a CRS or pixel coordinates
 
         Args:
             CRS (Optional[pyproj.CRS], optional):
-                Requested CRS for the output detections. If un-set, `self.CRS` will be used.
-                Defaults to None.
+                Requested CRS for the output detections. If un-set, the CRS of self.detections will
+                be used. Defaults to None.
             as_pixels (Optional[bool], optional):
                 Whether to return the values in pixel coordinates. Defaults to False.
 
         Returns:
-            gpd.GeoDataFrame: Detections in the requested CRS
+            gpd.GeoDataFrame: Detections in the requested CRS or in pixel coordinates with a None .crs
         """
-        raise NotImplementedError()
+        # If the data is requested in pixel coordinates, transform it appropriately
+        if as_pixels:
+            if (self.detections.crs is not None) and (
+                self.pixel_to_CRS_transform is None
+            ):
+                raise ValueError(
+                    "Pixel coordinates were requested but data is in geospatial units with no transformation to pixels"
+                )
+
+            # Add a row of 0, 0, 1 to the transform
+            transform_3x3 = np.concatenate(
+                self.pixel_to_CRS_transform, np.expand_dims([0, 0, 1], 0)
+            )
+            # Compute the matrix inverse of the transform to get the map from the CRS reference
+            # frame to pixels rather than the other way around
+            CRS_to_pixel_transform_matrix = np.linalg.inv(transform_3x3)
+            # Geopandas also uses the shapely conventions, so convert the matrix into this form
+            CRS_to_pixel_transform_shapely = get_shapely_transform_from_matrix(
+                CRS_to_pixel_transform_matrix
+            )
+            # Create a new geodataframe with the transformed coordinates
+            pixel_coordinate_detections = self.detections.affine_transform(
+                CRS_to_pixel_transform_shapely
+            )
+            # This no longer has a CRS, so set it to None
+            pixel_coordinate_detections.crs = None
+            return pixel_coordinate_detections
+
+        # Return the data in geospatial coordinates
+        else:
+            # If no CRS is specified, return the data as-is, using the current CRS
+            if CRS is None:
+                return self.detections
+
+            # Transform the data to the requested CRS. Note that if no CRS is provided initially,
+            # this will error out
+            detections_in_new_CRS = self.detections.to_crs(CRS)
+            return detections_in_new_CRS
 
 
 class RegionDetectionsSet:
