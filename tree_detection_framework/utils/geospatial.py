@@ -1,5 +1,6 @@
 import pyproj
 
+
 def get_projected_CRS(
     lat: float, lon: float, assume_western_hem: bool = True
 ) -> pyproj.CRS:
