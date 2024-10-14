@@ -33,7 +33,7 @@ class RegionDetections:
                 provided in pixel coordinates or in the coordinates of a CRS.
             attributes (Optional[dict], optional):
                 A dictionary mapping from str names for an attribute to a list of values for that
-                attribute. Defaults to {}.
+                attribute, one value per detection. Defaults to {}.
             CRS (Optional[pyproj.CRS], optional):
                 A coordinate reference system to interpret the data in. If pixel_to_CRS_transform is
                 set, this matrix will be first applied to the values before they are interpreted in
