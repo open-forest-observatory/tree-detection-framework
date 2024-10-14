@@ -25,7 +25,7 @@ class CustomRasterDataset(RasterDataset):
     is_image: bool = True
     separate_files: bool = False
 
-    def plot(self, sample):
+    def plot_rgb(self, sample):
         """
         Plots an image from the dataset.
 

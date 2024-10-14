@@ -183,9 +183,9 @@ def visualize_dataloader(dataloader: DataLoader, n_tiles: int):
 
         # Plot the sample image. If the dataloader has label data, index the first dataset to plot.
         if isinstance(dataloader.dataset, IntersectionDataset):
-            dataloader.dataset.datasets[0].plot(sample)
+            dataloader.dataset.datasets[0].plot_rgb(sample)
         else:
-            dataloader.dataset.plot(sample)
+            dataloader.dataset.plot_rgb(sample)
         plt.axis("off")
         plt.show()
 
