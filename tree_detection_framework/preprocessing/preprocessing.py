@@ -1,10 +1,25 @@
+import json
+import logging
+import random
+from pathlib import Path
 from typing import List, Optional
 
+import matplotlib.pyplot as plt
 import pyproj
+import rasterio
 import shapely
+import torch
 from torch.utils.data import DataLoader
+from torchgeo.datasets import IntersectionDataset, stack_samples, unbind_samples
+from torchgeo.samplers import GridGeoSampler, Units
+from torchvision.transforms import ToPILImage
 
 from tree_detection_framework.constants import ARRAY_TYPE, BOUNDARY_TYPE, PATH_TYPE
+from tree_detection_framework.preprocessing.derived_geodatasets import (
+    CustomRasterDataset,
+    CustomVectorDataset,
+)
+from tree_detection_framework.utils.geospatial import get_projected_CRS
 
 
 def create_spatial_split(
@@ -76,17 +91,104 @@ def create_dataloader(
             A dataloader containing tiles from the raster data and optionally corresponding labels
             from the vector data.
     """
-    raise NotImplementedError()
+    # Stores image data
+    raster_dataset = CustomRasterDataset(
+        paths=raster_folder_path, res=output_resolution
+    )
+
+    # Stores label data
+    vector_dataset = (
+        CustomVectorDataset(
+            paths=vector_label_folder_path,
+            res=output_resolution,
+            label_name=vector_label_attribute,
+        )
+        if vector_label_folder_path is not None
+        else None
+    )
+
+    units = Units.CRS if use_units_meters == True else Units.PIXELS
+    logging.info(f"Units = {units}")
+
+    if use_units_meters and raster_dataset.crs.is_geographic:
+        # Reproject the dataset to a meters-based CRS
+        logging.info("Projecting to meters-based CRS...")
+        lat, lon = raster_dataset.bounds[2], raster_dataset.bounds[0]
+
+        # Return a new projected CRS value with meters units
+        projected_crs = get_projected_CRS(lat, lon)
+
+        # Type conversion to rasterio.crs
+        projected_crs = rasterio.crs.CRS.from_wkt(projected_crs.to_wkt())
+
+        # Recreating the raster and vector dataset objects with the new CRS value
+        raster_dataset = CustomRasterDataset(
+            paths=raster_folder_path, crs=projected_crs
+        )
+        vector_dataset = (
+            CustomVectorDataset(
+                paths=vector_label_folder_path,
+                crs=projected_crs,
+                label_name=vector_label_attribute,
+            )
+            if vector_label_folder_path is not None
+            else None
+        )
+
+    # Create an intersection dataset that combines raster and label data if given. Otherwise, proceed with just raster_dataset.
+    final_dataset = (
+        IntersectionDataset(raster_dataset, vector_dataset)
+        if vector_label_folder_path is not None
+        else raster_dataset
+    )
+
+    if chip_overlap_percentage:
+        # Calculate `chip_stride` if `chip_overlap_percentage` is provided
+        chip_stride = chip_size * (1 - chip_overlap_percentage / 100.0)
+        logging.info(f"Calculated stride based on overlap: {chip_stride}")
+
+    elif chip_stride is None:
+        raise ValueError(
+            "Either 'chip_size' or 'chip_overlap_percentage' must be provided."
+        )
+
+    logging.info(f"Stride = {chip_stride}")
+
+    # GridGeoSampler to get contiguous tiles
+    sampler = GridGeoSampler(
+        final_dataset, size=chip_size, stride=chip_stride, units=units
+    )
+    dataloader = DataLoader(final_dataset, sampler=sampler, collate_fn=stack_samples)
+
+    return dataloader
 
 
 def visualize_dataloader(dataloader: DataLoader, n_tiles: int):
-    """Show samples from the dataloader
+    """Show samples from the dataloader.
 
     Args:
-        dataloader (DataLoader): The dataloader to visualize
-        n_tiles (int): The number of randomly-sampled tiles to show
+        dataloader (DataLoader): The dataloader to visualize.
+        n_tiles (int): The number of randomly-sampled tiles to show.
     """
-    raise NotImplementedError()
+    # Get a random sample of `n_tiles` index values to visualize
+    tile_indices = random.sample(range(len(dataloader.sampler)), n_tiles)
+
+    # Get a list of all tile bounds from the sampler
+    list_of_bboxes = list(dataloader.sampler)
+
+    for i in tile_indices:
+        sample_bbox = list_of_bboxes[i]
+
+        # Get the referenced sample from the dataloader
+        sample = dataloader.dataset[sample_bbox]
+
+        # Plot the sample image. If the dataloader has label data, index the first dataset to plot.
+        if isinstance(dataloader.dataset, IntersectionDataset):
+            dataloader.dataset.datasets[0].plot_rgb(sample)
+        else:
+            dataloader.dataset.plot_rgb(sample)
+        plt.axis("off")
+        plt.show()
 
 
 def save_dataloader_contents(
@@ -95,18 +197,69 @@ def save_dataloader_contents(
     n_tiles: Optional[int] = None,
     random_sample: bool = False,
 ):
-    """Save contents of the dataloader to a folder
+    """Save contents of the dataloader to a folder.
 
     Args:
         dataloader (DataLoader):
-            Dataloader to save the contents of
+            Dataloader to save the contents of.
         save_folder (PATH_TYPE):
             Folder to save data to. Will be created if it doesn't exist.
         n_tiles (Optional[int], optional):
-            How many tiles to saved. Whether they are the first tiles or random is controlled by
+            Number of tiles to save. Whether they are the first tiles or random is controlled by
             `random_sample`. If unset, all tiles will be saved. Defaults to None.
-        random_sample: (bool, optional):
+        random_sample (bool, optional):
             If `n_tiles` is set, should the tiles be randomly sampled rather than taken from the
-            beginning of the dataloader. Defaults to True.
+            beginning of the dataloader. Defaults to False.
     """
-    raise NotImplementedError()
+    # Create save directory if it doesn't exist
+    destination_folder = Path(save_folder)
+    destination_folder.mkdir(parents=True, exist_ok=True)
+
+    transform_to_pil = ToPILImage()
+
+    # Collect all batches from the dataloader
+    all_batches = list(dataloader)
+
+    # Get total number of available tiles
+    dataset_size = len(all_batches)
+
+    # If `n_tiles` is set, limit the number of tiles to save
+    if n_tiles is not None:
+        if random_sample:
+            # Randomly sample `n_tiles`. If `n_tiles` is greater than `dataset_size`, include all tiles.
+            selected_batches = random.sample(all_batches, min(n_tiles, dataset_size))
+        else:
+            # Take first `n_tiles`
+            selected_batches = all_batches[:n_tiles]
+    else:
+        selected_batches = all_batches
+
+    # Iterate over the selected batches
+    for i, batch in enumerate(selected_batches):
+        sample = unbind_samples(batch)[0]
+
+        # Process the image
+        image = sample["image"]
+        image_tensor = torch.clamp(image / 255.0, min=0, max=1)
+        pil_image = transform_to_pil(image_tensor)
+        pil_image.save(destination_folder / f"tile_{i}.png")
+
+        # Prepare tile metadata
+        metadata = {
+            "crs": sample["crs"].to_string(),
+            "bounds": list(sample["bounds"]),
+        }
+
+        # If dataset includes labels, save crown metadata
+        if isinstance(dataloader.dataset, IntersectionDataset):
+            shapes = sample["shapes"]
+            crowns = [
+                {"ID": tree_id, "crown": polygon.wkt} for polygon, tree_id in shapes
+            ]
+            metadata["crowns"] = crowns
+
+        # Save metadata to a JSON file
+        with open(destination_folder / f"tile_{i}.json", "w") as f:
+            json.dump(metadata, f, indent=4)
+
+    print(f"Saved {i + 1} tiles to {save_folder}")
