@@ -1,6 +1,7 @@
 import json
 import logging
 import random
+from pathlib import Path
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
@@ -180,8 +181,11 @@ def visualize_dataloader(dataloader: DataLoader, n_tiles: int):
         # Get the referenced sample from the dataloader
         sample = dataloader.dataset[sample_bbox]
 
-        # Plot the sample image. `dataloader.dataset.datasets[0]` selects the raster_dataset.
-        dataloader.dataset.datasets[0].plot(sample)
+        # Plot the sample image. If the dataloader has label data, index the first dataset to plot.
+        if isinstance(dataloader.dataset, IntersectionDataset):
+            dataloader.dataset.datasets[0].plot(sample)
+        else:
+            dataloader.dataset.plot(sample)
         plt.axis("off")
         plt.show()
 
@@ -207,7 +211,8 @@ def save_dataloader_contents(
             beginning of the dataloader. Defaults to False.
     """
     # Create save directory if it doesn't exist
-    save_folder.mkdir(parents=True, exist_ok=True)
+    destination_folder = Path(save_folder)
+    destination_folder.mkdir(parents=True, exist_ok=True)
 
     transform_to_pil = ToPILImage()
 
@@ -236,7 +241,7 @@ def save_dataloader_contents(
         image = sample["image"]
         image_tensor = torch.clamp(image / 255.0, min=0, max=1)
         pil_image = transform_to_pil(image_tensor)
-        pil_image.save(save_folder / f"tile_{i}.png")
+        pil_image.save(destination_folder / f"tile_{i}.png")
 
         # Prepare tile metadata
         metadata = {
@@ -244,8 +249,8 @@ def save_dataloader_contents(
             "bounds": list(sample["bounds"]),
         }
 
-        # If vector dataset is part of the dataloader, save crown metadata
-        if len(dataloader.dataset.datasets) == 2:
+        # If dataset includes labels, save crown metadata
+        if isinstance(dataloader.dataset, IntersectionDataset):
             shapes = sample["shapes"]
             crowns = [
                 {"ID": tree_id, "crown": polygon.wkt} for polygon, tree_id in shapes
@@ -253,7 +258,7 @@ def save_dataloader_contents(
             metadata["crowns"] = crowns
 
         # Save metadata to a JSON file
-        with open(save_folder / f"tile_{i}.json", "w") as f:
+        with open(destination_folder / f"tile_{i}.json", "w") as f:
             json.dump(metadata, f, indent=4)
 
     print(f"Saved {i + 1} tiles to {save_folder}")
