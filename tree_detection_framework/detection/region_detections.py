@@ -124,12 +124,17 @@ class RegionDetections:
                 CRS_to_pixel_transform_matrix
             )
             # Create a new geodataframe with the transformed coordinates
-            pixel_coordinate_detections = self.detections.affine_transform(
-                CRS_to_pixel_transform_shapely
-            )
-            # This no longer has a CRS, so set it to None
+            # Start by copying the old dataframe
+            pixel_coordinate_detections = self.detections.copy()
+            # Since the units are pixels, it no longer has a CRS, so set it to None
             pixel_coordinate_detections.crs = None
-            return pixel_coordinate_detections.copy()
+            # Transform the geometry to pixel coordinates
+            pixel_coordinate_detections.geometry = (
+                pixel_coordinate_detections.geometry.affine_transform(
+                    CRS_to_pixel_transform_shapely
+                )
+            )
+            return pixel_coordinate_detections
 
         # Return the data in geospatial coordinates
         else:
@@ -139,8 +144,8 @@ class RegionDetections:
 
             # Transform the data to the requested CRS. Note that if no CRS is provided initially,
             # this will error out
-            detections_in_new_CRS = self.detections.to_crs(CRS)
-            return detections_in_new_CRS.copy()
+            detections_in_new_CRS = self.detections.copy().to_crs(CRS)
+            return detections_in_new_CRS
 
 
 class RegionDetectionsSet:
