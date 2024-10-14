@@ -32,7 +32,7 @@ jobs:
           python-version: 3.9
 
       - name: Run Isort
-        run: pip install isort==5.13.2 && isort .
+        run: pip install isort==5.13.2 && isort --profile black .
 
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v5
