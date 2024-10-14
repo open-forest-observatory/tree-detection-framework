@@ -201,7 +201,7 @@ def save_dataloader_contents(
     Args:
         dataloader (DataLoader):
             Dataloader to save the contents of.
-        save_folder (Path):
+        save_folder (PATH_TYPE):
             Folder to save data to. Will be created if it doesn't exist.
         n_tiles (Optional[int], optional):
             Number of tiles to save. Whether they are the first tiles or random is controlled by

@@ -52,7 +52,8 @@ class CustomVectorDataset(VectorDataset):
 
     def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
         """Retrieve image/mask and metadata indexed by query.
-           This function is largely based on the `__getitem__` method from torchgeo's `VectorDataset`, with custom modifications for this implementation.
+           This function is largely based on the `__getitem__` method from TorchGeo's `VectorDataset`.
+           Modifications have been made to include 'shapes' as polygons per tile represented in pixel coordinates within the returned dictionary.
 
         Args:
             query: (minx, maxx, miny, maxy, mint, maxt) coordinates to index
