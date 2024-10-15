@@ -19,7 +19,7 @@ class RegionDetections:
     def __init__(
         self,
         detection_geometries: List[shapely.Geometry],
-        attributes: dict = {},
+        data: Union[dict, pd.DataFrame] = {},
         input_in_pixels: bool = True,
         CRS: Optional[pyproj.CRS] = None,
         pixel_to_CRS_transform: Optional[rasterio.transform.AffineTransformer] = None,
@@ -35,10 +35,12 @@ class RegionDetections:
         Args:
             detection_geometries (List[shapely.Geometry]):
                 A list of shapely geometries for each detection. The coordinates can either be
-                provided in pixel coordinates or in the coordinates of a CRS.
-            attributes (Optional[dict], optional):
+                provided in pixel coordinates or in the coordinates of a CRS. input_in_pixels
+                should be set accordingly.
+            data (Optional[dict | pd.DataFrame], optional):
                 A dictionary mapping from str names for an attribute to a list of values for that
-                attribute, one value per detection. Defaults to {}.
+                attribute, one value per detection. Or a pandas dataframe. Passed to the data
+                argument of gpd.GeoDataFrame. Defaults to {}.
             input_in_pixels (bool, optional):
                 Whether the detection_geometries should be interpreted in pixels or geospatial
                 coordinates.
@@ -63,6 +65,11 @@ class RegionDetections:
                 geospatial_prediction_bounds are not None, then the two bounds will be used to
                 compute the transform. Defaults to None.
         """
+        # Build a geopandas dataframe containing the geometries, additional attributes, and CRS
+        self.detections = gpd.GeoDataFrame(
+            data=data, geometry=detection_geometries, crs=CRS
+        )
+
         # If the pixel_to_CRS_transform is None but can be computed from the two bounds, do that
         if (
             input_in_pixels
@@ -112,11 +119,10 @@ class RegionDetections:
         if pixel_to_CRS_transform:
             # Get the transform in the format expected by shapely
             shapely_transform = pixel_to_CRS_transform.to_shapely()
-            # Apply this transformation to each geometry to get the detections in a given CRS
-            detection_geometries = [
-                affine_transform(geom=geom, matrix=shapely_transform)
-                for geom in detection_geometries
-            ]
+            # Apply this transformation to the geometry of the dataframe
+            self.detections.geometry = self.detections.geometry.affine_transform(
+                matrix=shapely_transform
+            )
 
         # Handle the bounds
         # If the bounds are provided as geospatial coordinates, use those directly
@@ -141,11 +147,6 @@ class RegionDetections:
         # Set the transform and bounds
         self.pixel_to_CRS_transform = pixel_to_CRS_transform
         self.prediction_bounds_in_CRS = prediction_bounds_in_CRS
-
-        # Build a geopandas dataframe containing the geometries, additional attributes, and CRS
-        self.detections = gpd.GeoDataFrame(
-            data=attributes, geometry=detection_geometries, crs=CRS
-        )
 
     def save(self, save_path: PATH_TYPE):
         """Saves the information to disk
