@@ -13,7 +13,7 @@ from tree_detection_framework.constants import PATH_TYPE
 
 class RegionDetections:
     detections: gpd.GeoDataFrame
-    pixel_to_CRS_transform: rasterio.transform
+    pixel_to_CRS_transform: rasterio.transform.AffineTransformer
     prediction_bounds_in_CRS: Union[shapely.Polygon, shapely.MultiPolygon, None]
 
     def __init__(
@@ -22,7 +22,7 @@ class RegionDetections:
         attributes: dict = {},
         input_in_pixels: bool = True,
         CRS: Optional[pyproj.CRS] = None,
-        pixel_to_CRS_transform: Optional[rasterio.transform] = None,
+        pixel_to_CRS_transform: Optional[rasterio.transform.AffineTransformer] = None,
         pixel_prediction_bounds: Optional[
             shapely.Polygon | shapely.MultiPolygon
         ] = None,
@@ -50,10 +50,9 @@ class RegionDetections:
                 the data will be attempted to be geometrically transformed into the CRS using either
                 pixel_to_CRS_transform if set, or the relationship between the pixel and geospatial
                 bounds of the region. Defaults to None.
-            pixel_to_CRS_transform (Optional[rasterio.transform], optional):
-                Only meaningful if `CRS` is set as well. A 2x3 transform matrix mapping the
-                coordinates in pixels to the coordinates of the CRS. If un-set, the input data will
-                be assumed to already be in the coordinates of the given CRS. Defaults to None.
+            pixel_to_CRS_transform (Optional[rasterio.transform.AffineTransformer], optional):
+                An affine transformation mapping from the pixel coordinates to those of the CRS.
+                Only meaningful if `CRS` is set as well. Defaults to None.
             pixel_prediction_bounds (Optional[shapely.Polygon | shapely.MultiPolygon], optional):
                 The pixel bounds of the region that predictions were generated for. For example, a
                 square starting at (0, 0) and extending to the size in pixels of the tile.
