@@ -4,7 +4,11 @@ from typing import Any, DefaultDict, Iterator, List, Tuple, Union
 import lightning
 import numpy as np
 import shapely
+from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
+from torchgeo.datasets import unbind_samples
+from deepforest import main
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import (
@@ -239,10 +243,8 @@ class RandomDetector(Detector):
 class LightningDetector(Detector):
     model: lightning.LightningModule
 
-    def setup(self):
-        # This method should implement setup tasks that are common to all LightningDetectors.
-        # Method-specific tasks should be defered to setup_model
-        raise NotImplementedError()
+    def __init__(self):
+        self.model = self.setup_model({})
 
     @abstractmethod
     def setup_model(self, param_dict: dict) -> lightning.LightningModule:
@@ -293,3 +295,31 @@ class LightningDetector(Detector):
         """
         # Should be implemented here
         raise NotImplementedError()
+
+class DeepForestDetector(LightningDetector):
+
+    def __init__(self):
+        self.model = self.setup_model({})
+
+    def setup_model(self, param_dict: dict) -> lightning.LightningModule:
+        model = main.deepforest()
+        model.use_release()
+        return model
+
+    def setup_trainer(self, param_dict: dict) -> lightning.Trainer:
+        raise NotImplementedError()
+
+    def predict(self, inference_dataloader: DataLoader, **kwargs) -> list:
+        predictions = []
+        for i, tile in enumerate(inference_dataloader):
+            sample = unbind_samples(tile)[0]
+            image = sample["image"].permute(1, 2, 0).byte().numpy()
+            output = self.model.predict_image(image[:, :, :3])
+            predictions.append(output)
+        return predictions
+
+    def train(self, train_dataloader: DataLoader, val_dataloader: DataLoader, **kwargs):
+        raise NotImplementedError()
+
+    def save_model(self, save_file: PATH_TYPE):
+        self.model.save_model(save_file)
