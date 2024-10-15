@@ -9,7 +9,6 @@ import shapely
 from shapely.affinity import affine_transform
 
 from tree_detection_framework.constants import PATH_TYPE
-from tree_detection_framework.utils.geometric import get_shapely_transform_from_matrix
 
 
 class RegionDetections:
@@ -166,17 +165,9 @@ class RegionDetections:
                     "Pixel coordinates were requested but data is in geospatial units with no transformation to pixels"
                 )
 
-            # Add a row of 0, 0, 1 to the transform
-            transform_3x3 = np.concatenate(
-                self.pixel_to_CRS_transform, np.expand_dims([0, 0, 1], 0)
-            )
-            # Compute the matrix inverse of the transform to get the map from the CRS reference
-            # frame to pixels rather than the other way around
-            CRS_to_pixel_transform_matrix = np.linalg.inv(transform_3x3)
-            # Geopandas also uses the shapely conventions, so convert the matrix into this form
-            CRS_to_pixel_transform_shapely = get_shapely_transform_from_matrix(
-                CRS_to_pixel_transform_matrix
-            )
+            # Compute the inverse transform using ~ to map from the CRS to pixels instead of the
+            # other way around. Also get this transform in the shapely convention.
+            CRS_to_pixel_transform_shapely = (~self.pixel_to_CRS_transform).to_shapely()
             # Create a new geodataframe with the transformed coordinates
             # Start by copying the old dataframe
             pixel_coordinate_detections = self.detections.copy()
