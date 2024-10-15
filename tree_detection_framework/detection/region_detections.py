@@ -70,10 +70,32 @@ class RegionDetections:
             and (pixel_prediction_bounds is not None)
             and (geospatial_prediction_bounds is not None)
         ):
-            # Obtain the transform using the bounds in both the pixel and geospatial coordinates
-            # TODO figure out the math for this
-            pixel_to_CRS_transform = None
-            raise NotImplementedError()
+            # We assume that these two array are exactly corresponding, representing the same shape
+            # in the two coordinate frames and also the same starting vertex.
+            # Drop the last entry because it is a duplicate of the first one
+            geospatial_corners_array = shapely.get_coordinates(
+                geospatial_prediction_bounds
+            )[:-1]
+            pixel_corners_array = shapely.get_coordinates(pixel_prediction_bounds)[:-1]
+
+            # If they don't have the same number of vertices, this can't be the case
+            if len(geospatial_corners_array) != len(pixel_corners_array):
+                raise ValueError("Bounds had different lengths")
+
+            # Representing the correspondences as ground control points
+            ground_control_points = [
+                rasterio.control.GroundControlPoint(
+                    col=pixel_vertex[0],
+                    row=pixel_vertex[1],
+                    x=geospatial_vertex[0],
+                    y=geospatial_vertex[1],
+                )
+                for pixel_vertex, geospatial_vertex in zip(
+                    pixel_corners_array, geospatial_corners_array
+                )
+            ]
+            # Solve the affine transform that best transforms from the pixel to geospatial coordinates
+            pixel_to_CRS_transform = rasterio.transform.from_gcps(ground_control_points)
 
         # Error checking
         if (pixel_to_CRS_transform is not None) and (CRS is None):
