@@ -160,7 +160,8 @@ class RegionDetections:
         save_path = Path(save_path)
         save_path.mkdir(parents=True, exist_ok=True)
 
-        # Save the detections to a file. Note that the bounds and the CRS are currently lost.
+        # Save the detections to a file. Note that the bounds of the prediction region and
+        # information about the transform to pixel coordinates are currently lost.
         self.detections.to_file(save_path)
 
     def get_detections(
@@ -219,35 +220,84 @@ class RegionDetectionsSet:
     region_detections: List[RegionDetections]
 
     def __init__(self, region_detections: List[RegionDetections]):
-        """Create a set of detections to conveniently perform operations on all of them
+        """Create a set of detections to conveniently perform operations on all of them, for example
+        merging all regions into a single dataframe with an additional column indicating which
+        region each detection belongs to.
 
         Args:
             region_detections (List[RegionDetections]): A list of individual detections
         """
         self.region_detections = region_detections
 
-    def save(self, save_path: PATH_TYPE, region_ID_key: Optional[str] = "region_ID"):
+    def get_detections(
+        self,
+        CRS: Optional[pyproj.CRS] = None,
+        as_pixels: Optional[bool] = False,
+        region_ID_key: Optional[str] = "region_ID",
+    ):
+        """Get the merged detections across all regions with an additional field specifying which region
+        the detection came from. Optionally specify a CRS or pixel coordinates for all detections.
+
+        Args:
+            CRS (Optional[pyproj.CRS], optional):
+                Requested CRS for the output detections. If un-set, the CRS of self.detections will
+                be used. Defaults to None.
+            as_pixels (Optional[bool], optional):
+                Whether to return the values in pixel coordinates. Defaults to False.
+            region_ID_key (Optional[str], optional):
+                Create this column in the output dataframe identifying which region that data came
+                from using a zero-indexed integer. Defaults to "region_ID".
+
+        Returns:
+            gpd.GeoDataFrame: Detections in the requested CRS or in pixel coordinates with a None .crs
         """
-        Save the data to a geospatial file, by adding an additional attribute to specify the region
-        and then merging all the regions together.
+        # TODO do error checking in the case where the CRS is set to None and as_pixels is False.
+        # Since the native CRS of each region will be returned, it might be worth checking they are
+        # all the same.
+
+        # Get the detections from each region detection object as geodataframes
+        detection_geodataframes = [
+            rd.get_detections(CRS=CRS, as_pixels=as_pixels)
+            for rd in self.region_detections
+        ]
+
+        # Add a column to each geodataframe identifying which region detection object it came from
+        # Note that dataframes in the original list are updated
+        # TODO consider a more sophisticated ID
+        for ID, gdf in enumerate(detection_geodataframes):
+            gdf[region_ID_key] = ID
+
+        # Concatenate the geodataframes together
+        # TODO this could be a good place to check the CRS and ensure that all of them are equal
+        concatenated_geodataframes = pd.concatenate(detection_geodataframes)
+
+        return concatenated_geodataframes
+
+    def save(
+        self,
+        save_path: PATH_TYPE,
+        CRS: Optional[pyproj.CRS] = None,
+        as_pixels: Optional[bool] = False,
+        region_ID_key: Optional[str] = "region_ID",
+    ):
+        """
+        Save the data to a geospatial file by calling get_detections and then saving to the specified
+        file. The containing folder is created if it doesn't exist.
 
         Args:
             save_path (PATH_TYPE):
                File to save the data to. The containing folder will be created if it does not exist.
+            CRS (Optional[pyproj.CRS], optional):
+                See get_detections.
+            as_pixels (Optional[bool], optional):
+                See get_detections.
             region_ID_key (Optional[str], optional):
-                Create this column in the output dataframe identifying which region that data came
-                from using a zero-indexed integer. Defaults to "region_ID".
+                See get_detections.
         """
-        # Get the detections from each region detection object as geodataframes
-        detection_geodataframes = [rd.get_detections() for rd in self.region_detections]
-
-        # Add a column to each geodataframe identifying which region detection object it came from
-        # Note that dataframes in the original list are updated
-        for i, gdf in enumerate(detection_geodataframes):
-            gdf[region_ID_key] = i
-
-        # Concatenate the geodataframes together
-        concatenated_geodataframes = pd.concatenate(detection_geodataframes)
+        # Get the concatenated dataframes
+        concatenated_geodataframes = self.get_detections(
+            CRS=CRS, as_pixels=as_pixels, region_ID_key=region_ID_key
+        )
 
         # Ensure that the folder to save them to exists
         save_path = Path(save_path)
