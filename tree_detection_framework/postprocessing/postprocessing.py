@@ -28,7 +28,7 @@ def single_region_NMS(
             NMS-suppressed set of detections
     """
     # Extract the geodataframe for the detections
-    detections_df = detections.get_detections()
+    detections_df = detections.get_data_frame()
 
     # Get the axis-aligned bounds of each shape
     boxes = detections_df.bounds.to_numpy()
