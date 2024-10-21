@@ -1,7 +1,9 @@
+import copy
 from pathlib import Path
 from typing import List, Optional, Union
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import pyproj
 import rasterio.transform
@@ -18,7 +20,7 @@ class RegionDetections:
 
     def __init__(
         self,
-        detection_geometries: List[shapely.Geometry],
+        detection_geometries: List[shapely.Geometry] | str,
         data: Union[dict, pd.DataFrame] = {},
         input_in_pixels: bool = True,
         CRS: Optional[Union[pyproj.CRS, rasterio.CRS]] = None,
@@ -33,10 +35,11 @@ class RegionDetections:
         """Create a region detections object
 
         Args:
-            detection_geometries (List[shapely.Geometry]):
-                A list of shapely geometries for each detection. The coordinates can either be
-                provided in pixel coordinates or in the coordinates of a CRS. input_in_pixels
-                should be set accordingly.
+            detection_geometries (List[shapely.Geometry] | str | None):
+                A list of shapely geometries for each detection. Alternatively, can be a string
+                represting a key in data providing the same, or None if that key is named "geometry".
+                The coordinates can either be provided in pixel coordinates or in the coordinates
+                of a CRS. input_in_pixels should be set accordingly.
             data (Optional[dict | pd.DataFrame], optional):
                 A dictionary mapping from str names for an attribute to a list of values for that
                 attribute, one value per detection. Or a pandas dataframe. Passed to the data
@@ -115,8 +118,8 @@ class RegionDetections:
                 "The input was in pixels and a CRS was specified but no geommetric transformation was provided to transform the pixel values to that CRS"
             )
 
-        # If a geometric transform between the pixels and CRS is provided, apply it to the predictions
-        if pixel_to_CRS_transform:
+        # If the inputs are provided in pixels, apply the transform to the predictions
+        if input_in_pixels:
             # Get the transform in the format expected by shapely
             shapely_transform = pixel_to_CRS_transform.to_shapely()
             # Apply this transformation to the geometry of the dataframe
@@ -147,6 +150,23 @@ class RegionDetections:
         # Set the transform and bounds
         self.pixel_to_CRS_transform = pixel_to_CRS_transform
         self.prediction_bounds_in_CRS = prediction_bounds_in_CRS
+
+    def subset_detections(self, detection_indices) -> "RegionDetections":
+        """Return a new Reg
+
+        Args:
+            detection_indices:
+                Which detections to include. Can be any type that can be passed to pd.iloc.
+
+        Returns:
+            RegionDetections: The subset of detections cooresponding to these indeices
+        """
+        # Create a deep copy of the object
+        subset_rd = copy.deepcopy(self)
+        # Subset the detections dataframe to the requested rows
+        subset_rd.detections = subset_rd.detections.iloc[detection_indices, :]
+
+        return subset_rd
 
     def save(self, save_path: PATH_TYPE):
         """Saves the information to disk
