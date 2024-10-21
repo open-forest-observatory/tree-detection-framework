@@ -373,9 +373,9 @@ class RegionDetectionsSet:
     def get_bounds(self, CRS: Optional[pyproj.CRS] = None) -> gpd.GeoSeries:
         region_bounds = [rd.get_bounds(CRS=CRS) for rd in self.region_detections]
         # Create a geodataframe out of these region bounds
-        all_region_bounds = gpd.GeoDataFrame(pd.concat(region_bounds), crs=CRS)
+        all_region_bounds = gpd.GeoSeries(pd.concat(region_bounds), crs=CRS)
         # Compute the union of all bounds
-        merged_bounds = all_region_bounds.geometry.union_all()
+        merged_bounds = gpd.GeoSeries([all_region_bounds.geometry.union_all()], crs=CRS)
 
         return merged_bounds
 
