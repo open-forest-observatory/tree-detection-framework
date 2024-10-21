@@ -150,9 +150,9 @@ class RegionDetections:
         else:
             prediction_bounds_in_CRS = None
 
-        # Create a one-length geodataframe for the bounds
-        self.prediction_bounds_in_CRS = gpd.GeoDataFrame(
-            geometry=[prediction_bounds_in_CRS], crs=CRS
+        # Create a one-length geoseries for the bounds
+        self.prediction_bounds_in_CRS = gpd.GeoSeries(
+            data=[prediction_bounds_in_CRS], crs=CRS
         )
 
     def subset_detections(self, detection_indices) -> "RegionDetections":
@@ -241,7 +241,7 @@ class RegionDetections:
 
     def get_bounds(
         self, CRS: Optional[pyproj.CRS] = None, as_pixels: Optional[bool] = False
-    ):
+    ) -> gpd.GeoSeries:
         if CRS is None:
             # Get bounds in original CRS
             bounds = self.prediction_bounds_in_CRS.copy()
@@ -320,11 +320,6 @@ class RegionDetectionsSet:
 
         ## Merge_bounds
         # get the bounds from each region
-        region_bounds = [rd.get_bounds(CRS=CRS) for rd in self.region_detections]
-        # Create a geodataframe out of these region bounds
-        all_region_bounds = gpd.GeoDataFrame(pd.concat(region_bounds), crs=CRS)
-        # Compute the union of all bounds
-        merged_bounds = all_region_bounds.geometry.union_all()
         # Convert to a single shapely object as expected
         merged_bounds_shapely = merged_bounds.geometry[0]
 
@@ -374,12 +369,13 @@ class RegionDetectionsSet:
         ]
         return list_of_region_data_frames
 
-    def get_bounds(self, CRS: Optional[pyproj.CRS] = None):
-        # TODO consider changing this so it doesn't call .merge. This reprojects the detections which
-        # isn't neccessary, but it's simple.
-        merged_region_detections = self.merge(CRS=CRS)
-        # Get the bounds from the merged RD. Note that it's already in the requested CRS
-        merged_bounds = merged_region_detections.get_bounds()
+    def get_bounds(self, CRS: Optional[pyproj.CRS] = None) -> gpd.GeoSeries:
+        region_bounds = [rd.get_bounds(CRS=CRS) for rd in self.region_detections]
+        # Create a geodataframe out of these region bounds
+        all_region_bounds = gpd.GeoDataFrame(pd.concat(region_bounds), crs=CRS)
+        # Compute the union of all bounds
+        merged_bounds = all_region_bounds.geometry.union_all()
+
         return merged_bounds
 
     def save(
