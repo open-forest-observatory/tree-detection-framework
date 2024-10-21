@@ -374,8 +374,13 @@ class RegionDetectionsSet:
         ]
         return list_of_region_data_frames
 
-    def get_bounds(self):
-        raise NotImplementedError()
+    def get_bounds(self, CRS: Optional[pyproj.CRS] = None):
+        # TODO consider changing this so it doesn't call .merge. This reprojects the detections which
+        # isn't neccessary, but it's simple.
+        merged_region_detections = self.merge(CRS=CRS)
+        # Get the bounds from the merged RD. Note that it's already in the requested CRS
+        merged_bounds = merged_region_detections.get_bounds()
+        return merged_bounds
 
     def save(
         self,
