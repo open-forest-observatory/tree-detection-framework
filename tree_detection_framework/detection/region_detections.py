@@ -337,7 +337,7 @@ class RegionDetectionsSet:
         self,
         CRS: Optional[pyproj.CRS] = None,
         merge: bool = False,
-        merge_region_ID_key: str = "region_ID",
+        region_ID_key: str = "region_ID",
     ) -> gpd.GeoDataFrame | List[gpd.GeoDataFrame]:
         """Get the detections, optionally specifying a CRS
 
@@ -347,7 +347,7 @@ class RegionDetectionsSet:
                 be used. Defaults to None.
             merge (bool, optional):
                 If true, return one dataframe. Else, return a list of individual dataframes.
-            merged_region_ID_key (str, optional):
+            region_ID_key (str, optional):
                 Use this column to identify which region each detection came from. Defaults to
                 "region_ID"
 
@@ -358,7 +358,7 @@ class RegionDetectionsSet:
         """
         if merge:
             # Merge all of the detections into one RegionDetection
-            merged_detections = self.merge(region_ID_key=merge_region_ID_key, CRS=CRS)
+            merged_detections = self.merge(region_ID_key=region_ID_key, CRS=CRS)
             # get the dataframe. It is already in the requested CRS in the current implementation.
             data_frame = merged_detections.get_data_frame()
             return data_frame
