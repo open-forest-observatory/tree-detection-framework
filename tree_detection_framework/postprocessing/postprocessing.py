@@ -43,16 +43,40 @@ def single_region_NMS(
     return subset_region_detections
 
 
-def multi_region_NMS(detections: RegionDetectionsSet) -> RegionDetections:
+def multi_region_NMS(
+    detections: RegionDetectionsSet,
+    iou_theshold: float = 0.5,
+    confidence_column: str = "score",
+) -> RegionDetections:
     """Run non-max suppresion on predictions from multiple regions.
 
     Args:
-        detections (RegionDetectionsSet): Detections from multiple regions to run NMS on.
+        detections (RegionDetectionsSet):
+            Detections from multiple regions to run NMS on.
+        iou_threshold (float, optional):
+            What intersection over union value to consider an overlapping detection. Defaults to 0.5.
+        confidence_column (str, optional):
+            Which column in the dataframe to use as a confidence for NMS. Defaults to "score"
 
     Returns:
         RegionDetections:
             NMS-suppressed set of detections, merged together for the set of regions.
     """
-    # This may implement more sophisticated algorithms, such as down-weighting predictions at the
-    # boundaries or first performing within-tile NMS before across-tile NMS for computational reasons.
-    raise NotImplementedError()
+    # Run NMS on each sub-region and then wrap this in a region detection set
+    region_detection_set_NMS_suppressed = RegionDetectionsSet(
+        [
+            single_region_NMS(region_detections)
+            for region_detections in detections.region_detections
+        ]
+    )
+
+    # Merge all the detections into one RegionDetections
+    merged_detections = region_detection_set_NMS_suppressed.merge()
+    # Run NMS on this merged RegionDetections
+    NMS_suppressed_merged_detections = single_region_NMS(
+        merged_detections,
+        iou_theshold=iou_theshold,
+        confidence_column=confidence_column,
+    )
+
+    return NMS_suppressed_merged_detections
