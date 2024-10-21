@@ -328,6 +328,7 @@ class RegionDetectionsSet:
         merged_region_detections = RegionDetections(
             detection_geometries="geometry",
             data=concatenated_geodataframes,
+            CRS=CRS,
             input_in_pixels=False,
             geospatial_prediction_bounds=merged_bounds_shapely,
         )
