@@ -381,26 +381,23 @@ class RegionDetectionsSet:
         self,
         save_path: PATH_TYPE,
         CRS: Optional[pyproj.CRS] = None,
-        as_pixels: Optional[bool] = False,
         region_ID_key: Optional[str] = "region_ID",
     ):
         """
-        Save the data to a geospatial file by calling get_data_frame and then saving to the specified
-        file. The containing folder is created if it doesn't exist.
+        Save the data to a geospatial file by calling get_data_frame with merge=True and then saving
+        to the specified file. The containing folder is created if it doesn't exist.
 
         Args:
             save_path (PATH_TYPE):
                File to save the data to. The containing folder will be created if it does not exist.
             CRS (Optional[pyproj.CRS], optional):
                 See get_data_frame.
-            as_pixels (Optional[bool], optional):
-                See get_data_frame.
             region_ID_key (Optional[str], optional):
                 See get_data_frame.
         """
         # Get the concatenated dataframes
         concatenated_geodataframes = self.get_data_frame(
-            CRS=CRS, as_pixels=as_pixels, region_ID_key=region_ID_key
+            CRS=CRS, region_ID_key=region_ID_key, merge=True
         )
 
         # Ensure that the folder to save them to exists
