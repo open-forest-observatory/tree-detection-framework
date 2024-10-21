@@ -118,6 +118,9 @@ class RegionDetections:
                 "The input was in pixels and a CRS was specified but no geommetric transformation was provided to transform the pixel values to that CRS"
             )
 
+        # Set the transform
+        self.pixel_to_CRS_transform = pixel_to_CRS_transform
+
         # If the inputs are provided in pixels, apply the transform to the predictions
         if input_in_pixels:
             # Get the transform in the format expected by shapely
@@ -147,9 +150,10 @@ class RegionDetections:
         else:
             prediction_bounds_in_CRS = None
 
-        # Set the transform and bounds
-        self.pixel_to_CRS_transform = pixel_to_CRS_transform
-        self.prediction_bounds_in_CRS = prediction_bounds_in_CRS
+        # Create a one-length geodataframe for the bounds
+        self.prediction_bounds_in_CRS = gpd.GeoDataFrame(
+            geometry=[prediction_bounds_in_CRS], crs=CRS
+        )
 
     def subset_detections(self, detection_indices) -> "RegionDetections":
         """Return a new Reg
@@ -234,6 +238,29 @@ class RegionDetections:
             # this will error out
             detections_in_new_CRS = self.detections.copy().to_crs(CRS)
             return detections_in_new_CRS
+
+    def get_bounds(
+        self, CRS: Optional[pyproj.CRS] = None, as_pixels: Optional[bool] = False
+    ):
+        if CRS is None:
+            # Get bounds in original CRS
+            bounds = self.prediction_bounds_in_CRS.copy()
+        else:
+            # Get bounds in requested CRS
+            bounds = self.prediction_bounds_in_CRS.to_crs(CRS)
+
+        if as_pixels:
+            # Invert the transform
+            CRS_to_pixel_transform_shapely = (~self.pixel_to_CRS_transform).to_shapely()
+            # Transform the bounds into pixel coordinates
+            bounds.geometry = bounds.geometry.affine_transform(
+                CRS_to_pixel_transform_shapely
+            )
+            # Set the CRS to None since this is now pixels
+            # Note that this does not reproject
+            bounds.set_crs(None)
+
+        return bounds
 
 
 class RegionDetectionsSet:
