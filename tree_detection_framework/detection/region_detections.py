@@ -319,8 +319,9 @@ class RegionDetectionsSet:
         concatenated_geodataframes = pd.concat(detection_geodataframes)
 
         ## Merge_bounds
-        # get the bounds from each region
-        # Convert to a single shapely object as expected
+        # Get the merged bounds
+        merged_bounds = self.get_bounds(CRS=CRS)
+        # Convert to a single shapely object
         merged_bounds_shapely = merged_bounds.geometry[0]
 
         # Use the geometry column of the concatenated dataframes
