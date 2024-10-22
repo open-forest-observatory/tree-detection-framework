@@ -94,6 +94,10 @@ def create_dataloader(
             A dataloader containing tiles from the raster data and optionally corresponding labels
             from the vector data.
     """
+
+    # changes: 1. bounding box included in every sample as a df / np array
+    # 2. TODO: float or uint8 images
+    # match with the param dict from the model, else error out
     # Stores image data
     raster_dataset = CustomRasterDataset(
         paths=raster_folder_path, res=output_resolution
@@ -161,9 +165,7 @@ def create_dataloader(
     sampler = GridGeoSampler(
         final_dataset, size=chip_size, stride=chip_stride, units=units
     )
-    dataloader = DataLoader(
-        final_dataset, batch_size=batch_size, sampler=sampler, collate_fn=stack_samples
-    )
+    dataloader = DataLoader(final_dataset, batch_size=batch_size, sampler=sampler, collate_fn=stack_samples)
 
     return dataloader
 
@@ -222,6 +224,7 @@ def save_dataloader_contents(
 
     transform_to_pil = ToPILImage()
 
+    # TODO: handle batch_size > 1
     # Collect all batches from the dataloader
     all_batches = list(dataloader)
 
