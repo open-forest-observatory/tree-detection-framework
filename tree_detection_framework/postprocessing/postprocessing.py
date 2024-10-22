@@ -45,6 +45,7 @@ def single_region_NMS(
 
 def multi_region_NMS(
     detections: RegionDetectionsSet,
+    run_per_region_NMS: bool = True,
     iou_theshold: float = 0.5,
     confidence_column: str = "score",
 ) -> RegionDetections:
@@ -53,6 +54,9 @@ def multi_region_NMS(
     Args:
         detections (RegionDetectionsSet):
             Detections from multiple regions to run NMS on.
+        run_per_region_NMS (bool):
+            Should nonmax-suppression be run on each region before the regions are merged. This may
+            lead to a speedup if there is a large amount of within-region overlap. Defaults to True.
         iou_threshold (float, optional):
             What intersection over union value to consider an overlapping detection. Defaults to 0.5.
         confidence_column (str, optional):
@@ -62,16 +66,24 @@ def multi_region_NMS(
         RegionDetections:
             NMS-suppressed set of detections, merged together for the set of regions.
     """
-    # Run NMS on each sub-region and then wrap this in a region detection set
-    region_detection_set_NMS_suppressed = RegionDetectionsSet(
-        [
-            single_region_NMS(region_detections)
-            for region_detections in detections.region_detections
-        ]
-    )
-
-    # Merge all the detections into one RegionDetections
-    merged_detections = region_detection_set_NMS_suppressed.merge()
+    # Determine whether to run NMS individually on each region.
+    if run_per_region_NMS:
+        # Run NMS on each sub-region and then wrap this in a region detection set
+        region_detection_set_NMS_suppressed = RegionDetectionsSet(
+            [
+                single_region_NMS(
+                    region_detections,
+                    iou_theshold=iou_theshold,
+                    confidence_column=confidence_column,
+                )
+                for region_detections in detections.region_detections
+            ]
+        )
+        # Merge all the detections into one RegionDetections
+        merged_detections = region_detection_set_NMS_suppressed.merge()
+    else:
+        # Just merge the detections
+        merged_detections = detections.merge()
     # Run NMS on this merged RegionDetections
     NMS_suppressed_merged_detections = single_region_NMS(
         merged_detections,
