@@ -21,7 +21,7 @@ class RegionDetections:
         detection_geometries: List[shapely.Geometry],
         data: Union[dict, pd.DataFrame] = {},
         input_in_pixels: bool = True,
-        CRS: Optional[pyproj.CRS] = None,
+        CRS: Optional[Union[pyproj.CRS, rasterio.CRS]] = None,
         pixel_to_CRS_transform: Optional[rasterio.transform.AffineTransformer] = None,
         pixel_prediction_bounds: Optional[
             shapely.Polygon | shapely.MultiPolygon
@@ -158,7 +158,7 @@ class RegionDetections:
         """
         # Convert to a Path object and create the containing folder if not present
         save_path = Path(save_path)
-        save_path.mkdir(parents=True, exist_ok=True)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Save the detections to a file. Note that the bounds of the prediction region and
         # information about the transform to pixel coordinates are currently lost.
@@ -269,7 +269,7 @@ class RegionDetectionsSet:
 
         # Concatenate the geodataframes together
         # TODO this could be a good place to check the CRS and ensure that all of them are equal
-        concatenated_geodataframes = pd.concatenate(detection_geodataframes)
+        concatenated_geodataframes = pd.concat(detection_geodataframes)
 
         return concatenated_geodataframes
 
@@ -301,7 +301,7 @@ class RegionDetectionsSet:
 
         # Ensure that the folder to save them to exists
         save_path = Path(save_path)
-        save_path.mkdir(exist_ok=True, parents=True)
+        save_path.parent.mkdir(exist_ok=True, parents=True)
 
         # Save the data to the geofile
         concatenated_geodataframes.to_file(save_path)
