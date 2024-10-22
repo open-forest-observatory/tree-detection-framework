@@ -156,7 +156,7 @@ class RegionDetections:
         )
 
     def subset_detections(self, detection_indices) -> "RegionDetections":
-        """Return a new Reg
+        """Return a new RegionDetections object with only the detections indicated by the indices
 
         Args:
             detection_indices:
