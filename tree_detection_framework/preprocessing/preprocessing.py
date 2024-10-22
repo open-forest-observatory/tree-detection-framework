@@ -55,6 +55,7 @@ def create_dataloader(
     output_CRS: Optional[pyproj.CRS] = None,
     vector_label_folder_path: Optional[PATH_TYPE] = None,
     vector_label_attribute: Optional[str] = None,
+    batch_size: int = 1
 ) -> DataLoader:
     """
     Create a tiled dataloader using torchgeo. Contains raster data data and optionally vector labels
@@ -85,12 +86,18 @@ def create_dataloader(
             dataloader will not be labeled. Defaults to None.
         vector_label_attribute (Optional[str], optional):
             Attribute to read from the vector data, such as the class or instance ID. Defaults to None.
+        batch_size (int, optional):
+            Number of images to load in a batch. Defaults to 1.
 
     Returns:
         DataLoader:
             A dataloader containing tiles from the raster data and optionally corresponding labels
             from the vector data.
     """
+
+    # changes: 1. bounding box included in every sample as a df / np array
+    # 2. TODO: float or uint8 images
+    # match with the param dict from the model, else error out
     # Stores image data
     raster_dataset = CustomRasterDataset(
         paths=raster_folder_path, res=output_resolution
@@ -158,7 +165,7 @@ def create_dataloader(
     sampler = GridGeoSampler(
         final_dataset, size=chip_size, stride=chip_stride, units=units
     )
-    dataloader = DataLoader(final_dataset, sampler=sampler, collate_fn=stack_samples)
+    dataloader = DataLoader(final_dataset, batch_size=batch_size, sampler=sampler, collate_fn=stack_samples)
 
     return dataloader
 
@@ -217,6 +224,7 @@ def save_dataloader_contents(
 
     transform_to_pil = ToPILImage()
 
+    # TODO: handle batch_size > 1
     # Collect all batches from the dataloader
     all_batches = list(dataloader)
 

@@ -126,12 +126,19 @@ class CustomVectorDataset(VectorDataset):
             for sh, i in shapely_shapes
         ]
 
+        # Convert each polygon to bounding box format (minx, miny, maxx, maxy) in pixel coordinates
+        label_bboxes = []
+        for polygon, label in pixel_transformed_shapes:
+            x_min, y_min, x_max, y_max = polygon.bounds
+            label_bboxes.append((x_min, y_min, x_max, y_max))
+
         # Add 'shapes' containing polygons and corresponding ID values
         sample = {
             "mask": masks,
             "crs": self.crs,
             "bounds": query,
             "shapes": pixel_transformed_shapes,
+            "label_bboxes": label_bboxes
         }
 
         if self.transforms is not None:
