@@ -53,7 +53,9 @@ class CustomVectorDataset(VectorDataset):
     def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
         """Retrieve image/mask and metadata indexed by query.
            This function is largely based on the `__getitem__` method from TorchGeo's `VectorDataset`.
-           Modifications have been made to include 'shapes' as polygons per tile represented in pixel coordinates within the returned dictionary.
+           Modifications have been made to include the following keys within the returned dictionary:
+            1. 'shapes' as polygons per tile represented in pixel coordinates.
+            2. 'bounding_boxes' as bounding box of every detected polygon per tile in pixel coordinates.
 
         Args:
             query: (minx, maxx, miny, maxy, mint, maxt) coordinates to index
@@ -126,12 +128,19 @@ class CustomVectorDataset(VectorDataset):
             for sh, i in shapely_shapes
         ]
 
-        # Add 'shapes' containing polygons and corresponding ID values
+        # Convert each polygon to an axis-aligned bounding box of format (x_min, y_min, x_max, y_max) in pixel coordinates
+        bounding_boxes = []
+        for polygon, label in pixel_transformed_shapes:
+            x_min, y_min, x_max, y_max = polygon.bounds
+            bounding_boxes.append((x_min, y_min, x_max, y_max))
+
+        # Add `shapes` and `bounding_boxes` to the dictionary.
         sample = {
             "mask": masks,
             "crs": self.crs,
             "bounds": query,
             "shapes": pixel_transformed_shapes,
+            "bounding_boxes": bounding_boxes
         }
 
         if self.transforms is not None:
