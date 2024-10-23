@@ -80,10 +80,16 @@ def multi_region_NMS(
             ]
         )
         # Merge all the detections into one RegionDetections
-        merged_detections = region_detection_set_NMS_suppressed.merge()
-    else:
-        # Just merge the detections
-        merged_detections = detections.merge()
+        detections = region_detection_set_NMS_suppressed.merge()
+
+    # Merge the detections into a single RegionDetections
+    merged_detections = detections.merge()
+
+    # If the bounds of the individual regions were disjoint, then no NMS needs to be applied across
+    # the different regions
+    if detections.disjoint_bounds():
+        return merged_detections
+
     # Run NMS on this merged RegionDetections
     NMS_suppressed_merged_detections = single_region_NMS(
         merged_detections,
