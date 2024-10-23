@@ -276,6 +276,33 @@ class RegionDetectionsSet:
         """
         self.region_detections = region_detections
 
+    def all_regions_have_CRS(self) -> bool:
+        """Check whether all sub-regions have a non-None CRS
+
+        Returns:
+            bool: Whether all sub-regions have a valid CRS.
+        """
+        # Get the CRS for each sub-region
+        regions_CRS_values = [rd.detections.crs for rd in self.region_detections]
+        # Only valid if no CRS value is None
+        valid = not (None in regions_CRS_values)
+
+        return valid
+
+    def get_default_CRS(self) -> pyproj.CRS:
+        """Find the CRS of the first sub-region to use as a default
+
+        Returns:
+            pyproj.CRS: The CRS given by the first sub-region.
+        """
+        # Check that every region is geospatial
+        regions_CRS_values = [rd.detections.crs for rd in self.region_detections]
+        # The default is the to the CRS of the first region
+        # TODO in the future it could be something else like the most common
+        CRS = regions_CRS_values[0]
+
+        return CRS
+
     def merge(
         self,
         region_ID_key: Optional[str] = "region_ID",
@@ -295,14 +322,13 @@ class RegionDetectionsSet:
         Returns:
             gpd.GeoDataFrame: Detections in the requested CRS or in pixel coordinates with a None .crs
         """
-        # Check that every region is geospatial
-        regions_CRS_values = [rd.detections.crs for rd in self.region_detections]
-        if None in regions_CRS_values:
-            raise ValueError("Merging requires every region to have a CRS")
+        if not self.all_regions_have_CRS():
+            raise ValueError("Merging requires all sub-regions to have a valid CRS")
 
-        # If no CRS is provided default to the CRS of the first region
+        # If the CRS is not set, use that of the first sub-region
         if CRS is None:
-            CRS = regions_CRS_values[0]
+            # This is ensured to be non-None by the check above
+            CRS = self.get_default_CRS()
 
         # Get the detections from each region detection object as geodataframes
         detection_geodataframes = [
@@ -371,10 +397,41 @@ class RegionDetectionsSet:
         ]
         return list_of_region_data_frames
 
-    def get_bounds(self, CRS: Optional[pyproj.CRS] = None) -> gpd.GeoSeries:
+    def get_bounds(
+        self, CRS: Optional[pyproj.CRS] = None, union_bounds: bool = True
+    ) -> gpd.GeoSeries:
+        """Get the bounds corresponding to the sub-regions.
+
+        Args:
+            CRS (Optional[pyproj.CRS], optional):
+                The CRS to return the bounds in. If not set, it will be the bounds of the first
+                region. Defaults to None.
+            union_bounds (bool, optional):
+                Whether to return the spatial union of all bounds or a series of per-region bounds.
+                Defaults to True.
+
+        Returns:
+            gpd.GeoSeries: Either a one-length series of merged bounds if merge=True or a series
+            of bounds per region.
+        """
+        if not self.all_regions_have_CRS():
+            raise ValueError(
+                "Computing all bounds requires all sub-regions to have a valid CRS"
+            )
+
+        # If the CRS is not set, use that of the first sub-region
+        if CRS is None:
+            # This is ensured to be non-None by the check above
+            CRS = self.get_default_CRS()
+
         region_bounds = [rd.get_bounds(CRS=CRS) for rd in self.region_detections]
         # Create a geodataframe out of these region bounds
         all_region_bounds = gpd.GeoSeries(pd.concat(region_bounds), crs=CRS)
+
+        # If the union is not requested, return the individual bounds
+        if not union_bounds:
+            return all_region_bounds
+
         # Compute the union of all bounds
         merged_bounds = gpd.GeoSeries([all_region_bounds.geometry.union_all()], crs=CRS)
 
