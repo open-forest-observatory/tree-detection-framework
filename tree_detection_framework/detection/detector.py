@@ -122,7 +122,8 @@ class LightningDetector(Detector):
         # self.model loop
         raise NotImplementedError()
 
-    def train(self, train_dataloader: DataLoader, val_dataloader: DataLoader):
+    # def train(self, train_dataloader: DataLoader, val_dataloader: DataLoader):
+    def train(self, model, datamodule):
         
         """Train a model
 
@@ -130,7 +131,8 @@ class LightningDetector(Detector):
             train_dataloader (DataLoader): The training dataloader
             val_dataloader (DataLoader): The validation dataloader
         """
-        self.trainer.fit(self.model, train_dataloader, val_dataloader)
+        # self.trainer.fit(self.model, train_dataloader, val_dataloader)
+        self.trainer.fit(model, datamodule)
 
 
     def save_model(self, save_file: PATH_TYPE):
