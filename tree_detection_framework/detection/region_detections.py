@@ -437,6 +437,27 @@ class RegionDetectionsSet:
 
         return merged_bounds
 
+    def disjoint_bounds(self) -> bool:
+        """Determine whether the bounds of the sub-regions are disjoint
+
+        Returns:
+            bool: Are they disjoint
+        """
+        # Get the bounds for each individual region
+        bounds = self.get_bounds(union_bounds=False)
+        # Get the union of all bounds
+        union_bounds = bounds.union_all()
+
+        # Find the sum of areas for each region
+        sum_individual_areas = bounds.area.sum()
+        # And the area of the union
+        union_area = union_bounds.area
+
+        # If the two areas are the same (down to numeric errors) then there are no overlaps
+        disjoint = np.allclose(sum_individual_areas, union_area)
+
+        return disjoint
+
     def save(
         self,
         save_path: PATH_TYPE,
