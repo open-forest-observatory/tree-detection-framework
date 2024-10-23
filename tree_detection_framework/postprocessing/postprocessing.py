@@ -1,4 +1,4 @@
-from typing import Optional
+import logging
 
 from lsnms import nms
 
@@ -86,9 +86,9 @@ def multi_region_NMS(
     # If the bounds of the individual regions were disjoint, then no NMS needs to be applied across
     # the different regions
     if detections.disjoint_bounds():
-        print("Bounds are disjoint, skipping across-region NMS")
+        logging.info("Bounds are disjoint, skipping across-region NMS")
         return merged_detections
-    print("Bound have overlap, running across-region NMS")
+    logging.info("Bound have overlap, running across-region NMS")
 
     # Run NMS on this merged RegionDetections
     NMS_suppressed_merged_detections = single_region_NMS(
