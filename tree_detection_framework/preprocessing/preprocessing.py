@@ -282,3 +282,47 @@ def save_dataloader_contents(
             break
 
     print(f"Saved {saved_tiles_count} tiles to {save_folder}")
+
+
+# testing new dataloader
+
+from torchgeo.datamodules import GeoDataModule
+
+class CustomDataModule(GeoDataModule):
+    def __init__(self, dataset_class, raster_folder_path, vector_folder_path, output_res, vector_label_name):
+        super().__init__(dataset_class=dataset_class)
+        self.raster_data = CustomRasterDataset(
+            paths=raster_folder_path, 
+            res=output_res
+        )
+
+        self.vector_data = CustomVectorDataset(
+            paths=vector_folder_path,
+            res=output_res,
+            label_name=vector_label_name,
+        )
+    
+    def train_dataloader(self):
+        dataset = self.raster_data & self.vector_data
+        sampler = GridGeoSampler(
+            dataset, size=100, stride=50, units=Units.CRS
+        )
+        return DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
+
+    def val_dataloader(self):
+        dataset = self.raster_data & self.vector_data
+        sampler = GridGeoSampler(
+            dataset, size=100, stride=50, units=Units.CRS
+        )
+        return DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
+
+    def test_dataloader(self):
+        dataset = self.raster_data & self.vector_data
+        sampler = GridGeoSampler(
+            dataset, size=100, stride=50, units=Units.CRS
+        )
+        return DataLoader(dataset, sampler=sampler, collate_fn=stack_samples)
+
+    def on_after_batch_transfer(self, batch, dataloader_idx: int):
+        # some transforms here
+        return batch
