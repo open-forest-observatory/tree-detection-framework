@@ -26,7 +26,7 @@ def tile_data(
     save_folder: Optional[PATH_TYPE] = None,
     save_n_tiles: Optional[int] = None,
     random_sample: bool = False,
-    batch_size: int = 1
+    batch_size: int = 1,
 ):
     """
     Entrypoint script for testing preprocessing functions.
@@ -83,7 +83,7 @@ def tile_data(
         output_CRS=output_CRS,
         vector_label_folder_path=vector_label_folder_path,
         vector_label_attribute=vector_label_attribute,
-        batch_size=batch_size
+        batch_size=batch_size,
     )
 
     # If `visualize_n_tiles` is specified, display those many number of tiles.

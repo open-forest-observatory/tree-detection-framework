@@ -140,7 +140,7 @@ class CustomVectorDataset(VectorDataset):
             "crs": self.crs,
             "bounds": query,
             "shapes": pixel_transformed_shapes,
-            "bounding_boxes": bounding_boxes
+            "bounding_boxes": bounding_boxes,
         }
 
         if self.transforms is not None:

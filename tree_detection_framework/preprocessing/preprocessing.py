@@ -55,7 +55,7 @@ def create_dataloader(
     output_CRS: Optional[pyproj.CRS] = None,
     vector_label_folder_path: Optional[PATH_TYPE] = None,
     vector_label_attribute: Optional[str] = None,
-    batch_size: int = 1
+    batch_size: int = 1,
 ) -> DataLoader:
     """
     Create a tiled dataloader using torchgeo. Contains raster data data and optionally vector labels
@@ -161,7 +161,9 @@ def create_dataloader(
     sampler = GridGeoSampler(
         final_dataset, size=chip_size, stride=chip_stride, units=units
     )
-    dataloader = DataLoader(final_dataset, batch_size=batch_size, sampler=sampler, collate_fn=stack_samples)
+    dataloader = DataLoader(
+        final_dataset, batch_size=batch_size, sampler=sampler, collate_fn=stack_samples
+    )
 
     return dataloader
 
@@ -273,4 +275,3 @@ def save_dataloader_contents(
             saved_tiles_count += 1
 
     print(f"Saved {saved_tiles_count} tiles to {save_folder}")
-
