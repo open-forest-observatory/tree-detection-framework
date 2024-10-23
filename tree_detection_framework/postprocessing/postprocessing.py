@@ -69,7 +69,7 @@ def multi_region_NMS(
     # Determine whether to run NMS individually on each region.
     if run_per_region_NMS:
         # Run NMS on each sub-region and then wrap this in a region detection set
-        region_detection_set_NMS_suppressed = RegionDetectionsSet(
+        detections = RegionDetectionsSet(
             [
                 single_region_NMS(
                     region_detections,
@@ -79,8 +79,6 @@ def multi_region_NMS(
                 for region_detections in detections.region_detections
             ]
         )
-        # Merge all the detections into one RegionDetections
-        detections = region_detection_set_NMS_suppressed.merge()
 
     # Merge the detections into a single RegionDetections
     merged_detections = detections.merge()
@@ -88,7 +86,9 @@ def multi_region_NMS(
     # If the bounds of the individual regions were disjoint, then no NMS needs to be applied across
     # the different regions
     if detections.disjoint_bounds():
+        print("Bounds are disjoint, skipping across-region NMS")
         return merged_detections
+    print("Bound have overlap, running across-region NMS")
 
     # Run NMS on this merged RegionDetections
     NMS_suppressed_merged_detections = single_region_NMS(
