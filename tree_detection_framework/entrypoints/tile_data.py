@@ -26,6 +26,7 @@ def tile_data(
     save_folder: Optional[PATH_TYPE] = None,
     save_n_tiles: Optional[int] = None,
     random_sample: bool = False,
+    batch_size: int = 1
 ):
     """
     Entrypoint script for testing preprocessing functions.
@@ -67,6 +68,8 @@ def tile_data(
         random_sample (bool, optional):
             If `save_n_tiles` is set, should the tiles be randomly sampled rather than taken from the
             beginning of the dataloader. Defaults to False.
+        batch_size (int, optional):
+            Number of images to load in a batch. Defaults to 1.
     """
     # Create the dataloader by passing folder path to raster data and optionally a path to the vector data folder.
     dataloader = create_dataloader(
@@ -80,6 +83,7 @@ def tile_data(
         output_CRS=output_CRS,
         vector_label_folder_path=vector_label_folder_path,
         vector_label_attribute=vector_label_attribute,
+        batch_size=batch_size
     )
 
     # If `visualize_n_tiles` is specified, display those many number of tiles.
@@ -193,6 +197,13 @@ def parse_args() -> argparse.Namespace:
         "--random-sample",
         action="store_true",
         help="If --save-n-tiles is set, should the tiles be randomly sampled rather than taken from the beginning of the dataloader.",
+    )
+
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        required=False,
+        help="Number of images to load in a batch. Defaults to 1.",
     )
 
     args = parser.parse_args()

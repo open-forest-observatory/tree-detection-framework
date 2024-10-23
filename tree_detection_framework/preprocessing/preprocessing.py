@@ -55,6 +55,7 @@ def create_dataloader(
     output_CRS: Optional[pyproj.CRS] = None,
     vector_label_folder_path: Optional[PATH_TYPE] = None,
     vector_label_attribute: Optional[str] = None,
+    batch_size: int = 1
 ) -> DataLoader:
     """
     Create a tiled dataloader using torchgeo. Contains raster data data and optionally vector labels
@@ -85,6 +86,8 @@ def create_dataloader(
             dataloader will not be labeled. Defaults to None.
         vector_label_attribute (Optional[str], optional):
             Attribute to read from the vector data, such as the class or instance ID. Defaults to None.
+        batch_size (int, optional):
+            Number of images to load in a batch. Defaults to 1.
 
     Returns:
         DataLoader:
@@ -158,7 +161,7 @@ def create_dataloader(
     sampler = GridGeoSampler(
         final_dataset, size=chip_size, stride=chip_stride, units=units
     )
-    dataloader = DataLoader(final_dataset, sampler=sampler, collate_fn=stack_samples)
+    dataloader = DataLoader(final_dataset, batch_size=batch_size, sampler=sampler, collate_fn=stack_samples)
 
     return dataloader
 
@@ -234,32 +237,40 @@ def save_dataloader_contents(
     else:
         selected_batches = all_batches
 
+    # Counter for saved tiles
+    saved_tiles_count = 0
+
     # Iterate over the selected batches
-    for i, batch in enumerate(selected_batches):
-        sample = unbind_samples(batch)[0]
+    for batch in selected_batches:
+        # Process each sample in the batch
+        for j, sample in enumerate(unbind_samples(batch)):
+            image = sample["image"]
+            image_tensor = torch.clamp(image / 255.0, min=0, max=1)
+            pil_image = transform_to_pil(image_tensor)
 
-        # Process the image
-        image = sample["image"]
-        image_tensor = torch.clamp(image / 255.0, min=0, max=1)
-        pil_image = transform_to_pil(image_tensor)
-        pil_image.save(destination_folder / f"tile_{i}.png")
+            # Save the image tile
+            pil_image.save(destination_folder / f"tile_{saved_tiles_count}.png")
 
-        # Prepare tile metadata
-        metadata = {
-            "crs": sample["crs"].to_string(),
-            "bounds": list(sample["bounds"]),
-        }
+            # Prepare tile metadata
+            metadata = {
+                "crs": sample["crs"].to_string(),
+                "bounds": list(sample["bounds"]),
+            }
 
-        # If dataset includes labels, save crown metadata
-        if isinstance(dataloader.dataset, IntersectionDataset):
-            shapes = sample["shapes"]
-            crowns = [
-                {"ID": tree_id, "crown": polygon.wkt} for polygon, tree_id in shapes
-            ]
-            metadata["crowns"] = crowns
+            # If dataset includes labels, save crown metadata
+            if isinstance(dataloader.dataset, IntersectionDataset):
+                shapes = sample["shapes"]
+                crowns = [
+                    {"ID": tree_id, "crown": polygon.wkt} for polygon, tree_id in shapes
+                ]
+                metadata["crowns"] = crowns
 
-        # Save metadata to a JSON file
-        with open(destination_folder / f"tile_{i}.json", "w") as f:
-            json.dump(metadata, f, indent=4)
+            # Save metadata to a JSON file
+            with open(destination_folder / f"tile_{saved_tiles_count}.json", "w") as f:
+                json.dump(metadata, f, indent=4)
 
-    print(f"Saved {i + 1} tiles to {save_folder}")
+            # Increment the saved tile count
+            saved_tiles_count += 1
+
+    print(f"Saved {saved_tiles_count} tiles to {save_folder}")
+
