@@ -227,12 +227,14 @@ def save_dataloader_contents(
 
     # Flatten the list of batches into individual samples
     all_samples = [sample for batch in all_batches for sample in unbind_samples(batch)]
-    
+
     # If `n_tiles` is set, limit the number of tiles to save
     if n_tiles is not None:
         if random_sample:
             # Randomly sample `n_tiles`. If `n_tiles` is greater than available samples, include all samples.
-            selected_samples = random.sample(all_samples, min(n_tiles, len(all_samples)))
+            selected_samples = random.sample(
+                all_samples, min(n_tiles, len(all_samples))
+            )
         else:
             # Take first `n_tiles`
             selected_samples = all_samples[:n_tiles]
