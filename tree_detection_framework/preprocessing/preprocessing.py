@@ -225,53 +225,55 @@ def save_dataloader_contents(
     # Collect all batches from the dataloader
     all_batches = list(dataloader)
 
-    # Get total number of available tiles
-    dataset_size = len(all_batches)
-
+    # Flatten the list of batches into individual samples
+    all_samples = [sample for batch in all_batches for sample in unbind_samples(batch)]
+    
     # If `n_tiles` is set, limit the number of tiles to save
     if n_tiles is not None:
         if random_sample:
-            # Randomly sample `n_tiles`. If `n_tiles` is greater than `dataset_size`, include all tiles.
-            selected_batches = random.sample(all_batches, min(n_tiles, dataset_size))
+            # Randomly sample `n_tiles`. If `n_tiles` is greater than available samples, include all samples.
+            selected_samples = random.sample(all_samples, min(n_tiles, len(all_samples)))
         else:
             # Take first `n_tiles`
-            selected_batches = all_batches[:n_tiles]
+            selected_samples = all_samples[:n_tiles]
     else:
-        selected_batches = all_batches
+        selected_samples = all_samples
 
     # Counter for saved tiles
     saved_tiles_count = 0
 
-    # Iterate over the selected batches
-    for batch in selected_batches:
-        # Process each sample in the batch
-        for sample in unbind_samples(batch):
-            image = sample["image"]
-            image_tensor = torch.clamp(image / 255.0, min=0, max=1)
-            pil_image = transform_to_pil(image_tensor)
+    # Iterate over the selected samples
+    for sample in selected_samples:
+        image = sample["image"]
+        image_tensor = torch.clamp(image / 255.0, min=0, max=1)
+        pil_image = transform_to_pil(image_tensor)
 
-            # Save the image tile
-            pil_image.save(destination_folder / f"tile_{saved_tiles_count}.png")
+        # Save the image tile
+        pil_image.save(destination_folder / f"tile_{saved_tiles_count}.png")
 
-            # Prepare tile metadata
-            metadata = {
-                "crs": sample["crs"].to_string(),
-                "bounds": list(sample["bounds"]),
-            }
+        # Prepare tile metadata
+        metadata = {
+            "crs": sample["crs"].to_string(),
+            "bounds": list(sample["bounds"]),
+        }
 
-            # If dataset includes labels, save crown metadata
-            if isinstance(dataloader.dataset, IntersectionDataset):
-                shapes = sample["shapes"]
-                crowns = [
-                    {"ID": tree_id, "crown": polygon.wkt} for polygon, tree_id in shapes
-                ]
-                metadata["crowns"] = crowns
+        # If dataset includes labels, save crown metadata
+        if isinstance(dataloader.dataset, IntersectionDataset):
+            shapes = sample["shapes"]
+            crowns = [
+                {"ID": tree_id, "crown": polygon.wkt} for polygon, tree_id in shapes
+            ]
+            metadata["crowns"] = crowns
 
-            # Save metadata to a JSON file
-            with open(destination_folder / f"tile_{saved_tiles_count}.json", "w") as f:
-                json.dump(metadata, f, indent=4)
+        # Save metadata to a JSON file
+        with open(destination_folder / f"tile_{saved_tiles_count}.json", "w") as f:
+            json.dump(metadata, f, indent=4)
 
-            # Increment the saved tile count
-            saved_tiles_count += 1
+        # Increment the saved tile count
+        saved_tiles_count += 1
+
+        # Stop once the desired number of tiles is saved
+        if n_tiles is not None and saved_tiles_count >= n_tiles:
+            break
 
     print(f"Saved {saved_tiles_count} tiles to {save_folder}")
