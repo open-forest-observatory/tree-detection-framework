@@ -130,7 +130,7 @@ class CustomVectorDataset(VectorDataset):
 
         # Convert each polygon to an axis-aligned bounding box of format (x_min, y_min, x_max, y_max) in pixel coordinates
         bounding_boxes = []
-        for polygon, label in pixel_transformed_shapes:
+        for polygon, _ in pixel_transformed_shapes:
             x_min, y_min, x_max, y_max = polygon.bounds
             bounding_boxes.append((x_min, y_min, x_max, y_max))
 

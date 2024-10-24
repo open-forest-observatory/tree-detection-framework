@@ -245,7 +245,7 @@ def save_dataloader_contents(
     # Iterate over the selected batches
     for batch in selected_batches:
         # Process each sample in the batch
-        for j, sample in enumerate(unbind_samples(batch)):
+        for sample in unbind_samples(batch):
             image = sample["image"]
             image_tensor = torch.clamp(image / 255.0, min=0, max=1)
             pil_image = transform_to_pil(image_tensor)
