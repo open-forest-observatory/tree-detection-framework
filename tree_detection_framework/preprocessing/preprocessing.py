@@ -55,6 +55,7 @@ def create_dataloader(
     output_CRS: Optional[pyproj.CRS] = None,
     vector_label_folder_path: Optional[PATH_TYPE] = None,
     vector_label_attribute: Optional[str] = None,
+    batch_size: int = 1,
 ) -> DataLoader:
     """
     Create a tiled dataloader using torchgeo. Contains raster data data and optionally vector labels
@@ -85,6 +86,8 @@ def create_dataloader(
             dataloader will not be labeled. Defaults to None.
         vector_label_attribute (Optional[str], optional):
             Attribute to read from the vector data, such as the class or instance ID. Defaults to None.
+        batch_size (int, optional):
+            Number of images to load in a batch. Defaults to 1.
 
     Returns:
         DataLoader:
@@ -158,7 +161,9 @@ def create_dataloader(
     sampler = GridGeoSampler(
         final_dataset, size=chip_size, stride=chip_stride, units=units
     )
-    dataloader = DataLoader(final_dataset, sampler=sampler, collate_fn=stack_samples)
+    dataloader = DataLoader(
+        final_dataset, batch_size=batch_size, sampler=sampler, collate_fn=stack_samples
+    )
 
     return dataloader
 
@@ -220,29 +225,33 @@ def save_dataloader_contents(
     # Collect all batches from the dataloader
     all_batches = list(dataloader)
 
-    # Get total number of available tiles
-    dataset_size = len(all_batches)
+    # Flatten the list of batches into individual samples
+    all_samples = [sample for batch in all_batches for sample in unbind_samples(batch)]
 
     # If `n_tiles` is set, limit the number of tiles to save
     if n_tiles is not None:
         if random_sample:
-            # Randomly sample `n_tiles`. If `n_tiles` is greater than `dataset_size`, include all tiles.
-            selected_batches = random.sample(all_batches, min(n_tiles, dataset_size))
+            # Randomly sample `n_tiles`. If `n_tiles` is greater than available samples, include all samples.
+            selected_samples = random.sample(
+                all_samples, min(n_tiles, len(all_samples))
+            )
         else:
             # Take first `n_tiles`
-            selected_batches = all_batches[:n_tiles]
+            selected_samples = all_samples[:n_tiles]
     else:
-        selected_batches = all_batches
+        selected_samples = all_samples
 
-    # Iterate over the selected batches
-    for i, batch in enumerate(selected_batches):
-        sample = unbind_samples(batch)[0]
+    # Counter for saved tiles
+    saved_tiles_count = 0
 
-        # Process the image
+    # Iterate over the selected samples
+    for sample in selected_samples:
         image = sample["image"]
         image_tensor = torch.clamp(image / 255.0, min=0, max=1)
         pil_image = transform_to_pil(image_tensor)
-        pil_image.save(destination_folder / f"tile_{i}.png")
+
+        # Save the image tile
+        pil_image.save(destination_folder / f"tile_{saved_tiles_count}.png")
 
         # Prepare tile metadata
         metadata = {
@@ -259,7 +268,14 @@ def save_dataloader_contents(
             metadata["crowns"] = crowns
 
         # Save metadata to a JSON file
-        with open(destination_folder / f"tile_{i}.json", "w") as f:
+        with open(destination_folder / f"tile_{saved_tiles_count}.json", "w") as f:
             json.dump(metadata, f, indent=4)
 
-    print(f"Saved {i + 1} tiles to {save_folder}")
+        # Increment the saved tile count
+        saved_tiles_count += 1
+
+        # Stop once the desired number of tiles is saved
+        if n_tiles is not None and saved_tiles_count >= n_tiles:
+            break
+
+    print(f"Saved {saved_tiles_count} tiles to {save_folder}")
