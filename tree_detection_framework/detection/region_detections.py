@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 import geopandas as gpd
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyproj
@@ -261,6 +262,63 @@ class RegionDetections:
             bounds.set_crs(None)
 
         return bounds
+
+    def plot(
+        self,
+        CRS: Optional[pyproj.CRS] = None,
+        as_pixels: bool = False,
+        plt_ax: Optional[plt.axes] = None,
+        plt_show: bool = True,
+        visualization_column: Optional[str] = None,
+        bounds_color: Optional[Union[str, np.array, pd.Series]] = None,
+        detection_kwargs: dict = {},
+        bounds_kwargs: dict = {},
+    ) -> plt.axes:
+        """Plot the detections and the bounds of the region
+
+        Args:
+            CRS (Optional[pyproj.CRS], optional):
+                What CRS to use. Defaults to None.
+            as_pixels (bool, optional):
+                Whether to display in pixel coordinates. Defaults to False.
+            plt_ax (Optional[plt.axes], optional):
+                A pyplot axes to plot on. If not provided, one will be created. Defaults to None.
+            plt_show (bool, optional):
+                Whether to plot the result or just return it. Defaults to True.
+            visualization_column (Optional[str], optional):
+                Which column to visualize from the detections dataframe. Defaults to None.
+            bounds_color (Optional[Union[str, np.array, pd.Series]], optional):
+                The color to plot the bounds. Must be accepted by the gpd.plot color argument.
+                Defaults to None.
+            detection_kwargs (dict, optional):
+                Additional keyword arguments to pass to the .plot method for the detections.
+                Defaults to {}.
+            bounds_kwargs (dict, optional):
+                Additional keyword arguments to pass to the .plot method for the bounds.
+                Defaults to {}.
+
+        Returns:
+            plt.axes: The axes that were plotted on
+        """
+
+        # Get the dataframe and the bounds
+        data_frame = self.get_data_frame(CRS=CRS, as_pixels=as_pixels)
+        bounds = self.get_bounds(CRS, as_pixels=as_pixels)
+
+        # If no axes are provided, create new ones
+        if plt_ax is None:
+            _, plt_ax = plt.subplots()
+
+        # Plot the detections dataframe and the bounds on the same axes
+        data_frame.plot(ax=plt_ax, column=visualization_column, **detection_kwargs)
+        bounds.plot(ax=plt_ax, color=bounds_color, **bounds_kwargs)
+
+        # Show if requested
+        if plt_show:
+            plt.show()
+
+        # Return the axes in case they need to be used later
+        return plt_ax
 
 
 class RegionDetectionsSet:
