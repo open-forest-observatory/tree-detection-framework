@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from typing import Any, DefaultDict, Iterator, List, Tuple, Union
 from typing import Optional
+from typing import List, Dict, Union
 import warnings
 
 import os
@@ -13,7 +14,7 @@ from torch.utils.data import DataLoader
 from torchgeo.datasets import unbind_samples
 import torch
 from deepforest import main
-from torch import optim
+from torch import optim, Tensor
 
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
@@ -393,11 +394,20 @@ class DeepForestModule(lightning.LightningModule):
         self.__release_version__ = release_tag
         print("Loading pre-built model: {}".format(release_tag))
 
-    def forward(self, images, targets):
-        # self.model.forward plus post processing if needed within forward()
+    def forward(self, images: List[Tensor], targets: List[Dict[str, Tensor]]) -> Dict[str, Tensor]:
+        """ Calls the model's forward method.
+        Args:
+            images (list[Tensor]): Images to be processed
+            targets (list[Dict[Tensor]]): Ground-truth boxes present in the image
+
+        Returns:
+            result (list[BoxList] or dict[Tensor]):
+                The output from the model.
+                During training, it returns a dict[Tensor] which contains the losses.
+        """
         return self.model.forward(images, targets)  # Model specific forward
     
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch):
         self.model.train()
         device = next(self.model.parameters()).device
 
