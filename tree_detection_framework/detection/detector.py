@@ -33,6 +33,8 @@ from torchvision.models.detection.retinanet import AnchorGenerator
 from torchvision.models.detection.retinanet import RetinaNet_ResNet50_FPN_Weights
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
+from torchvision import transforms
+
 
 class Detector:
     @abstractmethod
@@ -268,6 +270,28 @@ class RetinaNetModel:
 
         return backbone
 
+    def create_anchor_generator(self,
+                                sizes=((8, 16, 32, 64, 128, 256, 400),),
+                                aspect_ratios=((0.5, 1.0, 2.0),)):
+        """
+        Create anchor box generator as a function of sizes and aspect ratios
+        Documented https://github.com/pytorch/vision/blob/67b25288ca202d027e8b06e17111f1bcebd2046c/torchvision/models/detection/anchor_utils.py#L9
+        let's make the network generate 5 x 3 anchors per spatial
+        location, with 5 different sizes and 3 different aspect
+        ratios. We have a Tuple[Tuple[int]] because each feature
+        map could potentially have different sizes and
+        aspect ratios
+        Args:
+            sizes:
+            aspect_ratios:
+
+        Returns: anchor_generator, a pytorch module
+
+        """
+        anchor_generator = AnchorGenerator(sizes=sizes, aspect_ratios=aspect_ratios)
+
+        return anchor_generator
+
     def create_model(self):
         """Create a retinanet model
         Args:
@@ -290,10 +314,12 @@ class RetinaNetModel:
 class LightningDetector(Detector):
 
     def __init__(self, model, param_dict):
+        self.setup(model)
+        self.param_dict = param_dict
+
+    def setup(self, model):
         self.model = model
         self.model.use_release()
-        self.param_dict = param_dict
-        self.trainer = self.setup_trainer() # TODO: move it into a function; on-demand trainer
 
     def setup_trainer(self):
         """Create a pytorch lightning trainer from a parameter dictionary
@@ -338,7 +364,7 @@ class LightningDetector(Detector):
             train_dataloader (DataLoader): The training dataloader
             val_dataloader (DataLoader): The validation dataloader
         """
-        # self.trainer.fit(self.model, train_dataloader, val_dataloader)
+        self.trainer = self.setup_trainer()
         self.trainer.fit(model, datamodule)
 
 
@@ -353,9 +379,7 @@ class LightningDetector(Detector):
         raise NotImplementedError()
 
 class DeepForestModule(lightning.LightningModule):
-    # subclass of pl.LightningModule
     def __init__(self, param_dict):
-        # do the model setup here
         super().__init__() 
         self.param_dict = param_dict
         if param_dict['backbone'] == 'retinanet':
@@ -373,8 +397,6 @@ class DeepForestModule(lightning.LightningModule):
         # Download latest model from github release
         release_tag, self.release_state_dict = use_release_df(
             check_release=check_release)
-            # self.config["architecture"] = "retinanet"
-            # self.create_model()
         self.model.load_state_dict(torch.load(self.release_state_dict))
 
         # load saved model and tag release
@@ -383,30 +405,33 @@ class DeepForestModule(lightning.LightningModule):
 
     def forward(self, images, targets):
         # self.model.forward plus post processing if needed within forward()
-        return self.model.forward(images, targets)  # Model specific forward
-      
-    def training_step(self, batch):
-        # training_step, similar to the one in deepforest. below are steps from deepforest:
-
-        # # Confirm model is in train mode
-        # self.model.train()
-
-        # # allow for empty data if data augmentation is generated
-        # path, images, targets = batch
-
-        # loss_dict = self.model.forward(images, targets)
-
-        # # sum of regression and classification loss
-        # losses = sum([loss for loss in loss_dict.values()])
-
-        # return losses
-        self.model.train() # Train mode
-        images = [i['image'] for i in batch]  # List of tensors representing images
-        targets = [{'boxes': torch.tensor(i['label_bboxes'])} for i in batch]  # List of dicts for ground-truth targets
-        loss_dict = self.forward(images, targets)
-        losses = sum([loss for loss in loss_dict.values()])
-        return losses
+        return self.model.forward(images)  # Model specific forward
     
+    def training_step(self, batch, batch_idx):
+        self.model.train()
+        device = next(self.model.parameters()).device
+
+        image_batch = (batch['image'][:, :3, :, :] / 255.0).to(device)
+
+        boxes_batch = batch['label_bboxes']
+        flat_bboxes = [bbox for sublist in boxes_batch for bbox in sublist]
+        boxes_tensor = torch.FloatTensor(flat_bboxes).to(device)
+        valid_mask = (boxes_tensor >= 0).all(dim=1)
+        filtered_boxes_tensor = boxes_tensor[valid_mask]
+        class_labels = torch.zeros(filtered_boxes_tensor.shape[0], dtype=torch.int64).to(device)
+
+        targets = {
+            "boxes": filtered_boxes_tensor,  # N x 4 tensor
+            "labels": class_labels            # N tensor
+        }
+    
+        loss_dict = self.model.forward(image_batch, [targets])
+
+        final_loss = sum([loss for loss in loss_dict.values()])
+        print('loss: ',final_loss)
+        return final_loss
+
+
     def configure_optimizers(self):
         # similar to the one in deepforest
         optimizer = optim.SGD(self.model.parameters(),
