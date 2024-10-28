@@ -132,7 +132,7 @@ class CustomVectorDataset(VectorDataset):
         bounding_boxes = []
         for polygon, _ in pixel_transformed_shapes:
             x_min, y_min, x_max, y_max = polygon.bounds
-            bounding_boxes.append((x_min, y_min, x_max, y_max))
+            bounding_boxes.append([x_min, y_min, x_max, y_max])
 
         # Add `shapes` and `bounding_boxes` to the dictionary.
         sample = {
