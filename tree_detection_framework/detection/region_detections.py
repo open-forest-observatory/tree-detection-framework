@@ -310,8 +310,13 @@ class RegionDetections:
             _, plt_ax = plt.subplots()
 
         # Plot the detections dataframe and the bounds on the same axes
+        if "facecolor" not in detection_kwargs:
+            # Plot with transperent faces unless requested
+            detection_kwargs["facecolor"] = "none"
         data_frame.plot(ax=plt_ax, column=visualization_column, **detection_kwargs)
-        bounds.plot(ax=plt_ax, color=bounds_color, **bounds_kwargs)
+        # Use the .boundary attribute to plot just the border. This works since it's a geoseries,
+        # not a geodataframe
+        bounds.boundary.plot(ax=plt_ax, color=bounds_color, **bounds_kwargs)
 
         # Show if requested
         if plt_show:
