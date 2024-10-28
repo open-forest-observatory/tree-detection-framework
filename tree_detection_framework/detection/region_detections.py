@@ -347,12 +347,20 @@ class RegionDetectionsSet:
 
         return valid
 
-    def get_default_CRS(self) -> pyproj.CRS:
+    def get_default_CRS(self, check_all_have_CRS=True) -> pyproj.CRS:
         """Find the CRS of the first sub-region to use as a default
+
+        Args:
+            check_all_have_CRS (bool, optional):
+                Should an error be raised if not all regions have a CRS set.
 
         Returns:
             pyproj.CRS: The CRS given by the first sub-region.
         """
+        if check_all_have_CRS and not self.all_regions_have_CRS():
+            raise ValueError(
+                "Not all regions have a CRS set and a default one was requested"
+            )
         # Check that every region is geospatial
         regions_CRS_values = [rd.detections.crs for rd in self.region_detections]
         # The default is the to the CRS of the first region
@@ -545,3 +553,65 @@ class RegionDetectionsSet:
 
         # Save the data to the geofile
         concatenated_geodataframes.to_file(save_path)
+
+    def plot(
+        self,
+        CRS: Optional[pyproj.CRS] = None,
+        as_pixels: bool = False,
+        plt_ax: Optional[plt.axes] = None,
+        plt_show: bool = True,
+        visualization_column: Optional[str] = None,
+        bounds_color: Optional[Union[str, np.array, pd.Series]] = None,
+        detection_kwargs: dict = {},
+        bounds_kwargs: dict = {},
+    ) -> plt.axes:
+        """Plot each of the region detections using their .plot method
+
+        Args:
+            CRS (Optional[pyproj.CRS], optional):
+                The CRS to use for plotting all regions. If unset, the default one for this object
+                will be selected. Defaults to None.
+            as_pixels (bool, optional):
+                See RegionDetections.plot. Defaults to False.
+            plt_ax (Optional[plt.axes], optional):
+                The axes to plot on. Will be created if not provided. Defaults to None.
+            plt_show (bool, optional):
+                See RegionDetections.plot. Defaults to True.
+            visualization_column (Optional[str], optional):
+                See regiondetections.plot. Defaults to None.
+            bounds_color (Optional[Union[str, np.array, pd.Series]], optional):
+                See regiondetections.plot. Defaults to None.
+            detection_kwargs (dict, optional):
+                See regiondetections.plot. Defaults to {}.
+            bounds_kwargs (dict, optional):
+                See regiondetections.plot. Defaults to {}.
+
+        Returns:
+            plt.axes: The axes that have been plotted on.
+        """
+        # If no axes are provided, create a new one that will be shared across all plots
+        if plt_ax is None:
+            _, plt_ax = plt.subplots()
+
+        # If no CRS is provided, select the default one
+        if CRS is None:
+            CRS = self.get_default_CRS()
+
+        # Iterate over each region and call the plot method of each
+        for rd in self.region_detections:
+            rd.plot(
+                CRS=CRS,
+                as_pixels=as_pixels,
+                plt_ax=plt_ax,
+                visualization_column=visualization_column,
+                bounds_color=bounds_color,
+                detection_kwargs=detection_kwargs,
+                bounds_kwargs=bounds_kwargs,
+                plt_show=False,  # don't show each one individually
+            )
+
+        # Show all regions if requested
+        if plt_show:
+            plt.show()
+
+        return plt_ax
