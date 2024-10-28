@@ -290,8 +290,8 @@ from torchgeo.datamodules import GeoDataModule
 
 
 class CustomDataModule(GeoDataModule):
-    def __init__(self, dataset_class, raster_folder_path, vector_folder_path, output_res, vector_label_name):
-        super().__init__(dataset_class=dataset_class)
+    def __init__(self, raster_folder_path, vector_folder_path, output_res, vector_label_name):
+        super().__init__(dataset_class=IntersectionDataset)
         self.raster_folder_path = raster_folder_path
         self.vector_folder_path = vector_folder_path
         self.output_res = output_res
@@ -315,7 +315,7 @@ class CustomDataModule(GeoDataModule):
             self.test_data = self.raster_data & self.vector_data
 
     def train_dataloader(self):
-        sampler = GridGeoSampler(self.train_data, size=512, stride=400)
+        sampler = GridGeoSampler(self.train_data, size=350, stride=400)  # size=512
         return DataLoader(self.train_data, sampler=sampler, collate_fn=stack_samples)
 
     def val_dataloader(self):

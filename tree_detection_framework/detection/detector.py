@@ -26,6 +26,7 @@ from tree_detection_framework.detection.region_detections import (
 )
 from tree_detection_framework.detection.region_detections import RegionDetectionsSet
 from tree_detection_framework.utils.detection import use_release_df
+from tree_detection_framework.preprocessing.preprocessing import CustomDataModule
 
 import torchvision
 from torchvision.models.detection.retinanet import RetinaNet
@@ -257,6 +258,63 @@ class RandomDetector(Detector):
             batch_datas.append(data)
 
         return batch_geometries, batch_datas
+class LightningDetector(Detector):
+    model: lightning.LightningModule
+
+    def setup(self):
+        # This method should implement setup tasks that are common to all LightningDetectors.
+        # Method-specific tasks should be defered to setup_model
+        raise NotImplementedError()
+
+    @abstractmethod
+    def setup_model(self, param_dict: dict) -> lightning.LightningModule:
+        """Set up the lightning model, including loading pretrained weights if required
+
+        Args:
+            param_dict (dict): Dictionary of configuration paramters.
+
+        Returns:
+            lightning.LightningModule: A configured model
+        """
+        # Should be implemented in each derived class since it's algorithm-specific
+        raise NotImplementedError()
+
+    def setup_trainer(self, param_dict: dict) -> lightning.Trainer:
+        """Create a pytorch lightning trainer from a parameter dictionary
+
+        Args:
+            param_dict (dict): Dictionary of configuration paramters.
+
+        Returns:
+            lightning.Trainer: A configured trainer
+        """
+        raise NotImplementedError()
+
+    def predict(
+        self, inference_dataloader: DataLoader, **kwargs
+    ) -> RegionDetectionsSet:
+        # Should be implemented here
+        raise NotImplementedError()
+
+    def train(self, train_dataloader: DataLoader, val_dataloader: DataLoader, **kwargs):
+        """Train a model
+
+        Args:
+            train_dataloader (DataLoader): The training dataloader
+            val_dataloader (DataLoader): The validation dataloader
+        """
+        # Should be implemented here
+        raise NotImplementedError()
+
+    def save_model(self, save_file: PATH_TYPE):
+        """Save a model to disk
+
+        Args:
+            save_file (PATH_TYPE):
+                Where to save the model. Containing folders will be created if they don't exist.
+        """
+        # Should be implemented here
+        raise NotImplementedError()
 
 class RetinaNetModel:
     # deepforest.models.retinanet
@@ -310,74 +368,6 @@ class RetinaNetModel:
 
         return model
     
-
-class LightningDetector(Detector):
-
-    def __init__(self, model, param_dict):
-        self.setup(model)
-        self.param_dict = param_dict
-
-    def setup(self, model):
-        self.model = model
-        self.model.use_release()
-
-    def setup_trainer(self):
-        """Create a pytorch lightning trainer from a parameter dictionary
-
-        Args:
-            param_dict (dict): Dictionary of configuration paramters.
-
-        Returns:
-            lightning.Trainer: A configured trainer
-        """
-        # convert param dict to trainer
-        checkpoint_callback = ModelCheckpoint(
-            dirpath="checkpoints/",
-            monitor="box_recall",
-            mode="max",
-            save_top_k=3,
-            filename="box_recall-{epoch:02d}-{box_recall:.2f}"
-        )
-        logger = TensorBoardLogger(save_dir="logs/")
-
-        trainer = lightning.Trainer(logger=logger,
-                                  max_epochs=self.param_dict["train"]["epochs"],
-                                  enable_checkpointing=self.param_dict["enable_checkpointing"],
-                                  callbacks=[checkpoint_callback]
-                                  )
-        return trainer
-        
-
-    def predict(
-        self, inference_dataloader: DataLoader, **kwargs
-    ) -> RegionDetectionsSet:
-        # Should be implemented here
-        # self.model loop
-        raise NotImplementedError()
-
-    # def train(self, train_dataloader: DataLoader, val_dataloader: DataLoader):
-    def train(self, model, datamodule):
-        
-        """Train a model
-
-        Args:
-            train_dataloader (DataLoader): The training dataloader
-            val_dataloader (DataLoader): The validation dataloader
-        """
-        self.trainer = self.setup_trainer()
-        self.trainer.fit(model, datamodule)
-
-
-    def save_model(self, save_file: PATH_TYPE):
-        """Save a model to disk
-
-        Args:
-            save_file (PATH_TYPE):
-                Where to save the model. Containing folders will be created if they don't exist.
-        """
-        # Should be implemented here
-        raise NotImplementedError()
-
 class DeepForestModule(lightning.LightningModule):
     def __init__(self, param_dict):
         super().__init__() 
@@ -405,7 +395,7 @@ class DeepForestModule(lightning.LightningModule):
 
     def forward(self, images, targets):
         # self.model.forward plus post processing if needed within forward()
-        return self.model.forward(images)  # Model specific forward
+        return self.model.forward(images, targets)  # Model specific forward
     
     def training_step(self, batch, batch_idx):
         self.model.train()
@@ -425,7 +415,7 @@ class DeepForestModule(lightning.LightningModule):
             "labels": class_labels            # N tensor
         }
     
-        loss_dict = self.model.forward(image_batch, [targets])
+        loss_dict = self.forward(image_batch, [targets])
 
         final_loss = sum([loss for loss in loss_dict.values()])
         print('loss: ',final_loss)
@@ -457,3 +447,76 @@ class DeepForestModule(lightning.LightningModule):
         # else:
         #     return optimizer
         return optimizer
+    
+
+class DeepForestDetector(LightningDetector):
+
+    def __init__(self, model, param_dict):
+        self.setup_model(model)
+        self.param_dict = param_dict
+
+    def setup_model(self, model: DeepForestModule):
+        """Setup the DeepForest model and use latest release.
+        
+        Args:
+            model (DeepForestModule): LightningModule for DeepForest
+        """
+        self.model = model
+        self.model.use_release()
+
+    def setup_trainer(self):
+        """Create a pytorch lightning trainer from a parameter dictionary
+
+        Args:
+            param_dict (dict): Dictionary of configuration paramters
+
+        Returns:
+            lightning.Trainer: A configured trainer
+        """
+        # convert param dict to trainer
+        checkpoint_callback = ModelCheckpoint(
+            dirpath="checkpoints/",
+            monitor="box_recall",
+            mode="max",
+            save_top_k=3,
+            filename="box_recall-{epoch:02d}-{box_recall:.2f}"
+        )
+        logger = TensorBoardLogger(save_dir="logs/")
+
+        trainer = lightning.Trainer(logger=logger,
+                                  max_epochs=self.param_dict["train"]["epochs"],
+                                  enable_checkpointing=self.param_dict["enable_checkpointing"],
+                                  callbacks=[checkpoint_callback]
+                                  )
+        return trainer
+        
+
+    def predict(
+        self, inference_dataloader: DataLoader, **kwargs
+    ) -> RegionDetectionsSet:
+        # Should be implemented here
+        # self.model loop
+        raise NotImplementedError()
+
+    # def train(self, train_dataloader: DataLoader, val_dataloader: DataLoader):
+    def train(self, model: DeepForestModule, datamodule: CustomDataModule):
+        
+        """Train a model
+
+        Args:
+            model (DeepForestModule): LightningModule for DeepForest
+            datamodule (CustomDataModule): LightningDataModule that creates train-val-test dataloaders
+        """
+        self.trainer = self.setup_trainer()
+        self.trainer.fit(model, datamodule)
+
+
+    def save_model(self, save_file: PATH_TYPE):
+        """Save a model to disk
+
+        Args:
+            save_file (PATH_TYPE):
+                Where to save the model. Containing folders will be created if they don't exist.
+        """
+        # Should be implemented here
+        raise NotImplementedError()
