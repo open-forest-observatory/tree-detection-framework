@@ -286,6 +286,8 @@ def save_dataloader_contents(
 
 
 class CustomDataModule(GeoDataModule):
+    # TODO: accomodate different datasets for train, validation testing.
+    # TODO: include batch_size parameter in DataLoader
     def __init__(self, raster_folder_path, vector_folder_path, output_res, vector_label_name):
         super().__init__(dataset_class=IntersectionDataset)
         self.raster_folder_path = raster_folder_path
@@ -303,15 +305,17 @@ class CustomDataModule(GeoDataModule):
             res=self.output_res,
             label_name=self.vector_label_name,
         )
+
+        # create the data based on the stage the Trainer is in
         if stage == 'fit':
-            self.train_data = self.raster_data & self.vector_data
+            self.train_data = self.raster_data & self.vector_data # IntersectionDataset
         if stage == 'validate' or stage == 'fit':
             self.val_data = self.raster_data & self.vector_data
         if stage == 'test':
             self.test_data = self.raster_data & self.vector_data
 
     def train_dataloader(self):
-        sampler = GridGeoSampler(self.train_data, size=350, stride=400)  # size=512
+        sampler = GridGeoSampler(self.train_data, size=350, stride=400)
         return DataLoader(self.train_data, sampler=sampler, collate_fn=stack_samples)
 
     def val_dataloader(self):
