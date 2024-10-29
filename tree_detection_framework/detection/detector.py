@@ -380,31 +380,14 @@ class RetinaNetModel:
     def create_anchor_generator(
         self, sizes=((8, 16, 32, 64, 128, 256, 400),), aspect_ratios=((0.5, 1.0, 2.0),)
     ):
-        """
-        Create anchor box generator as a function of sizes and aspect ratios
-        Documented https://github.com/pytorch/vision/blob/67b25288ca202d027e8b06e17111f1bcebd2046c/torchvision/models/detection/anchor_utils.py#L9
-        let's make the network generate 5 x 3 anchors per spatial
-        location, with 5 different sizes and 3 different aspect
-        ratios. We have a Tuple[Tuple[int]] because each feature
-        map could potentially have different sizes and
-        aspect ratios
-        Args:
-            sizes:
-            aspect_ratios:
-
-        Returns: anchor_generator, a pytorch module
-
-        """
+        """Create anchor box generator as a function of sizes and aspect ratios"""
         anchor_generator = AnchorGenerator(sizes=sizes, aspect_ratios=aspect_ratios)
 
         return anchor_generator
 
     def create_model(self):
         """Create a retinanet model
-        Args:
-            num_classes (int): number of classes in the model
-            nms_thresh (float): non-max suppression threshold for intersection-over-union [0,1]
-            score_thresh (float): minimum prediction score to keep during prediction  [0,1]
+
         Returns:
             model: a pytorch nn module
         """
@@ -412,8 +395,7 @@ class RetinaNetModel:
         backbone = resnet.backbone
 
         model = RetinaNet(backbone=backbone, num_classes=self.param_dict["num_classes"])
-        # model.nms_thresh = self.param_dict["nms_thresh"]
-        # model.score_thresh = self.param_dict["retinanet"]["score_thresh"]
+        # TODO: do we want to set model.nms_thresh and model.score_thresh?
 
         return model
 
@@ -470,7 +452,7 @@ class DeepForestModule(lightning.LightningModule):
 
         # Image is expected to be a list of tensors, each of shape [C, H, W] in 0-1 range.
         image_batch = (batch["image"][:, :3, :, :] / 255.0).to(device)
-        image_batch_list = [image_batch[i] for i in range(image_batch.size(0))]
+        image_batch_list = [image for image in image_batch]
 
         # To store every image's target - a dictionary containing `boxes` and `labels`
         targets = []
@@ -499,27 +481,10 @@ class DeepForestModule(lightning.LightningModule):
         optimizer = optim.SGD(
             self.model.parameters(), lr=self.param_dict["train"]["lr"], momentum=0.9
         )
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            mode="min",
-            factor=0.1,
-            patience=10,
-            verbose=True,
-            threshold=0.0001,
-            threshold_mode="rel",
-            cooldown=0,
-            min_lr=0,
-            eps=1e-08,
-        )
-        # # Monitor rate is val data is used
-        # if self.config["validation"]["csv_file"] is not None:
-        #     return {
-        #         'optimizer': optimizer,
-        #         'lr_scheduler': scheduler,
-        #         "monitor": 'val_classification'
-        #     }
-        # else:
-        #     return optimizer
+
+        # TODO: Setup lr_scheduler
+        # TODO: Return 'optimizer', 'lr_scheduler', 'monitor' when validation data is set
+
         return optimizer
 
 
