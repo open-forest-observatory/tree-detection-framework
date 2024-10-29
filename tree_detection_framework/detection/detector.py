@@ -18,10 +18,13 @@ from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
 from tree_detection_framework.constants import PATH_TYPE
-from tree_detection_framework.detection.region_detections import RegionDetections, RegionDetectionsSet
 from tree_detection_framework.utils.detection import use_release_df
-from tree_detection_framework.preprocessing.preprocessing import CustomDataModule
 from tree_detection_framework.detection.models import DeepForestModule
+from tree_detection_framework.detection.region_detections import (
+    RegionDetections,
+    RegionDetectionsSet,
+)
+from tree_detection_framework.preprocessing.preprocessing import CustomDataModule
 
 # Set up logging configuration
 logging.basicConfig(

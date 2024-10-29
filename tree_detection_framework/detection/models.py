@@ -1,4 +1,4 @@
-from typing import Any,  Dict, List
+from typing import Any, Dict, List
 
 import lightning
 import torch
@@ -11,6 +11,7 @@ from torchvision.models.detection.retinanet import (
 )
 
 from tree_detection_framework.utils.detection import use_release_df
+
 
 class RetinaNetModel:
     """A backbone class for DeepForest"""
