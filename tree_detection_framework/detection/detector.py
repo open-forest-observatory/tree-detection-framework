@@ -43,6 +43,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 class Detector:
     @abstractmethod
     def setup(self):
@@ -321,11 +322,13 @@ class LightningDetector(Detector):
         """
         # Should be implemented here
         raise NotImplementedError()
-    
+
     @staticmethod
-    def get_image_bounds_as_shapely(batch: DefaultDict[str, Any]) -> List[shapely.geometry.Polygon]:
+    def get_image_bounds_as_shapely(
+        batch: DefaultDict[str, Any]
+    ) -> List[shapely.geometry.Polygon]:
         """Get pixel image bounds as shapely objects from a batch.
-        
+
         Args:
             batch: (DefaultDict[str, Any]): Batch from DataLoader with image sample(s).
 
@@ -333,13 +336,17 @@ class LightningDetector(Detector):
             List[shapely.geometry.Polygon]: A list of shapely Polygons representing the pixel bounds.
         """
         image_shape = batch["image"].shape[-2:]
-        image_bounds = shapely.box(xmin=0, ymin=0, xmax=image_shape[1], ymax=image_shape[0])
+        image_bounds = shapely.box(
+            xmin=0, ymin=0, xmax=image_shape[1], ymax=image_shape[0]
+        )
         return [image_bounds] * batch["image"].shape[0]
 
     @staticmethod
-    def get_geospatial_bounds_as_shapely(batch: DefaultDict[str, Any]) -> List[shapely.geometry.Polygon]:
+    def get_geospatial_bounds_as_shapely(
+        batch: DefaultDict[str, Any]
+    ) -> List[shapely.geometry.Polygon]:
         """Get geospatial region bounds as shapely objects from a batch.
-        
+
         Args:
             batch: (DefaultDict[str, Any]): Batch from DataLoader with image sample(s).
 
@@ -352,10 +359,11 @@ class LightningDetector(Detector):
                 xmin=tile_bounds.minx,
                 ymin=tile_bounds.miny,
                 xmax=tile_bounds.maxx,
-                ymax=tile_bounds.maxy
+                ymax=tile_bounds.maxy,
             )
             for tile_bounds in batch_bounds
         ]
+
 
 class RetinaNetModel:
     def __init__(self, param_dict):
@@ -364,13 +372,14 @@ class RetinaNetModel:
     def load_backbone(self):
         """A torch vision retinanet model"""
         backbone = torchvision.models.detection.retinanet_resnet50_fpn(
-            weights=RetinaNet_ResNet50_FPN_Weights.COCO_V1)
+            weights=RetinaNet_ResNet50_FPN_Weights.COCO_V1
+        )
 
         return backbone
 
-    def create_anchor_generator(self,
-                                sizes=((8, 16, 32, 64, 128, 256, 400),),
-                                aspect_ratios=((0.5, 1.0, 2.0),)):
+    def create_anchor_generator(
+        self, sizes=((8, 16, 32, 64, 128, 256, 400),), aspect_ratios=((0.5, 1.0, 2.0),)
+    ):
         """
         Create anchor box generator as a function of sizes and aspect ratios
         Documented https://github.com/pytorch/vision/blob/67b25288ca202d027e8b06e17111f1bcebd2046c/torchvision/models/detection/anchor_utils.py#L9
@@ -407,38 +416,42 @@ class RetinaNetModel:
         # model.score_thresh = self.param_dict["retinanet"]["score_thresh"]
 
         return model
-    
+
+
 class DeepForestModule(lightning.LightningModule):
     def __init__(self, param_dict: Dict[str, Any]):
-        super().__init__() 
+        super().__init__()
         self.param_dict = param_dict
 
-        if param_dict['backbone'] == 'retinanet':
+        if param_dict["backbone"] == "retinanet":
             retinanet = RetinaNetModel(param_dict)
         else:
             raise ValueError("Only 'retinanet' backbone is currently supported.")
-        
+
         self.model = retinanet.create_model()
 
     def use_release(self, check_release=True):
         """Use the latest DeepForest model release from github and load model.
         Optionally download if release doesn't exist.
         Args:
-            check_release (logical): whether to check github for a model recent release. 
+            check_release (logical): whether to check github for a model recent release.
             In cases where you are hitting the github API rate limit, set to False and any local model will be downloaded.
             If no model has been downloaded an error will raise.
         """
         # Download latest model from github release
         release_tag, self.release_state_dict = use_release_df(
-            check_release=check_release)
+            check_release=check_release
+        )
         self.model.load_state_dict(torch.load(self.release_state_dict))
 
         # load saved model and tag release
         self.__release_version__ = release_tag
         print("Loading pre-built model: {}".format(release_tag))
 
-    def forward(self, images: List[Tensor], targets: List[Dict[str, Tensor]]) -> Dict[str, Tensor]:
-        """ Calls the model's forward method.
+    def forward(
+        self, images: List[Tensor], targets: List[Dict[str, Tensor]]
+    ) -> Dict[str, Tensor]:
+        """Calls the model's forward method.
         Args:
             images (list[Tensor]): Images to be processed
             targets (list[Dict[Tensor]]): Ground-truth boxes present in the image
@@ -449,52 +462,55 @@ class DeepForestModule(lightning.LightningModule):
                 During training, it returns a dict[Tensor] which contains the losses.
         """
         return self.model.forward(images, targets)  # Model specific forward
-    
+
     def training_step(self, batch):
         # Ensure model is in train mode
         self.model.train()
         device = next(self.model.parameters()).device
 
         # Image is expected to be a list of tensors, each of shape [C, H, W] in 0-1 range.
-        image_batch = (batch['image'][:, :3, :, :] / 255.0).to(device)
+        image_batch = (batch["image"][:, :3, :, :] / 255.0).to(device)
         image_batch_list = [image_batch[i] for i in range(image_batch.size(0))]
 
         # To store every image's target - a dictionary containing `boxes` and `labels`
         targets = []
-        for tile in batch['bounding_boxes']:
+        for tile in batch["bounding_boxes"]:
             # Convert from list to FloatTensor[N, 4]
             boxes_tensor = torch.tensor(tile, dtype=torch.float32).to(device)
             # Need to remove boxes that go out-of-bounds. Has negative values.
             valid_mask = (boxes_tensor >= 0).all(dim=1)
             filtered_boxes_tensor = boxes_tensor[valid_mask]
             # Create a label tensor. Single class for now.
-            class_labels = torch.zeros(filtered_boxes_tensor.shape[0], dtype=torch.int64).to(device)
+            class_labels = torch.zeros(
+                filtered_boxes_tensor.shape[0], dtype=torch.int64
+            ).to(device)
             # Dictionary for the tile
             d = {"boxes": filtered_boxes_tensor, "labels": class_labels}
             targets.append(d)
-    
+
         loss_dict = self.forward(image_batch_list, targets)
 
         final_loss = sum([loss for loss in loss_dict.values()])
-        print('loss: ',final_loss)
+        print("loss: ", final_loss)
         return final_loss
-
 
     def configure_optimizers(self):
         # similar to the one in deepforest
-        optimizer = optim.SGD(self.model.parameters(),
-                              lr=self.param_dict["train"]["lr"],
-                              momentum=0.9)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                               mode='min',
-                                                               factor=0.1,
-                                                               patience=10,
-                                                               verbose=True,
-                                                               threshold=0.0001,
-                                                               threshold_mode='rel',
-                                                               cooldown=0,
-                                                               min_lr=0,
-                                                               eps=1e-08)
+        optimizer = optim.SGD(
+            self.model.parameters(), lr=self.param_dict["train"]["lr"], momentum=0.9
+        )
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="min",
+            factor=0.1,
+            patience=10,
+            verbose=True,
+            threshold=0.0001,
+            threshold_mode="rel",
+            cooldown=0,
+            min_lr=0,
+            eps=1e-08,
+        )
         # # Monitor rate is val data is used
         # if self.config["validation"]["csv_file"] is not None:
         #     return {
@@ -505,13 +521,13 @@ class DeepForestModule(lightning.LightningModule):
         # else:
         #     return optimizer
         return optimizer
-    
+
 
 class DeepForestDetector(LightningDetector):
 
     def setup_model(self, model: DeepForestModule):
         """Setup the DeepForest model and use latest release.
-        
+
         Args:
             model (DeepForestModule): LightningModule derived object for DeepForest
         """
@@ -533,31 +549,31 @@ class DeepForestDetector(LightningDetector):
             monitor="box_recall",
             mode="max",
             save_top_k=3,
-            filename="box_recall-{epoch:02d}-{box_recall:.2f}"
+            filename="box_recall-{epoch:02d}-{box_recall:.2f}",
         )
         logger = TensorBoardLogger(save_dir="logs/")
 
-        trainer = lightning.Trainer(logger=logger,
-                                  max_epochs=self.param_dict["train"]["epochs"],
-                                  enable_checkpointing=self.param_dict["enable_checkpointing"],
-                                  callbacks=[checkpoint_callback]
-                                  )
+        trainer = lightning.Trainer(
+            logger=logger,
+            max_epochs=self.param_dict["train"]["epochs"],
+            enable_checkpointing=self.param_dict["enable_checkpointing"],
+            callbacks=[checkpoint_callback],
+        )
         return trainer
-        
 
     def predict(
         self, inference_dataloader: DataLoader, **kwargs
     ) -> RegionDetectionsSet:
-        """ Get predictions from `DeepForest` for the given dataloader as a `RegionDetectionsSet`.
+        """Get predictions from `DeepForest` for the given dataloader as a `RegionDetectionsSet`.
 
         Args:
             inference_dataloader (DataLoader): PyTorch DataLoader with imput samples containing images and metadata.
 
         Returns:
-            `RegionDetectionsSet`: A collection of region detection objects, where each detection object contains: 
-            - Predicted bounding geometries (in shapely format) for detected regions 
+            `RegionDetectionsSet`: A collection of region detection objects, where each detection object contains:
+            - Predicted bounding geometries (in shapely format) for detected regions
             - Associated prediction dataframe
-            - Pixel-based and geospatial bounding boxes for each detection 
+            - Pixel-based and geospatial bounding boxes for each detection
             - CRS information
         """
         # Load deepforest model
@@ -571,13 +587,13 @@ class DeepForestDetector(LightningDetector):
         logging.info("Getting predictions from deepforest...")
         output_dataframes = []
         for tile in all_tiles:
-            image = tile['image'][0] # assumes batch_size 1
+            image = tile["image"][0]  # assumes batch_size 1
             # Convert to datatype expected by deepforest
             image_np = image.numpy().astype(np.float32)
             # Retain first 3 channels and reorder it so that RGB channels are the last dimension
             image_np = image_np[:3, :, :].transpose(1, 2, 0)
             # Prediction output from deepforest is returned as a dataframe
-            output = model.predict_image(image = image_np)
+            output = model.predict_image(image=image_np)
             output_dataframes.append(output)
 
         # Create a list of RegionDetection objects
@@ -587,7 +603,9 @@ class DeepForestDetector(LightningDetector):
             # Extract the derived attributes from the sample and prediction
             # Note that the first element is taken from the ones where a batch is returned
             image_bounds = LightningDetector.get_image_bounds_as_shapely(sample)[0]
-            geospatial_bounds = LightningDetector.get_geospatial_bounds_as_shapely(sample)[0]
+            geospatial_bounds = LightningDetector.get_geospatial_bounds_as_shapely(
+                sample
+            )[0]
             prediction_geometry = self.parse_deepforest_output(prediction)
 
             # Extract the CRS of the first (only) element in the batch
@@ -604,13 +622,17 @@ class DeepForestDetector(LightningDetector):
             )
             # Append to the list
             region_detections.append(region_detection)
-        
+
         logging.info("Done.")
         # Return the region detection set
         return RegionDetectionsSet(region_detections)
 
-    def train(self, model: DeepForestModule, datamodule: CustomDataModule, param_dict: Dict[str, Any]):
-        
+    def train(
+        self,
+        model: DeepForestModule,
+        datamodule: CustomDataModule,
+        param_dict: Dict[str, Any],
+    ):
         """Train a model
 
         Args:
@@ -627,7 +649,6 @@ class DeepForestDetector(LightningDetector):
         # Begin training
         self.trainer.fit(model, datamodule)
 
-
     def save_model(self, save_file: PATH_TYPE):
         """Save a model to disk
 
@@ -637,11 +658,11 @@ class DeepForestDetector(LightningDetector):
         """
         # Should be implemented here
         raise NotImplementedError()
-    
+
     @staticmethod
     def parse_deepforest_output(prediction: pd.DataFrame) -> shapely.geometry.Polygon:
         """Parse DeepForest output into shapely geometries.
-        
+
         Args:
             prediction (pd.DataFrame): Dataframe output containing `xmin`, `ymin`, `xmax`, `ymax` attributes.
 
