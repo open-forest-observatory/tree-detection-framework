@@ -456,25 +456,29 @@ class DeepForestModule(lightning.LightningModule):
         return self.model.forward(images, targets)  # Model specific forward
     
     def training_step(self, batch):
+        # Ensure model is in train mode
         self.model.train()
-        
         device = next(self.model.parameters()).device
 
+        # Image is expected to be a list of tensors, each of shape [C, H, W] in 0-1 range.
         image_batch = (batch['image'][:, :3, :, :] / 255.0).to(device)
+        image_batch_list = [image_batch[i] for i in range(image_batch.size(0))]
 
-        boxes_batch = batch['bounding_boxes']
-        flat_bboxes = [bbox for sublist in boxes_batch for bbox in sublist]
-        boxes_tensor = torch.FloatTensor(flat_bboxes).to(device)
-        valid_mask = (boxes_tensor >= 0).all(dim=1)
-        filtered_boxes_tensor = boxes_tensor[valid_mask]
-        class_labels = torch.zeros(filtered_boxes_tensor.shape[0], dtype=torch.int64).to(device)
-
-        targets = {
-            "boxes": filtered_boxes_tensor,  # N x 4 tensor
-            "labels": class_labels            # N tensor
-        }
+        # To store every image's target - a dictionary containing `boxes` and `labels`
+        targets = []
+        for tile in batch['bounding_boxes']:
+            # Convert from list to FloatTensor[N, 4]
+            boxes_tensor = torch.tensor(tile, dtype=torch.float32).to(device)
+            # Need to remove boxes that go out-of-bounds. Has negative values.
+            valid_mask = (boxes_tensor >= 0).all(dim=1)
+            filtered_boxes_tensor = boxes_tensor[valid_mask]
+            # Create a label tensor. Single class for now.
+            class_labels = torch.zeros(filtered_boxes_tensor.shape[0], dtype=torch.int64).to(device)
+            # Dictionary for the tile
+            d = {"boxes": filtered_boxes_tensor, "labels": class_labels}
+            targets.append(d)
     
-        loss_dict = self.forward(image_batch, [targets])
+        loss_dict = self.forward(image_batch_list, targets)
 
         final_loss = sum([loss for loss in loss_dict.values()])
         print('loss: ',final_loss)
