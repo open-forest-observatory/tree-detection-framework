@@ -10,6 +10,7 @@ import rasterio
 import shapely
 import torch
 from torch.utils.data import DataLoader
+from torchgeo.datamodules import GeoDataModule
 from torchgeo.datasets import IntersectionDataset, stack_samples, unbind_samples
 from torchgeo.samplers import GridGeoSampler, Units
 from torchvision.transforms import ToPILImage
@@ -282,11 +283,6 @@ def save_dataloader_contents(
             break
 
     print(f"Saved {saved_tiles_count} tiles to {save_folder}")
-
-
-# testing new dataloader
-
-from torchgeo.datamodules import GeoDataModule
 
 
 class CustomDataModule(GeoDataModule):
