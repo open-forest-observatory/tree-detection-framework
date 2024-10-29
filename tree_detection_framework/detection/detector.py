@@ -5,43 +5,38 @@ from typing import List, Dict, Union
 from typing import List, Dict, Union, DefaultDict, Any
 import warnings
 import logging
-
-import shapely
-import pandas as pd
-import numpy as np
 import os
+import warnings
+from abc import abstractmethod
+from typing import Any, DefaultDict, Dict, List, Union
+
 import lightning
 import numpy as np
+import pandas as pd
 import shapely
+import torch
+import torchvision
+from deepforest import main
+from detectron2 import model_zoo
+from detectron2.config import get_cfg
+from detectron2.engine import DefaultPredictor
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
+from torch import Tensor, optim
 from torch.utils.data import DataLoader
 from torchgeo.datasets import unbind_samples
-import torch
-from deepforest import main
-from torch import optim, Tensor
-
-from detectron2.engine import DefaultPredictor
-from detectron2.config import get_cfg
-from detectron2 import model_zoo
+from torchvision import transforms
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection.retinanet import (
+    AnchorGenerator,
+    RetinaNet,
+    RetinaNet_ResNet50_FPN_Weights,
+)
 
 from tree_detection_framework.constants import PATH_TYPE
-from tree_detection_framework.detection.region_detections import (
-    RegionDetections,
-    RegionDetectionsSet,
-)
-from tree_detection_framework.detection.region_detections import RegionDetectionsSet
 from tree_detection_framework.detection.region_detections import RegionDetections, RegionDetectionsSet
 from tree_detection_framework.utils.detection import use_release_df
 from tree_detection_framework.preprocessing.preprocessing import CustomDataModule
-
-import torchvision
-from torchvision.models.detection.retinanet import RetinaNet
-from torchvision.models.detection.retinanet import AnchorGenerator
-from torchvision.models.detection.retinanet import RetinaNet_ResNet50_FPN_Weights
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-
-from torchvision import transforms
 
 # Set up logging configuration
 logging.basicConfig(

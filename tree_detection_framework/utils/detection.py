@@ -1,8 +1,10 @@
-import os
 import json
+import os
 import urllib
+
 import pandas as pd
 from tqdm import tqdm
+
 
 class DownloadProgressBar(tqdm):
     """Download progress bar class."""
