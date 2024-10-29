@@ -15,6 +15,7 @@ from tree_detection_framework.utils.detection import use_release_df
 
 class RetinaNetModel:
     """A backbone class for DeepForest"""
+
     def __init__(self, param_dict):
         self.param_dict = param_dict
 
@@ -47,7 +48,7 @@ class RetinaNetModel:
         # TODO: do we want to set model.nms_thresh and model.score_thresh?
 
         return model
-    
+
 
 class DeepForestModule(lightning.LightningModule):
     def __init__(self, param_dict: Dict[str, Any]):
