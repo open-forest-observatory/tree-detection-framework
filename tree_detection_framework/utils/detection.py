@@ -3,26 +3,7 @@ import os
 import urllib
 
 import pandas as pd
-from tqdm import tqdm
-
-
-class DownloadProgressBar(tqdm):
-    """Download progress bar class."""
-
-    def update_to(self, b=1, bsize=1, tsize=None):
-        """
-        Update class attributes
-        Args:
-            b:
-            bsize:
-            tsize:
-
-        Returns:
-
-        """
-        if tsize is not None:
-            self.total = tsize
-        self.update(b * bsize - self.n)
+from deepforest.utilities import DownloadProgressBar
 
 
 def use_release_df(
