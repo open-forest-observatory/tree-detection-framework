@@ -21,18 +21,52 @@ class Detector:
         raise NotImplementedError()
 
     @abstractmethod
-    def predict(
-        self, inference_dataloader: DataLoader, **kwargs
-    ) -> RegionDetectionsSet:
+    def predict_as_generator(self, inference_dataloader: DataLoader, **kwargs):
         """Generates predictions for each tile in a dataset
 
         Args:
             inference_dataloader (DataLoader): Dataloader to generate predictions for
-
-        Returns:
-            RegionDetectionsSet: One prediction per tile
         """
         # This should not be implemented here unless there are prediction tasks shared across every detector
+        for batch in inference_dataloader:
+            batch_preds_geometries, batch_preds_data = self.predict_batch(batch)
+
+            if batch_preds_data is None:
+                batch_preds_data = [None] * len(batch_preds_geometries)
+
+            batch_image_bounds = self.get_image_bounds_as_shapely(batch)
+            batch_geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
+            CRS = self.get_CRS_from_batch(batch)
+
+            for preds_geometry, preds_data, image_bounds, geospatial_bounds in zip(
+                batch_preds_geometries,
+                batch_preds_data,
+                batch_image_bounds,
+                batch_geospatial_bounds,
+            ):
+                region_detections = RegionDetections(
+                    detection_geometries=preds_geometry,
+                    data=preds_data,
+                    CRS=CRS,
+                    input_in_pixels=True,
+                    pixel_prediction_bounds=image_bounds,
+                    geospatial_prediction_bounds=geospatial_bounds,
+                )
+                yield region_detections
+
+    def predict(self, inference_dataloader, return_as_list: bool = False):
+        predictions_generator = self.predict_as_generator(inference_dataloader)
+        # This step is where the computation actually occurs
+        predictions_list = list(predictions_generator)
+        if return_as_list:
+            return predictions_list
+
+        # Convert into a region detection set
+        region_detection_set = RegionDetectionsSet(predictions_list)
+        return region_detection_set
+
+    @abstractmethod
+    def predict_batch(self, batch):
         raise NotImplementedError()
 
     @staticmethod
@@ -79,50 +113,40 @@ class Detector:
 
 
 class RandomDetector(Detector):
-    def predict(
+    def predict_batch(
         self,
-        inference_dataloader,
+        batch,
         detections_per_tile=10,
         detection_size_fraction=0.1,
         score_column="score",
     ):
-        for batch in inference_dataloader:
-            image_bounds = self.get_image_bounds_as_shapely(batch)
-            geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
-            for image_bound, geospatial_bound in zip(image_bounds, geospatial_bounds):
+        tile_size = batch["image"].shape[-2:]
+        batch_geometries = []
+        batch_datas = []
 
-                tile_size = batch["image"].shape[-2:]
-                broadcastable_size = np.expand_dims(tile_size, 0)
-                detection_size = broadcastable_size * detection_size_fraction
-                tile_tl = (
-                    np.random.random((detections_per_tile, 2))
-                    * broadcastable_size
-                    * (1 - detection_size_fraction)
-                )
-                tile_br = tile_tl + detection_size
+        for _ in range(batch["image"].shape[0]):
+            broadcastable_size = np.expand_dims(tile_size, 0)
+            detection_size = broadcastable_size * detection_size_fraction
+            tile_tl = (
+                np.random.random((detections_per_tile, 2))
+                * broadcastable_size
+                * (1 - detection_size_fraction)
+            )
+            tile_br = tile_tl + detection_size
 
-                detection_boxes = shapely.box(
-                    tile_tl[:, 0],
-                    tile_tl[:, 1],
-                    tile_br[:, 0],
-                    tile_br[:, 1],
-                )
+            detection_boxes = shapely.box(
+                tile_tl[:, 0],
+                tile_tl[:, 1],
+                tile_br[:, 0],
+                tile_br[:, 1],
+            )
 
-                # Create random scores for each detection
-                data = {score_column: np.random.random(detections_per_tile)}
+            # Create random scores for each detection
+            data = {score_column: np.random.random(detections_per_tile)}
+            batch_geometries.append(detection_boxes)
+            batch_datas.append(data)
 
-                CRS = self.get_CRS_from_batch(batch)
-
-                region_detections = RegionDetections(
-                    detection_geometries=detection_boxes,
-                    data=data,
-                    CRS=CRS,
-                    input_in_pixels=True,
-                    pixel_prediction_bounds=image_bound,
-                    geospatial_prediction_bounds=geospatial_bound,
-                )
-
-                yield region_detections
+        return batch_geometries, batch_datas
 
 
 class LightningDetector(Detector):
