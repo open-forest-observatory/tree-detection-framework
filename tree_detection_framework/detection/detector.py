@@ -1,7 +1,8 @@
 from abc import abstractmethod
-from typing import Optional
+from typing import Any, DefaultDict, List
 
 import lightning
+import shapely
 from torch.utils.data import DataLoader
 
 from tree_detection_framework.constants import PATH_TYPE
@@ -29,6 +30,43 @@ class Detector:
         """
         # This should not be implemented here unless there are prediction tasks shared across every detector
         raise NotImplementedError()
+
+    @staticmethod
+    def get_image_bounds_as_shapely(
+        batch: DefaultDict[str, Any]
+    ) -> List[shapely.geometry.Polygon]:
+        """Get pixel image bounds as shapely objects from a batch.
+        Args:
+            batch: (DefaultDict[str, Any]): Batch from DataLoader with image sample(s).
+        Returns:
+            List[shapely.geometry.Polygon]: A list of shapely Polygons representing the pixel bounds.
+        """
+        image_shape = batch["image"].shape[-2:]
+        image_bounds = shapely.box(
+            xmin=0, ymin=0, xmax=image_shape[1], ymax=image_shape[0]
+        )
+        return [image_bounds] * batch["image"].shape[0]
+
+    @staticmethod
+    def get_geospatial_bounds_as_shapely(
+        batch: DefaultDict[str, Any]
+    ) -> List[shapely.geometry.Polygon]:
+        """Get geospatial region bounds as shapely objects from a batch.
+        Args:
+            batch: (DefaultDict[str, Any]): Batch from DataLoader with image sample(s).
+        Returns:
+            List[shapely.geometry.Polygon]: A list of shapely Polygons representing the geospatial bounds.
+        """
+        batch_bounds = batch["bounds"]
+        return [
+            shapely.box(
+                xmin=tile_bounds.minx,
+                ymin=tile_bounds.miny,
+                xmax=tile_bounds.maxx,
+                ymax=tile_bounds.maxy,
+            )
+            for tile_bounds in batch_bounds
+        ]
 
 
 class LightningDetector(Detector):
