@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Any, DefaultDict, List
+from typing import Any, DefaultDict, Iterator, List, Tuple, Union
 
 import lightning
 import numpy as np
@@ -20,30 +20,42 @@ class Detector:
         # This should not be implemented here unless there are setup tasks that are shared by every detector
         raise NotImplementedError()
 
-    @abstractmethod
-    def predict_as_generator(self, inference_dataloader: DataLoader, **kwargs):
-        """Generates predictions for each tile in a dataset
+    def predict_as_generator(
+        self, inference_dataloader: DataLoader, **kwargs
+    ) -> Iterator[RegionDetections]:
+        """
+        A generator that yields a RegionDetections object for each image in the dataloader. Note
+        that the dataloader may have batched data but predictions will be returned individually.
 
         Args:
             inference_dataloader (DataLoader): Dataloader to generate predictions for
         """
-        # This should not be implemented here unless there are prediction tasks shared across every detector
+        # Iterate over each batch in the dataloader
         for batch in inference_dataloader:
-            batch_preds_geometries, batch_preds_data = self.predict_batch(batch)
+            # This is the expensive step, generate the predictions using predict_batch from the
+            # derived class. The additional arguments are also passed to this method with kwargs
+            batch_preds_geometries, batch_preds_data = self.predict_batch(
+                batch, **kwargs
+            )
 
+            # If the prediction doesn't generate any data, set it to a list of None for
+            # compatability with downstream steps
             if batch_preds_data is None:
                 batch_preds_data = [None] * len(batch_preds_geometries)
 
+            # Extract attributes from the batch
             batch_image_bounds = self.get_image_bounds_as_shapely(batch)
             batch_geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
             CRS = self.get_CRS_from_batch(batch)
 
+            # Iterate over samples in the batch so we can yield them one at a time
             for preds_geometry, preds_data, image_bounds, geospatial_bounds in zip(
                 batch_preds_geometries,
                 batch_preds_data,
                 batch_image_bounds,
                 batch_geospatial_bounds,
             ):
+                # Create a region detections object
                 region_detections = RegionDetections(
                     detection_geometries=preds_geometry,
                     data=preds_data,
@@ -52,21 +64,61 @@ class Detector:
                     pixel_prediction_bounds=image_bounds,
                     geospatial_prediction_bounds=geospatial_bounds,
                 )
+                # Yield this object
                 yield region_detections
 
-    def predict(self, inference_dataloader, return_as_list: bool = False):
-        predictions_generator = self.predict_as_generator(inference_dataloader)
-        # This step is where the computation actually occurs
+    def predict(
+        self, inference_dataloader: DataLoader, return_as_list: bool = False, **kwargs
+    ) -> Union[List[RegionDetections], RegionDetectionsSet]:
+        """
+        Generate predictions for every image in the dataloader. Calls self.predict_as_generator()
+        and then converts to either a list or RegionDetectionSet for convenience.
+
+        Args:
+            inference_dataloader (DataLoader):
+                Dataloader to generate predictions for
+            return_as_list (bool, optional):
+                Should a list of RegionDetections be returned rather than a single
+                RegionDetectionSet. Defaults to False.
+
+        Returns:
+            Union[List[RegionDetections], RegionDetectionsSet]: Either a list of RegionDetections
+            objects (on per image) or a single RegionDetectionsSet containing the same information.
+        """
+        # Get the generator that will generate predictions. Note this only creates the generator,
+        # computation is defered until the samples are actually requested
+        predictions_generator = self.predict_as_generator(
+            inference_dataloader, **kwargs
+        )
+        # This step is where the computation actually occurs since all samples are requested to
+        # build the list
         predictions_list = list(predictions_generator)
+        # If we want the output to be a list, return it here
         if return_as_list:
             return predictions_list
 
-        # Convert into a region detection set
+        # Otherwise convert it to a RegionDetectionsSet and return that
         region_detection_set = RegionDetectionsSet(predictions_list)
         return region_detection_set
 
     @abstractmethod
-    def predict_batch(self, batch):
+    def predict_batch(
+        self, batch: dict
+    ) -> Tuple[List[List[shapely.Geometry]], Union[None, List[dict]]]:
+        """Generate predictions for a batch of samples
+
+        Args:
+            batch (dict): A batch from the torchgeo dataloader
+
+        Returns:
+            List[List[shapely.geometry]]:
+                A list of predictions one per image in the batch. The predictions for each image
+                are a list of shapely objects.
+            Union[None, List[dict]]:
+                Any additional attributes that are predicted (such as class or confidence). Must
+                be formatted in a way that can be passed to gpd.GeoPandas data argument.
+        """
+        # Should be implemented by each derived class
         raise NotImplementedError()
 
     @staticmethod
