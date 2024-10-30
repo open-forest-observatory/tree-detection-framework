@@ -24,7 +24,7 @@ from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
 )
-from tree_detection_framework.preprocessing.preprocessing import CustomDataModule
+from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
 
 # Set up logging configuration
 logging.basicConfig(

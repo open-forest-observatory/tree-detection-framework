@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import fiona
 import fiona.transform
@@ -7,8 +7,12 @@ import numpy as np
 import rasterio
 import shapely.geometry
 from shapely.affinity import affine_transform
-from torchgeo.datasets import RasterDataset, VectorDataset
+from torchgeo.datasets import RasterDataset, VectorDataset, IntersectionDataset, stack_samples
 from torchgeo.datasets.utils import BoundingBox, array_to_tensor
+from torchgeo.datamodules import GeoDataModule
+from torchgeo.samplers import GridGeoSampler, Units
+from torch.utils.data import DataLoader
+
 
 
 class CustomRasterDataset(RasterDataset):
@@ -147,3 +151,63 @@ class CustomVectorDataset(VectorDataset):
             sample = self.transforms(sample)
 
         return sample
+
+class CustomDataModule(GeoDataModule):
+    # TODO: Add docstring
+    def __init__(
+        self, 
+        output_res: float, 
+        train_raster_path: str,
+        vector_label_name: str,
+        train_vector_path: str,   
+        size: int = 100, 
+        stride: int = 50, 
+        batch_size: int = 2,
+        val_raster_path: Optional[str] = None,
+        val_vector_path: Optional[str] = None,  
+        test_raster_path: Optional[str] = None, 
+        test_vector_path: Optional[str] = None
+    ) -> None:
+        super().__init__(dataset_class=IntersectionDataset)
+        self.output_res = output_res
+        self.vector_label_name = vector_label_name
+        self.size = size
+        self.stride = stride
+        self.batch_size = batch_size
+
+        # Paths for train, val and test dataset
+        self.train_raster_path = train_raster_path
+        self.val_raster_path = val_raster_path
+        self.test_raster_path = test_raster_path
+        self.train_vector_path = train_vector_path
+        self.val_vector_path = val_vector_path
+        self.test_vector_path = test_vector_path
+
+    def create_intersection_dataset(self, raster_path: str, vector_path: str) -> IntersectionDataset:
+        raster_data = CustomRasterDataset(paths=raster_path, res=self.output_res)
+        vector_data = CustomVectorDataset(paths=vector_path, res=self.output_res, label_name=self.vector_label_name)
+        return raster_data & vector_data  # IntersectionDataset
+    
+    def setup(self, stage=None):
+        # create the data based on the stage the Trainer is in
+        if stage == "fit":
+            self.train_data = self.create_intersection_dataset(self.train_raster_path,  self.train_vector_path)
+        if stage == "validate" or stage == "fit":
+            self.val_data = self.create_intersection_dataset(self.val_raster_path,  self.val_vector_path)
+        if stage == "test":
+            self.test_data = self.create_intersection_dataset(self.test_raster_path,  self.test_vector_path)
+    
+    def train_dataloader(self) -> DataLoader:
+        sampler = GridGeoSampler(self.train_data, size=self.size, stride=self.stride)
+        return DataLoader(self.train_data, sampler=sampler, collate_fn=stack_samples, batch_size=self.batch_size)
+
+    def val_dataloader(self) -> DataLoader:
+        sampler = GridGeoSampler(self.val_data, size=self.size, stride=self.stride, units=Units.CRS)
+        return DataLoader(self.val_data, sampler=sampler, collate_fn=stack_samples, batch_size=self.batch_size)
+
+    def test_dataloader(self) -> DataLoader:
+        sampler = GridGeoSampler(self.test_data, size=self.size, stride=self.stride, units=Units.CRS)
+        return DataLoader(self.test_data, sampler=sampler, collate_fn=stack_samples, batch_size=self.batch_size)
+
+    def on_after_batch_transfer(self, batch, dataloader_idx: int):
+        return batch

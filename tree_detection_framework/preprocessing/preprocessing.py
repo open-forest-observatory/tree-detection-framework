@@ -10,7 +10,6 @@ import rasterio
 import shapely
 import torch
 from torch.utils.data import DataLoader
-from torchgeo.datamodules import GeoDataModule
 from torchgeo.datasets import IntersectionDataset, stack_samples, unbind_samples
 from torchgeo.samplers import GridGeoSampler, Units
 from torchvision.transforms import ToPILImage
@@ -283,49 +282,3 @@ def save_dataloader_contents(
             break
 
     print(f"Saved {saved_tiles_count} tiles to {save_folder}")
-
-
-class CustomDataModule(GeoDataModule):
-    # TODO: accomodate different datasets for train, validation testing.
-    # TODO: include batch_size parameter in DataLoader
-    def __init__(
-        self, raster_folder_path, vector_folder_path, output_res, vector_label_name
-    ):
-        super().__init__(dataset_class=IntersectionDataset)
-        self.raster_folder_path = raster_folder_path
-        self.vector_folder_path = vector_folder_path
-        self.output_res = output_res
-        self.vector_label_name = vector_label_name
-
-    def setup(self, stage=None):
-        self.raster_data = CustomRasterDataset(
-            paths=self.raster_folder_path, res=self.output_res
-        )
-        self.vector_data = CustomVectorDataset(
-            paths=self.vector_folder_path,
-            res=self.output_res,
-            label_name=self.vector_label_name,
-        )
-
-        # create the data based on the stage the Trainer is in
-        if stage == "fit":
-            self.train_data = self.raster_data & self.vector_data  # IntersectionDataset
-        if stage == "validate" or stage == "fit":
-            self.val_data = self.raster_data & self.vector_data
-        if stage == "test":
-            self.test_data = self.raster_data & self.vector_data
-
-    def train_dataloader(self):
-        sampler = GridGeoSampler(self.train_data, size=350, stride=400)
-        return DataLoader(self.train_data, sampler=sampler, collate_fn=stack_samples)
-
-    def val_dataloader(self):
-        sampler = GridGeoSampler(self.val_data, size=100, stride=50, units=Units.CRS)
-        return DataLoader(self.val_data, sampler=sampler, collate_fn=stack_samples)
-
-    def test_dataloader(self):
-        sampler = GridGeoSampler(self.test_data, size=100, stride=50, units=Units.CRS)
-        return DataLoader(self.test_data, sampler=sampler, collate_fn=stack_samples)
-
-    def on_after_batch_transfer(self, batch, dataloader_idx: int):
-        return batch
