@@ -7,12 +7,16 @@ import numpy as np
 import rasterio
 import shapely.geometry
 from shapely.affinity import affine_transform
-from torchgeo.datasets import RasterDataset, VectorDataset, IntersectionDataset, stack_samples
-from torchgeo.datasets.utils import BoundingBox, array_to_tensor
-from torchgeo.datamodules import GeoDataModule
-from torchgeo.samplers import GridGeoSampler, Units
 from torch.utils.data import DataLoader
-
+from torchgeo.datamodules import GeoDataModule
+from torchgeo.datasets import (
+    IntersectionDataset,
+    RasterDataset,
+    VectorDataset,
+    stack_samples,
+)
+from torchgeo.datasets.utils import BoundingBox, array_to_tensor
+from torchgeo.samplers import GridGeoSampler, Units
 
 
 class CustomRasterDataset(RasterDataset):
