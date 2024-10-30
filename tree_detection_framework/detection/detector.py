@@ -2,11 +2,15 @@ from abc import abstractmethod
 from typing import Any, DefaultDict, List
 
 import lightning
+import numpy as np
 import shapely
 from torch.utils.data import DataLoader
 
 from tree_detection_framework.constants import PATH_TYPE
-from tree_detection_framework.detection.region_detections import RegionDetectionsSet
+from tree_detection_framework.detection.region_detections import (
+    RegionDetections,
+    RegionDetectionsSet,
+)
 
 
 class Detector:
@@ -67,6 +71,58 @@ class Detector:
             )
             for tile_bounds in batch_bounds
         ]
+
+    @staticmethod
+    def get_CRS_from_batch(batch):
+        # Assume that the CRS is the same across all elements in the batch
+        return batch["crs"][0]
+
+
+class RandomDetector(Detector):
+    def predict(
+        self,
+        inference_dataloader,
+        detections_per_tile=10,
+        detection_size_fraction=0.1,
+        score_column="score",
+    ):
+        for batch in inference_dataloader:
+            image_bounds = self.get_image_bounds_as_shapely(batch)
+            geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
+            for image_bound, geospatial_bound in zip(image_bounds, geospatial_bounds):
+
+                tile_size = batch["image"].shape[-2:]
+                broadcastable_size = np.expand_dims(tile_size, 0)
+                detection_size = broadcastable_size * detection_size_fraction
+                tile_tl = (
+                    np.random.random((detections_per_tile, 2))
+                    * broadcastable_size
+                    * (1 - detection_size_fraction)
+                )
+                tile_br = tile_tl + detection_size
+
+                detection_boxes = shapely.box(
+                    tile_tl[:, 0],
+                    tile_tl[:, 1],
+                    tile_br[:, 0],
+                    tile_br[:, 1],
+                )
+
+                # Create random scores for each detection
+                data = {score_column: np.random.random(detections_per_tile)}
+
+                CRS = self.get_CRS_from_batch(batch)
+
+                region_detections = RegionDetections(
+                    detection_geometries=detection_boxes,
+                    data=data,
+                    CRS=CRS,
+                    input_in_pixels=True,
+                    pixel_prediction_bounds=image_bound,
+                    geospatial_prediction_bounds=geospatial_bound,
+                )
+
+                yield region_detections
 
 
 class LightningDetector(Detector):
