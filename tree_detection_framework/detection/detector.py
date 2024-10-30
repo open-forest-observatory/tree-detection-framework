@@ -165,36 +165,60 @@ class Detector:
 
 
 class RandomDetector(Detector):
+    """A detector that produces random detections primarily used for testing"""
+
     def predict_batch(
         self,
-        batch,
-        detections_per_tile=10,
-        detection_size_fraction=0.1,
-        score_column="score",
-    ):
+        batch: dict,
+        detections_per_tile: int = 10,
+        detection_size_fraction: float = 0.1,
+        score_column: str = "score",
+    ) -> Tuple[List[List[shapely.Geometry]], List[dict]]:
+        """Generates random detections for each image in the batch
+
+        Args:
+            batch (dict): The batch of images. Only used to obtain the size in pixels.
+            detections_per_tile (int, optional): How many detections to generate per image. Defaults to 10.
+            detection_size_fraction (float, optional): What fraction of the image size should each detection be. Defaults to 0.1.
+            score_column (str, optional): What column name to use for the randomly-generated score. Defaults to "score".
+
+        Returns:
+            List[List[shapely.Geometry]]: The list of lists of random rectangles per image
+            List[dict]: The random scores for each detection
+        """
+        # Determine the shape of the image in pixels
         tile_size = batch["image"].shape[-2:]
+        # Create lists for the whole batch to append to
         batch_geometries = []
         batch_datas = []
 
+        # Each sample is randomly generated for each sample in the batch
         for _ in range(batch["image"].shape[0]):
+            # Expand the size so it can be broadcast with the 2D variables
             broadcastable_size = np.expand_dims(tile_size, 0)
+            # Compute the detection size as a fraction of the total image size
             detection_size = broadcastable_size * detection_size_fraction
+            # Randomly compute the top left corner locations by using the region that will not
+            # cause the detection to exceed the upper bound of the image
             tile_tl = (
                 np.random.random((detections_per_tile, 2))
                 * broadcastable_size
                 * (1 - detection_size_fraction)
             )
+            # Compute the bottom right corner by adding the (constant) size to the top left corners
             tile_br = tile_tl + detection_size
 
+            # Convert these corners to a list of shapely objects
             detection_boxes = shapely.box(
                 tile_tl[:, 0],
                 tile_tl[:, 1],
                 tile_br[:, 0],
                 tile_br[:, 1],
             )
-
             # Create random scores for each detection
             data = {score_column: np.random.random(detections_per_tile)}
+
+            # Append the geometries and data to the lists
             batch_geometries.append(detection_boxes)
             batch_datas.append(data)
 
