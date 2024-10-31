@@ -186,6 +186,17 @@ class RandomDetector(Detector):
             List[List[shapely.Geometry]]: The list of lists of random rectangles per image
             List[dict]: The random scores for each detection
         """
+        # Check the parameters
+        if detection_size_fraction < 0 or detection_size_fraction > 1:
+            raise ValueError(
+                f"detection_size_fraction must be between 0 and 1 but instead was {detection_size_fraction}"
+            )
+
+        if detections_per_tile < 0:
+            raise ValueError(
+                f"detections_per_tile must be positive but instead was {detections_per_tile}"
+            )
+
         # Determine the shape of the image in pixels
         tile_size = batch["image"].shape[-2:]
         # Create lists for the whole batch to append to
