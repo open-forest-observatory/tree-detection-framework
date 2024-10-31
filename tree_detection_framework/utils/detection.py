@@ -7,7 +7,7 @@ from deepforest.utilities import DownloadProgressBar
 
 
 def use_release_df(
-    save_dir=os.path.join(os.path.abspath(os.path.dirname(__file__)), "data/"),
+    save_dir=os.path.join(os.path.abspath(os.path.dirname(__file__)), "../../../data/"),
     prebuilt_model="NEON",
     check_release=True,
 ):
@@ -21,6 +21,8 @@ def use_release_df(
     Returns: release_tag, output_path (str): path to downloaded model
 
     """
+    os.makedirs(save_dir, exist_ok=True)
+
     # Naming based on pre-built model
     output_path = os.path.join(save_dir, prebuilt_model + ".pt")
 
