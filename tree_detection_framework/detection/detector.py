@@ -1,15 +1,29 @@
+import logging
+import warnings
 from abc import abstractmethod
-from typing import Any, DefaultDict, Iterator, List, Tuple, Union
+from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
 import lightning
 import numpy as np
+import pandas as pd
 import shapely
+from deepforest import main
+from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
 from tree_detection_framework.constants import PATH_TYPE
+from tree_detection_framework.detection.models import DeepForestModule
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
+)
+from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
+from tree_detection_framework.utils.detection import use_release_df
+
+# Set up logging configuration
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 
@@ -268,12 +282,6 @@ class LightningDetector(Detector):
         """
         raise NotImplementedError()
 
-    def predict(
-        self, inference_dataloader: DataLoader, **kwargs
-    ) -> RegionDetectionsSet:
-        # Should be implemented here
-        raise NotImplementedError()
-
     def train(self, train_dataloader: DataLoader, val_dataloader: DataLoader, **kwargs):
         """Train a model
 
@@ -283,6 +291,106 @@ class LightningDetector(Detector):
         """
         # Should be implemented here
         raise NotImplementedError()
+
+    def save_model(self, save_file: PATH_TYPE):
+        """Save a model to disk
+
+        Args:
+            save_file (PATH_TYPE):
+                Where to save the model. Containing folders will be created if they don't exist.
+        """
+        # Should be implemented here
+        raise NotImplementedError()
+
+
+class DeepForestDetector(LightningDetector):
+
+    def __init__(self, model: DeepForestModule):
+        # Setup steps for LightningModule
+        self.setup_model(model)
+
+    def setup_model(self, model: DeepForestModule):
+        """Setup the DeepForest model and use latest release.
+
+        Args:
+            model (DeepForestModule): LightningModule derived object for DeepForest
+        """
+        self.model = model
+        self.model.use_release()
+
+    def setup_trainer(self):
+        """Create a pytorch lightning trainer from a parameter dictionary
+
+        Args:
+            param_dict (dict): Dictionary of configuration paramters
+
+        Returns:
+            lightning.Trainer: A configured trainer
+        """
+        # convert param dict to trainer
+        checkpoint_callback = ModelCheckpoint(
+            dirpath="checkpoints/",
+            monitor="box_recall",
+            mode="max",
+            save_top_k=3,
+            filename="box_recall-{epoch:02d}-{box_recall:.2f}",
+        )
+        logger = TensorBoardLogger(save_dir="logs/")
+
+        trainer = lightning.Trainer(
+            logger=logger,
+            max_epochs=self.model.param_dict["train"]["epochs"],
+            enable_checkpointing=self.model.param_dict["enable_checkpointing"],
+            callbacks=[checkpoint_callback],
+        )
+        return trainer
+
+    def predict_batch(self, batch):
+        """
+        Returns:
+            List[List[shapely.geometry]]:
+                A list of predictions one per image in the batch. The predictions for each image
+                are a list of shapely objects.
+            Union[None, List[dict]]:
+                Any additional attributes that are predicted (such as class or confidence). Must
+                be formatted in a way that can be passed to gpd.GeoPandas data argument.
+        """
+
+        self.model.eval()
+        images = batch["image"]
+        outputs = self.model(images[:, :3, :, :] / 255)
+
+        all_geometries = []
+        all_data_dicts = []
+        for pred_dict in outputs:
+            boxes = pred_dict["boxes"].cpu().detach().numpy()
+            shapely_boxes = shapely.box(
+                boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+            )
+            all_geometries.append(shapely_boxes)
+
+            scores = pred_dict["scores"].cpu().detach().numpy()
+            labels = pred_dict["labels"].cpu().detach().numpy()
+            all_data_dicts.append({"scores": scores, "labels": labels})
+
+        return all_geometries, all_data_dicts
+
+    def train(
+        self,
+        datamodule: CustomDataModule,
+    ):
+        """Train a model
+
+        Args:
+            model (DeepForestModule): LightningModule for DeepForest
+            datamodule (CustomDataModule): LightningDataModule that creates train-val-test dataloaders
+        """
+
+        # Create and configure lightning.Trainer
+        self.trainer = self.setup_trainer()
+
+        # Begin training
+        self.trainer.fit(self.model, datamodule)
 
     def save_model(self, save_file: PATH_TYPE):
         """Save a model to disk
