@@ -1,12 +1,7 @@
-from abc import abstractmethod
-from typing import Any, DefaultDict, Iterator, List, Tuple, Union
-from typing import Optional
-from typing import List, Dict, Union
-from typing import List, Dict, Union, DefaultDict, Any
-import warnings
 import logging
+import warnings
 from abc import abstractmethod
-from typing import Any, DefaultDict, Dict, List, Tuple, Union, Iterator
+from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
 import lightning
 import numpy as np
@@ -18,13 +13,13 @@ from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
 from tree_detection_framework.constants import PATH_TYPE
-from tree_detection_framework.utils.detection import use_release_df
 from tree_detection_framework.detection.models import DeepForestModule
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
 )
 from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
+from tree_detection_framework.utils.detection import use_release_df
 
 # Set up logging configuration
 logging.basicConfig(
