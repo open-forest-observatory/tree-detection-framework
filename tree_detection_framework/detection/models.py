@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import lightning
 import torch
@@ -81,19 +81,19 @@ class DeepForestModule(lightning.LightningModule):
         print("Loading pre-built model: {}".format(release_tag))
 
     def forward(
-        self, images: List[Tensor], targets: List[Dict[str, Tensor]]
+        self, images: List[Tensor], targets: Optional[List[Dict[str, Tensor]]] = None
     ) -> Dict[str, Tensor]:
         """Calls the model's forward method.
         Args:
             images (list[Tensor]): Images to be processed
-            targets (list[Dict[Tensor]]): Ground-truth boxes present in the image
+            targets (list[Dict[Tensor]]): Ground-truth boxes present in the image (optional)
 
         Returns:
             result (list[BoxList] or dict[Tensor]):
                 The output from the model.
                 During training, it returns a dict[Tensor] which contains the losses.
         """
-        return self.model.forward(images, targets)  # Model specific forward
+        return self.model.forward(images, targets=targets)  # Model specific forward
 
     def training_step(self, batch):
         # Ensure model is in train mode
@@ -120,7 +120,7 @@ class DeepForestModule(lightning.LightningModule):
             d = {"boxes": filtered_boxes_tensor, "labels": class_labels}
             targets.append(d)
 
-        loss_dict = self.forward(image_batch_list, targets)
+        loss_dict = self.forward(image_batch_list, targets=targets)
 
         final_loss = sum([loss for loss in loss_dict.values()])
         print("loss: ", final_loss)

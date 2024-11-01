@@ -6,7 +6,7 @@ from typing import List, Dict, Union, DefaultDict, Any
 import warnings
 import logging
 from abc import abstractmethod
-from typing import Any, DefaultDict, Dict, List
+from typing import Any, DefaultDict, Dict, List, Tuple, Union, Iterator
 
 import lightning
 import numpy as np
@@ -182,6 +182,32 @@ class Detector:
         # Assume that the CRS is the same across all elements in the batch
         return batch["crs"][0]
 
+    @staticmethod
+    def get_geospatial_bounds_as_shapely(
+        batch: DefaultDict[str, Any]
+    ) -> List[shapely.geometry.Polygon]:
+        """Get geospatial region bounds as shapely objects from a batch.
+        Args:
+            batch: (DefaultDict[str, Any]): Batch from DataLoader with image sample(s).
+        Returns:
+            List[shapely.geometry.Polygon]: A list of shapely Polygons representing the geospatial bounds.
+        """
+        batch_bounds = batch["bounds"]
+        return [
+            shapely.box(
+                xmin=tile_bounds.minx,
+                ymin=tile_bounds.miny,
+                xmax=tile_bounds.maxx,
+                ymax=tile_bounds.maxy,
+            )
+            for tile_bounds in batch_bounds
+        ]
+
+    @staticmethod
+    def get_CRS_from_batch(batch):
+        # Assume that the CRS is the same across all elements in the batch
+        return batch["crs"][0]
+
 
 class RandomDetector(Detector):
     """A detector that produces random detections primarily used for testing"""
@@ -311,49 +337,12 @@ class LightningDetector(Detector):
         # Should be implemented here
         raise NotImplementedError()
 
-    @staticmethod
-    def get_image_bounds_as_shapely(
-        batch: DefaultDict[str, Any]
-    ) -> List[shapely.geometry.Polygon]:
-        """Get pixel image bounds as shapely objects from a batch.
-
-        Args:
-            batch: (DefaultDict[str, Any]): Batch from DataLoader with image sample(s).
-
-        Returns:
-            List[shapely.geometry.Polygon]: A list of shapely Polygons representing the pixel bounds.
-        """
-        image_shape = batch["image"].shape[-2:]
-        image_bounds = shapely.box(
-            xmin=0, ymin=0, xmax=image_shape[1], ymax=image_shape[0]
-        )
-        return [image_bounds] * batch["image"].shape[0]
-
-    @staticmethod
-    def get_geospatial_bounds_as_shapely(
-        batch: DefaultDict[str, Any]
-    ) -> List[shapely.geometry.Polygon]:
-        """Get geospatial region bounds as shapely objects from a batch.
-
-        Args:
-            batch: (DefaultDict[str, Any]): Batch from DataLoader with image sample(s).
-
-        Returns:
-            List[shapely.geometry.Polygon]: A list of shapely Polygons representing the geospatial bounds.
-        """
-        batch_bounds = batch["bounds"]
-        return [
-            shapely.box(
-                xmin=tile_bounds.minx,
-                ymin=tile_bounds.miny,
-                xmax=tile_bounds.maxx,
-                ymax=tile_bounds.maxy,
-            )
-            for tile_bounds in batch_bounds
-        ]
-
 
 class DeepForestDetector(LightningDetector):
+
+    def __init__(self, model: DeepForestModule):
+        # Setup steps for LightningModule
+        self.setup_model(model)
 
     def setup_model(self, model: DeepForestModule):
         """Setup the DeepForest model and use latest release.
@@ -385,12 +374,12 @@ class DeepForestDetector(LightningDetector):
 
         trainer = lightning.Trainer(
             logger=logger,
-            max_epochs=self.param_dict["train"]["epochs"],
-            enable_checkpointing=self.param_dict["enable_checkpointing"],
+            max_epochs=self.model.param_dict["train"]["epochs"],
+            enable_checkpointing=self.model.param_dict["enable_checkpointing"],
             callbacks=[checkpoint_callback],
         )
         return trainer
-
+    
     def predict(
         self, inference_dataloader: DataLoader, **kwargs
     ) -> RegionDetectionsSet:
@@ -406,62 +395,55 @@ class DeepForestDetector(LightningDetector):
             - Pixel-based and geospatial bounding boxes for each detection
             - CRS information
         """
-        # Load deepforest model
-        model = main.deepforest()
-        # Get the latest model weights
-        # TODO: Support loading a different pretrained model from checkpoint
-        model.use_release()
 
-        # Store all batched elemts from the dataloader in a list
-        all_tiles = list(inference_dataloader)
+        # Make sure model is in eval mode
+        self.model.eval()
+        # Store all batches from the dataloader in a list
+        all_batches = list(inference_dataloader)
         logging.info("Getting predictions from deepforest...")
-        output_dataframes = []
-        for tile in all_tiles:
-            image = tile["image"][0]  # assumes batch_size 1
-            # Convert to datatype expected by deepforest
-            image_np = image.numpy().astype(np.float32)
-            # Retain first 3 channels and reorder it so that RGB channels are the last dimension
-            image_np = image_np[:3, :, :].transpose(1, 2, 0)
-            # Prediction output from deepforest is returned as a dataframe
-            output = model.predict_image(image=image_np)
-            output_dataframes.append(output)
+        outputs = []
+        for batch in all_batches:
+            images = batch["image"]
+            output = self.model(images[:, :3, :, :] / 255)
+            outputs.append(output)
 
-        # Create a list of RegionDetection objects
-        region_detections = []
-        logging.info("Converting predictions to RegionDetectionsSet object...")
-        for sample, prediction in zip(inference_dataloader, output_dataframes):
-            # Extract the derived attributes from the sample and prediction
-            # Note that the first element is taken from the ones where a batch is returned
-            image_bounds = LightningDetector.get_image_bounds_as_shapely(sample)[0]
-            geospatial_bounds = LightningDetector.get_geospatial_bounds_as_shapely(
-                sample
-            )[0]
-            prediction_geometry = self.parse_deepforest_output(prediction)
+        return outputs
 
-            # Extract the CRS of the first (only) element in the batch
-            CRS = sample["crs"][0]
+        # TODO: Convert to RegionDetectionsSet
+        # # Create a list of RegionDetection objects
+        # region_detections = []
+        # logging.info("Converting predictions to RegionDetectionsSet object...")
+        # for sample, prediction in zip(inference_dataloader, output_dataframes):
+        #     # Extract the derived attributes from the sample and prediction
+        #     # Note that the first element is taken from the ones where a batch is returned
+        #     image_bounds = LightningDetector.get_image_bounds_as_shapely(sample)[0]
+        #     geospatial_bounds = LightningDetector.get_geospatial_bounds_as_shapely(
+        #         sample
+        #     )[0]
+        #     prediction_geometry = self.parse_deepforest_output(prediction)
 
-            # Create the region detection
-            region_detection = RegionDetections(
-                detection_geometries=prediction_geometry,
-                data=prediction,
-                pixel_prediction_bounds=image_bounds,
-                geospatial_prediction_bounds=geospatial_bounds,
-                input_in_pixels=True,
-                CRS=CRS,
-            )
-            # Append to the list
-            region_detections.append(region_detection)
+        #     # Extract the CRS of the first (only) element in the batch
+        #     CRS = sample["crs"][0]
 
-        logging.info("Done.")
-        # Return the region detection set
-        return RegionDetectionsSet(region_detections)
+        #     # Create the region detection
+        #     region_detection = RegionDetections(
+        #         detection_geometries=prediction_geometry,
+        #         data=prediction,
+        #         pixel_prediction_bounds=image_bounds,
+        #         geospatial_prediction_bounds=geospatial_bounds,
+        #         input_in_pixels=True,
+        #         CRS=CRS,
+        #     )
+        #     # Append to the list
+        #     region_detections.append(region_detection)
+
+        # logging.info("Done.")
+        # # Return the region detection set
+        # return RegionDetectionsSet(region_detections)
 
     def train(
         self,
-        model: DeepForestModule,
         datamodule: CustomDataModule,
-        param_dict: Dict[str, Any],
     ):
         """Train a model
 
@@ -469,15 +451,12 @@ class DeepForestDetector(LightningDetector):
             model (DeepForestModule): LightningModule for DeepForest
             datamodule (CustomDataModule): LightningDataModule that creates train-val-test dataloaders
         """
-        # Setup steps for LightningModule
-        self.setup_model(model)
-        self.param_dict = param_dict
 
         # Create and configure lightning.Trainer
         self.trainer = self.setup_trainer()
 
         # Begin training
-        self.trainer.fit(model, datamodule)
+        self.trainer.fit(self.model, datamodule)
 
     def save_model(self, save_file: PATH_TYPE):
         """Save a model to disk
