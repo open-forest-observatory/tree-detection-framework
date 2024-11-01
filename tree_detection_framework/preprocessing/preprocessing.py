@@ -165,7 +165,9 @@ def create_dataloader(
     sampler = GridGeoSampler(
         final_dataset, size=chip_size, stride=chip_stride, units=units
     )
-    dataloader = DataLoader(final_dataset, batch_size=batch_size, sampler=sampler, collate_fn=stack_samples)
+    dataloader = DataLoader(
+        final_dataset, batch_size=batch_size, sampler=sampler, collate_fn=stack_samples
+    )
 
     return dataloader
 

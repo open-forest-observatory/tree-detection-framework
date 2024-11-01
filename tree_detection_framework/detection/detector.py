@@ -274,6 +274,8 @@ class RandomDetector(Detector):
             batch_datas.append(data)
 
         return batch_geometries, batch_datas
+
+
 class LightningDetector(Detector):
     model: lightning.LightningModule
 
@@ -368,9 +370,8 @@ class DeepForestDetector(LightningDetector):
             callbacks=[checkpoint_callback],
         )
         return trainer
-    
-    def predict_batch(self, batch):
 
+    def predict_batch(self, batch):
         """
         Returns:
             List[List[shapely.geometry]]:
@@ -380,7 +381,7 @@ class DeepForestDetector(LightningDetector):
                 Any additional attributes that are predicted (such as class or confidence). Must
                 be formatted in a way that can be passed to gpd.GeoPandas data argument.
         """
-        
+
         self.model.eval()
         images = batch["image"]
         outputs = self.model(images[:, :3, :, :] / 255)
@@ -388,14 +389,16 @@ class DeepForestDetector(LightningDetector):
         all_geometries = []
         all_data_dicts = []
         for pred_dict in outputs:
-            boxes = pred_dict['boxes'].cpu().detach().numpy()
-            shapely_boxes = shapely.box(boxes[:,0], boxes[:,1], boxes[:,2], boxes[:,3])
+            boxes = pred_dict["boxes"].cpu().detach().numpy()
+            shapely_boxes = shapely.box(
+                boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+            )
             all_geometries.append(shapely_boxes)
 
-            scores = pred_dict['scores'].cpu().detach().numpy()
-            labels = pred_dict['labels'].cpu().detach().numpy()
-            all_data_dicts.append({'scores': scores, 'labels': labels})
-        
+            scores = pred_dict["scores"].cpu().detach().numpy()
+            labels = pred_dict["labels"].cpu().detach().numpy()
+            all_data_dicts.append({"scores": scores, "labels": labels})
+
         return all_geometries, all_data_dicts
 
     def train(
@@ -424,4 +427,3 @@ class DeepForestDetector(LightningDetector):
         """
         # Should be implemented here
         raise NotImplementedError()
-
