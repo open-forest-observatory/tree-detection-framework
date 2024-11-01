@@ -311,12 +311,6 @@ class LightningDetector(Detector):
         """
         raise NotImplementedError()
 
-    def predict(
-        self, inference_dataloader: DataLoader, **kwargs
-    ) -> RegionDetectionsSet:
-        # Should be implemented here
-        raise NotImplementedError()
-
     def train(self, train_dataloader: DataLoader, val_dataloader: DataLoader, **kwargs):
         """Train a model
 
@@ -380,66 +374,34 @@ class DeepForestDetector(LightningDetector):
         )
         return trainer
     
-    def predict(
-        self, inference_dataloader: DataLoader, **kwargs
-    ) -> RegionDetectionsSet:
-        """Get predictions from `DeepForest` for the given dataloader as a `RegionDetectionsSet`.
+    def predict_batch(self, batch):
 
-        Args:
-            inference_dataloader (DataLoader): PyTorch DataLoader with imput samples containing images and metadata.
-
-        Returns:
-            `RegionDetectionsSet`: A collection of region detection objects, where each detection object contains:
-            - Predicted bounding geometries (in shapely format) for detected regions
-            - Associated prediction dataframe
-            - Pixel-based and geospatial bounding boxes for each detection
-            - CRS information
         """
-
-        # Make sure model is in eval mode
+        Returns:
+            List[List[shapely.geometry]]:
+                A list of predictions one per image in the batch. The predictions for each image
+                are a list of shapely objects.
+            Union[None, List[dict]]:
+                Any additional attributes that are predicted (such as class or confidence). Must
+                be formatted in a way that can be passed to gpd.GeoPandas data argument.
+        """
+        
         self.model.eval()
-        # Store all batches from the dataloader in a list
-        all_batches = list(inference_dataloader)
-        logging.info("Getting predictions from deepforest...")
-        outputs = []
-        for batch in all_batches:
-            images = batch["image"]
-            output = self.model(images[:, :3, :, :] / 255)
-            outputs.append(output)
+        images = batch["image"]
+        outputs = self.model(images[:, :3, :, :] / 255)
 
-        return outputs
+        all_geometries = []
+        all_data_dicts = []
+        for pred_dict in outputs:
+            boxes = pred_dict['boxes'].cpu().detach().numpy()
+            shapely_boxes = shapely.box(boxes[:,0], boxes[:,1], boxes[:,2], boxes[:,3])
+            all_geometries.append(shapely_boxes)
 
-        # TODO: Convert to RegionDetectionsSet
-        # # Create a list of RegionDetection objects
-        # region_detections = []
-        # logging.info("Converting predictions to RegionDetectionsSet object...")
-        # for sample, prediction in zip(inference_dataloader, output_dataframes):
-        #     # Extract the derived attributes from the sample and prediction
-        #     # Note that the first element is taken from the ones where a batch is returned
-        #     image_bounds = LightningDetector.get_image_bounds_as_shapely(sample)[0]
-        #     geospatial_bounds = LightningDetector.get_geospatial_bounds_as_shapely(
-        #         sample
-        #     )[0]
-        #     prediction_geometry = self.parse_deepforest_output(prediction)
-
-        #     # Extract the CRS of the first (only) element in the batch
-        #     CRS = sample["crs"][0]
-
-        #     # Create the region detection
-        #     region_detection = RegionDetections(
-        #         detection_geometries=prediction_geometry,
-        #         data=prediction,
-        #         pixel_prediction_bounds=image_bounds,
-        #         geospatial_prediction_bounds=geospatial_bounds,
-        #         input_in_pixels=True,
-        #         CRS=CRS,
-        #     )
-        #     # Append to the list
-        #     region_detections.append(region_detection)
-
-        # logging.info("Done.")
-        # # Return the region detection set
-        # return RegionDetectionsSet(region_detections)
+            scores = pred_dict['scores'].cpu().detach().numpy()
+            labels = pred_dict['labels'].cpu().detach().numpy()
+            all_data_dicts.append({'scores': scores, 'labels': labels})
+        
+        return all_geometries, all_data_dicts
 
     def train(
         self,
@@ -468,18 +430,3 @@ class DeepForestDetector(LightningDetector):
         # Should be implemented here
         raise NotImplementedError()
 
-    @staticmethod
-    def parse_deepforest_output(prediction: pd.DataFrame) -> shapely.geometry.Polygon:
-        """Parse DeepForest output into shapely geometries.
-
-        Args:
-            prediction (pd.DataFrame): Dataframe output containing `xmin`, `ymin`, `xmax`, `ymax` attributes.
-
-        Returns:
-            numpy.ndarray consisting of all detections in a tile as `Polygon` objects.
-        """
-        xmin = prediction["xmin"].to_numpy()
-        ymin = prediction["ymin"].to_numpy()
-        xmax = prediction["xmax"].to_numpy()
-        ymax = prediction["ymax"].to_numpy()
-        return shapely.box(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
