@@ -177,32 +177,6 @@ class Detector:
         # Assume that the CRS is the same across all elements in the batch
         return batch["crs"][0]
 
-    @staticmethod
-    def get_geospatial_bounds_as_shapely(
-        batch: DefaultDict[str, Any]
-    ) -> List[shapely.geometry.Polygon]:
-        """Get geospatial region bounds as shapely objects from a batch.
-        Args:
-            batch: (DefaultDict[str, Any]): Batch from DataLoader with image sample(s).
-        Returns:
-            List[shapely.geometry.Polygon]: A list of shapely Polygons representing the geospatial bounds.
-        """
-        batch_bounds = batch["bounds"]
-        return [
-            shapely.box(
-                xmin=tile_bounds.minx,
-                ymin=tile_bounds.miny,
-                xmax=tile_bounds.maxx,
-                ymax=tile_bounds.maxy,
-            )
-            for tile_bounds in batch_bounds
-        ]
-
-    @staticmethod
-    def get_CRS_from_batch(batch):
-        # Assume that the CRS is the same across all elements in the batch
-        return batch["crs"][0]
-
 
 class RandomDetector(Detector):
     """A detector that produces random detections primarily used for testing"""
