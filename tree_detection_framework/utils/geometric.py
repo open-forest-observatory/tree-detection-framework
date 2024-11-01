@@ -33,7 +33,7 @@ def mask_to_shapely(mask: np.ndarray) -> shapely.MultiPolygon:
     Returns:
         shapely.MultiPolygon:
             A multipolygon representing the positive regions. Holes and multiple disconnected
-            componets are properly handled.
+            components are properly handled.
     """
     # This generally follows the example here:
     # https://contourpy.readthedocs.io/en/v1.3.0/user_guide/external/shapely.html#filled-contours-to-shapely
@@ -43,7 +43,7 @@ def mask_to_shapely(mask: np.ndarray) -> shapely.MultiPolygon:
         0.5, np.inf
     )
 
-    # Create a polygon for each of the disconected regions, called chunks in contourpy
+    # Create a polygon for each of the disconnected regions, called chunks in ContourPy
     # This iterates over the elements in three lists, the points, offsets, and outer offsets
     chunk_polygons = [
         shapely.from_ragged_array(
