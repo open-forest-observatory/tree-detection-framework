@@ -72,7 +72,7 @@ def generate_predictions(
     )
 
     # Setup the specified tree detection model
-    if tree_detection_model == 'deepforest':
+    if tree_detection_model == "deepforest":
 
         # Setup the parameters dictionary
         param_dict = {
@@ -84,7 +84,9 @@ def generate_predictions(
         lightning_detector = DeepForestDetector(df_module)
 
     else:
-        raise ValueError("Please enter a valid tree detection model. Currently supported models are: `deepforest`")
+        raise ValueError(
+            "Please enter a valid tree detection model. Currently supported models are: `deepforest`"
+        )
 
     # Get predictions by invoking the tree_detection_model
     outputs = lightning_detector.predict(dataloader)
@@ -95,31 +97,34 @@ def generate_predictions(
     if view_predictions_plot is True:
         outputs.plot()
 
+
 def parse_args() -> argparse.Namespace:
-    description = ("This script generates tree detections for a given raster dataset. First, it creates a dataloader "
-                    + "with the tiled raster dataset and provides the images as input to the selected tree detection model. "
-                    + "All of the arguments are passed to "
-                    + "tree_detection_framework.entrypoints.generate_predictions "
-                    + "which has the following documentation:\n\n"
-                    + generate_predictions.__doc__
-                   )
+    description = (
+        "This script generates tree detections for a given raster dataset. First, it creates a dataloader "
+        + "with the tiled raster dataset and provides the images as input to the selected tree detection model. "
+        + "All of the arguments are passed to "
+        + "tree_detection_framework.entrypoints.generate_predictions "
+        + "which has the following documentation:\n\n"
+        + generate_predictions.__doc__
+    )
     parser = argparse.ArgumentParser(description=description)
 
-    parser.add_argument('--raster-folder-path', required=True)
-    parser.add_argument('--chip-size', type=float, required=True)
-    parser.add_argument('--tree-detection-model', type=str, required=True)
-    parser.add_argument('--chip-stride', type=float)
-    parser.add_argument('--chip-overlap-percentage', type=float)
-    parser.add_argument('--use-units-meters', action='store_true')
-    parser.add_argument('--region-of-interest')
-    parser.add_argument('--output-resolution', type=float)
-    parser.add_argument('--output-CRS')
-    parser.add_argument('--predictions-save-path')
-    parser.add_argument('--view-predictions-plot', action='store_true')
-    parser.add_argument('--batch-size', type=int, default=1)
+    parser.add_argument("--raster-folder-path", required=True)
+    parser.add_argument("--chip-size", type=float, required=True)
+    parser.add_argument("--tree-detection-model", type=str, required=True)
+    parser.add_argument("--chip-stride", type=float)
+    parser.add_argument("--chip-overlap-percentage", type=float)
+    parser.add_argument("--use-units-meters", action="store_true")
+    parser.add_argument("--region-of-interest")
+    parser.add_argument("--output-resolution", type=float)
+    parser.add_argument("--output-CRS")
+    parser.add_argument("--predictions-save-path")
+    parser.add_argument("--view-predictions-plot", action="store_true")
+    parser.add_argument("--batch-size", type=int, default=1)
 
     args = parser.parse_args()
     return args
+
 
 if __name__ == "__main__":
     args = parse_args()
