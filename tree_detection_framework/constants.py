@@ -5,7 +5,6 @@ import geopandas as gpd
 import numpy.typing
 import shapely
 
-
 PATH_TYPE = Union[str, Path]
 BOUNDARY_TYPE = Union[
     PATH_TYPE, shapely.Polygon, shapely.MultiPolygon, gpd.GeoDataFrame, gpd.GeoSeries
