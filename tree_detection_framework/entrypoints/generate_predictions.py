@@ -24,8 +24,7 @@ def generate_predictions(
     batch_size: int = 1,
 ):
     """
-    Entrypoint script for testing preprocessing functions.
-    It enables creating a dataloader, visualizing sample tiles from the dataloader, and saving the contents of the dataloader to disk.
+    Entrypoint script to generate tree detections for a raster dataset input. Supports visualizing and saving predictions.
 
     Args:
         raster_folder_path (PATH_TYPE): Path to the folder or raster files.
@@ -100,7 +99,7 @@ def generate_predictions(
 
 def parse_args() -> argparse.Namespace:
     description = (
-        "This script generates tree detections for a given raster dataset. First, it creates a dataloader "
+        "This script generates tree detections for a given raster image. First, it creates a dataloader "
         + "with the tiled raster dataset and provides the images as input to the selected tree detection model. "
         + "All of the arguments are passed to "
         + "tree_detection_framework.entrypoints.generate_predictions "
