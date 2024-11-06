@@ -7,8 +7,8 @@ import pyproj
 from tree_detection_framework.constants import BOUNDARY_TYPE, PATH_TYPE
 from tree_detection_framework.detection.detector import DeepForestDetector
 from tree_detection_framework.detection.models import DeepForestModule
-from tree_detection_framework.preprocessing.preprocessing import create_dataloader
 from tree_detection_framework.postprocessing.postprocessing import multi_region_NMS
+from tree_detection_framework.preprocessing.preprocessing import create_dataloader
 
 
 def generate_predictions(
