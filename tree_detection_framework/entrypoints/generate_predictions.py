@@ -1,4 +1,5 @@
 import argparse
+import logging
 from typing import Optional
 
 import pyproj
@@ -7,6 +8,7 @@ from tree_detection_framework.constants import BOUNDARY_TYPE, PATH_TYPE
 from tree_detection_framework.detection.detector import DeepForestDetector
 from tree_detection_framework.detection.models import DeepForestModule
 from tree_detection_framework.preprocessing.preprocessing import create_dataloader
+from tree_detection_framework.postprocessing.postprocessing import multi_region_NMS
 
 
 def generate_predictions(
@@ -21,6 +23,7 @@ def generate_predictions(
     output_CRS: Optional[pyproj.CRS] = None,
     predictions_save_path: Optional[PATH_TYPE] = None,
     view_predictions_plot: bool = False,
+    run_nms: bool = True,
     batch_size: int = 1,
 ):
     """
@@ -53,10 +56,12 @@ def generate_predictions(
             Path to a geofile to save the prediction outputs.
         view_predictions_plot (bool, optional):
             Set to True if visualization of the detected regions is needed. Defaults to False.
+        run_nms: (bool, optional):
+            Set to True if non-max suppresion needs to be run on predictions from multiple regions.
         batch_size (int, optional):
             Number of images to load in a batch. Defaults to 1.
     """
-
+    
     # Create the dataloader by passing folder path to raster data.
     dataloader = create_dataloader(
         raster_folder_path=raster_folder_path,
@@ -88,12 +93,21 @@ def generate_predictions(
         )
 
     # Get predictions by invoking the tree_detection_model
+    logging.info("Getting tree detections")
     outputs = lightning_detector.predict(dataloader)
 
+    if run_nms is True:
+        logging.info("Running non-max suppression")
+        # Run non-max suppression on the detected regions
+        outputs = multi_region_NMS(outputs)
+
     if predictions_save_path:
+        # Save predictions to disk
         outputs.save(predictions_save_path)
 
     if view_predictions_plot is True:
+        logging.info("View plot. Kill the plot window to exit.")
+        # Plot the detections and the bounds of the region
         outputs.plot()
 
 
@@ -119,6 +133,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-CRS")
     parser.add_argument("--predictions-save-path")
     parser.add_argument("--view-predictions-plot", action="store_true")
+    parser.add_argument("--run-nms", action="store_true")
     parser.add_argument("--batch-size", type=int, default=1)
 
     args = parser.parse_args()
