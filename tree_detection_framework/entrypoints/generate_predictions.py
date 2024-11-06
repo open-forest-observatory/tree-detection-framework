@@ -120,7 +120,9 @@ def parse_args() -> argparse.Namespace:
         + "which has the following documentation:\n\n"
         + generate_predictions.__doc__
     )
-    parser = argparse.ArgumentParser(description=description, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=description, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
 
     parser.add_argument("--raster-folder-path", required=True)
     parser.add_argument("--chip-size", type=float, required=True)
