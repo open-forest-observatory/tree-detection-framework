@@ -371,7 +371,7 @@ class DeepForestDetector(LightningDetector):
 
             scores = pred_dict["scores"].cpu().detach().numpy()
             labels = pred_dict["labels"].cpu().detach().numpy()
-            all_data_dicts.append({"scores": scores, "labels": labels})
+            all_data_dicts.append({"score": scores, "labels": labels})
 
         return all_geometries, all_data_dicts
 

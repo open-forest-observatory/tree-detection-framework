@@ -156,7 +156,7 @@ def create_dataloader(
 
     elif chip_stride is None:
         raise ValueError(
-            "Either 'chip_size' or 'chip_overlap_percentage' must be provided."
+            "Either 'chip_stride' or 'chip_overlap_percentage' must be provided."
         )
 
     logging.info(f"Stride = {chip_stride}")
