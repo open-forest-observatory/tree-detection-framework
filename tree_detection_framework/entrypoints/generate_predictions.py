@@ -61,7 +61,7 @@ def generate_predictions(
         batch_size (int, optional):
             Number of images to load in a batch. Defaults to 1.
     """
-    
+
     # Create the dataloader by passing folder path to raster data.
     dataloader = create_dataloader(
         raster_folder_path=raster_folder_path,
@@ -120,7 +120,7 @@ def parse_args() -> argparse.Namespace:
         + "which has the following documentation:\n\n"
         + generate_predictions.__doc__
     )
-    parser = argparse.ArgumentParser(description=description)
+    parser = argparse.ArgumentParser(description=description, formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument("--raster-folder-path", required=True)
     parser.add_argument("--chip-size", type=float, required=True)
@@ -136,7 +136,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-nms", action="store_true")
     parser.add_argument("--batch-size", type=int, default=1)
 
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+
+    except SystemExit as e:
+        print("\nError: Missing required arguments.")
+        parser.print_help()
+        raise e
+
     return args
 
 
