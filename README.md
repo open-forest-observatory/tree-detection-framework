@@ -9,7 +9,7 @@ curl -sSL https://install.python-poetry.org | python3 -
 ```
 Now create and activate a conda environment for the dependencies of this project
 ```
-conda create -n tree-detection-framework python=3.10 -y
+conda create -n tree-detection-framework python=3.10 ipykernel -y
 conda activate tree-detection-framework
 ```
 Now, from the root directory of the project, run the following command. Note that on Jetstream2, you
