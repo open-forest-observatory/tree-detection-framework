@@ -3,6 +3,7 @@ import logging
 from typing import Optional
 
 import pyproj
+import torch
 
 from tree_detection_framework.constants import BOUNDARY_TYPE, PATH_TYPE
 from tree_detection_framework.detection.detector import DeepForestDetector
@@ -85,6 +86,10 @@ def generate_predictions(
         }
 
         df_module = DeepForestModule(param_dict)
+        # Move the module to the GPU if available
+        df_module.to(
+            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        )
         lightning_detector = DeepForestDetector(df_module)
 
     else:

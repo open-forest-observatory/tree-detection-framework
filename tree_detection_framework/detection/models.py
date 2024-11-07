@@ -93,6 +93,8 @@ class DeepForestModule(lightning.LightningModule):
                 The output from the model.
                 During training, it returns a dict[Tensor] which contains the losses.
         """
+        # Move the data to the same device as the model
+        images = images.to(self.device)
         return self.model.forward(images, targets=targets)  # Model specific forward
 
     def training_step(self, batch):
