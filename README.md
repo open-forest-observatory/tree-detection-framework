@@ -59,7 +59,7 @@ command above, this code can be imported into scripts or notebooks under the nam
 
 ## Examples
 To begin with, you can access example geospatial data
-[here](https://ucdavis.box.com/v/tdf-example-data), or use your own data. Our goal is to have high-quality,
+[here](https://ucdavis.box.com/v/tdf-example-data), which should be downloaded and placed in the `data` folder at the top level of this project. Our goal is to have high-quality,
 up-to-date examples in the `examples` folder. We also have work-in-progress or one-off code in
 `sandbox`, which still may provide some insight but is not guaranteed to be current or generalizable.
 Finally, the `tree_detection_framework/entrypoints` folder has command line scripts that can be run
