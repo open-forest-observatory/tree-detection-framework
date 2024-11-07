@@ -10,3 +10,5 @@ BOUNDARY_TYPE = Union[
     PATH_TYPE, shapely.Polygon, shapely.MultiPolygon, gpd.GeoDataFrame, gpd.GeoSeries
 ]
 ARRAY_TYPE = numpy.typing.ArrayLike
+
+DATA_FOLDER = Path(Path(__file__).parent, "..", "data").resolve()
