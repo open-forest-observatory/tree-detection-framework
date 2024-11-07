@@ -7,11 +7,14 @@ in the base conda environment or with no environment active.
 ```
 curl -sSL https://install.python-poetry.org | python3 -
 ```
-Now create and activate a conda environment for the dependencies of this project
+Now create and activate a conda environment for the dependencies of this project.
 ```
 conda create -n tree-detection-framework python=3.10 ipykernel -y
 conda activate tree-detection-framework
 ```
+ Including `ipykernel` as suggested enables you to access this conda environment as kernel for Jupyter notebooks, but it is otherwise optional.
+
+
 Now, from the root directory of the project, run the following command. Note that on Jetstream2, you
 may need to run this in a graphical session and respond to a keyring popup menu.
 ```
