@@ -1,5 +1,6 @@
 import logging
 import warnings
+from tqdm import tqdm
 from abc import abstractmethod
 from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -45,41 +46,47 @@ class Detector:
             inference_dataloader (DataLoader): Dataloader to generate predictions for
         """
         # Iterate over each batch in the dataloader
-        for batch in inference_dataloader:
-            # This is the expensive step, generate the predictions using predict_batch from the
-            # derived class. The additional arguments are also passed to this method with kwargs
-            batch_preds_geometries, batch_preds_data = self.predict_batch(
-                batch, **kwargs
-            )
+        total_batches = len(inference_dataloader)
+        with tqdm(total=total_batches, desc="Performing prediction on batches") as batch_pbar:
+            # Iterate over each batch in the dataloader
+            for batch in inference_dataloader:
 
-            # If the prediction doesn't generate any data, set it to a list of None for
-            # compatability with downstream steps
-            if batch_preds_data is None:
-                batch_preds_data = [None] * len(batch_preds_geometries)
-
-            # Extract attributes from the batch
-            batch_image_bounds = self.get_image_bounds_as_shapely(batch)
-            batch_geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
-            CRS = self.get_CRS_from_batch(batch)
-
-            # Iterate over samples in the batch so we can yield them one at a time
-            for preds_geometry, preds_data, image_bounds, geospatial_bounds in zip(
-                batch_preds_geometries,
-                batch_preds_data,
-                batch_image_bounds,
-                batch_geospatial_bounds,
-            ):
-                # Create a region detections object
-                region_detections = RegionDetections(
-                    detection_geometries=preds_geometry,
-                    data=preds_data,
-                    CRS=CRS,
-                    input_in_pixels=True,
-                    pixel_prediction_bounds=image_bounds,
-                    geospatial_prediction_bounds=geospatial_bounds,
+                # This is the expensive step, generate the predictions using predict_batch from the
+                # derived class. The additional arguments are also passed to this method with kwargs
+                batch_preds_geometries, batch_preds_data = self.predict_batch(
+                    batch, **kwargs
                 )
-                # Yield this object
-                yield region_detections
+
+                # If the prediction doesn't generate any data, set it to a list of None for
+                # compatability with downstream steps
+                if batch_preds_data is None:
+                    batch_preds_data = [None] * len(batch_preds_geometries)
+
+                # Extract attributes from the batch
+                batch_image_bounds = self.get_image_bounds_as_shapely(batch)
+                batch_geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
+                CRS = self.get_CRS_from_batch(batch)
+
+                # Iterate over samples in the batch so we can yield them one at a time
+                for preds_geometry, preds_data, image_bounds, geospatial_bounds in zip(
+                    batch_preds_geometries,
+                    batch_preds_data,
+                    batch_image_bounds,
+                    batch_geospatial_bounds
+                ):
+                    # Create a region detections object
+                    region_detections = RegionDetections(
+                        detection_geometries=preds_geometry,
+                        data=preds_data,
+                        CRS=CRS,
+                        input_in_pixels=True,
+                        pixel_prediction_bounds=image_bounds,
+                        geospatial_prediction_bounds=geospatial_bounds,
+                    )
+                    # Yield this object
+                    yield region_detections
+
+                batch_pbar.update(1)
 
     def predict(
         self, inference_dataloader: DataLoader, return_as_list: bool = False, **kwargs
