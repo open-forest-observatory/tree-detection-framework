@@ -1,19 +1,19 @@
 import copy
 from pathlib import Path
 from typing import List, Optional, Union
-from tree_detection_framework.utils.raster import show_raster
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyproj
-import rasterio.transform
 import rasterio.plot
+import rasterio.transform
 import shapely
 from shapely.affinity import affine_transform
 
 from tree_detection_framework.constants import PATH_TYPE
+from tree_detection_framework.utils.raster import show_raster
 
 
 class RegionDetections:

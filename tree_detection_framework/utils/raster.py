@@ -1,13 +1,15 @@
-import rasterio.plot
-import rasterio as rio
-from tree_detection_framework.constants import PATH_TYPE
-import matplotlib.pyplot as plt
-import pyproj
-from typing import Optional
-import numpy as np
-import rasterio
-from rasterio.warp import calculate_default_transform, reproject, Resampling
 import tempfile
+from typing import Optional
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pyproj
+import rasterio
+import rasterio as rio
+import rasterio.plot
+from rasterio.warp import Resampling, calculate_default_transform, reproject
+
+from tree_detection_framework.constants import PATH_TYPE
 
 
 # Copied from https://github.com/open-forest-observatory/geograypher/blob/2900ede9a00ac8bdce22c43e4abb6d74876390f6/geograypher/utils/geospatial.py#L333
