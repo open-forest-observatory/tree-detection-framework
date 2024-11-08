@@ -47,7 +47,6 @@ class Detector:
         Args:
             inference_dataloader (DataLoader): Dataloader to generate predictions for
         """
-        # Iterate over each batch in the dataloader
         total_batches = len(inference_dataloader)
         with tqdm(total=total_batches, desc="Performing prediction on batches") as batch_pbar:
             # Iterate over each batch in the dataloader
