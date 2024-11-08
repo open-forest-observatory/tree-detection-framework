@@ -1,6 +1,7 @@
 import copy
 from pathlib import Path
 from typing import List, Optional, Union
+from tree_detection_framework.utils.raster import show_raster
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -8,6 +9,7 @@ import numpy as np
 import pandas as pd
 import pyproj
 import rasterio.transform
+import rasterio.plot
 import shapely
 from shapely.affinity import affine_transform
 
@@ -263,6 +265,9 @@ class RegionDetections:
 
         return bounds
 
+    def get_CRS(self):
+        return self.detections.crs
+
     def plot(
         self,
         CRS: Optional[pyproj.CRS] = None,
@@ -273,6 +278,8 @@ class RegionDetections:
         bounds_color: Optional[Union[str, np.array, pd.Series]] = None,
         detection_kwargs: dict = {},
         bounds_kwargs: dict = {},
+        raster_file: Optional[PATH_TYPE] = None,
+        raster_vis_downsample: float = 10.0,
     ) -> plt.axes:
         """Plot the detections and the bounds of the region
 
@@ -296,6 +303,11 @@ class RegionDetections:
             bounds_kwargs (dict, optional):
                 Additional keyword arguments to pass to the .plot method for the bounds.
                 Defaults to {}.
+            raster_file (Optional[PATH_TYPE], optional):
+                A path to a raster file to visualize the detections over if provided. Defaults to None.
+            raster_vis_downsample (float, optional):
+                The raster file is downsampled by this fraction before visualization to avoid
+                excessive memory use or plotting time. Defaults to 10.0.
 
         Returns:
             plt.axes: The axes that were plotted on
@@ -308,6 +320,15 @@ class RegionDetections:
         # If no axes are provided, create new ones
         if plt_ax is None:
             _, plt_ax = plt.subplots()
+
+        # Show the raster if provided
+        if raster_file is not None:
+            show_raster(
+                raster_file_path=raster_file,
+                downsample_factor=raster_vis_downsample,
+                plt_ax=plt_ax,
+                CRS=self.get_CRS(),
+            )
 
         # Plot the detections dataframe and the bounds on the same axes
         if "facecolor" not in detection_kwargs:
@@ -569,6 +590,8 @@ class RegionDetectionsSet:
         bounds_color: Optional[Union[str, np.array, pd.Series]] = None,
         detection_kwargs: dict = {},
         bounds_kwargs: dict = {},
+        raster_file: Optional[PATH_TYPE] = None,
+        raster_vis_downsample: float = 10.0,
     ) -> plt.axes:
         """Plot each of the region detections using their .plot method
 
@@ -590,6 +613,10 @@ class RegionDetectionsSet:
                 See regiondetections.plot. Defaults to {}.
             bounds_kwargs (dict, optional):
                 See regiondetections.plot. Defaults to {}.
+            raster_file (Optional[PATH_TYPE], optional):
+                See regiondetections.plot. Defaults to None.
+            raster_vis_downsample (float, optional):
+                See regiondetections.plot. Defaults to 10.0.
 
         Returns:
             plt.axes: The axes that have been plotted on.
@@ -601,6 +628,15 @@ class RegionDetectionsSet:
         # If no CRS is provided, select the default one
         if CRS is None:
             CRS = self.get_default_CRS()
+
+        # Show the raster if provided
+        if raster_file is not None:
+            show_raster(
+                raster_file_path=raster_file,
+                downsample_factor=raster_vis_downsample,
+                plt_ax=plt_ax,
+                CRS=CRS,
+            )
 
         # Iterate over each region and call the plot method of each
         for rd in self.region_detections:
