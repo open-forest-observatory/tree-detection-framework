@@ -72,7 +72,8 @@ def multi_region_NMS(
             What intersection over union value to consider an overlapping detection. Defaults to 0.5.
         confidence_column (str, optional):
             Which column in the dataframe to use as a confidence for NMS. Defaults to "score"
-
+        min_confidence (float, optional):
+            Prediction score threshold for detections to be included.
     Returns:
         RegionDetections:
             NMS-suppressed set of detections, merged together for the set of regions.

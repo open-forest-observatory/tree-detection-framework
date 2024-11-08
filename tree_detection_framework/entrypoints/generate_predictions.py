@@ -25,6 +25,8 @@ def generate_predictions(
     predictions_save_path: Optional[PATH_TYPE] = None,
     view_predictions_plot: bool = False,
     run_nms: bool = True,
+    iou_threshold: Optional[float] = 0.3,
+    min_confidence: Optional[float] = 0.3,
     batch_size: int = 1,
 ):
     """
@@ -59,6 +61,10 @@ def generate_predictions(
             Set to True if visualization of the detected regions is needed. Defaults to False.
         run_nms: (bool, optional):
             Set to True if non-max suppresion needs to be run on predictions from multiple regions.
+        iou_threshold (float, optional):
+            What intersection over union value to consider an overlapping detection. Defaults to 0.5.
+        min_confidence (float, optional):
+            Prediction score threshold for detections to be included.
         batch_size (int, optional):
             Number of images to load in a batch. Defaults to 1.
     """
@@ -104,7 +110,7 @@ def generate_predictions(
     if run_nms is True:
         logging.info("Running non-max suppression")
         # Run non-max suppression on the detected regions
-        outputs = multi_region_NMS(outputs)
+        outputs = multi_region_NMS(outputs, iou_theshold=iou_threshold, min_confidence=min_confidence)
 
     if predictions_save_path:
         # Save predictions to disk
@@ -141,6 +147,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--predictions-save-path")
     parser.add_argument("--view-predictions-plot", action="store_true")
     parser.add_argument("--run-nms", action="store_true")
+    parser.add_argument("--iou-threshold", type=float, default=0.3)
+    parser.add_argument("--min-confidence", type=float, default=0.3)
     parser.add_argument("--batch-size", type=int, default=1)
 
     try:
