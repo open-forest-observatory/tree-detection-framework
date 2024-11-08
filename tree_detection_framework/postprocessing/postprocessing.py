@@ -36,7 +36,6 @@ def single_region_NMS(
     # Filter detections based on minimum confidence score
     detections_df = detections_df[detections_df[confidence_column] >= min_confidence]
     if detections_df.empty:
-        logging.info("All detections were filtered out by confidence threshold.")
         # Return empty if no detections pass threshold
         return detections.subset_detections([])
 
@@ -72,6 +71,7 @@ def multi_region_NMS(
             What intersection over union value to consider an overlapping detection. Defaults to 0.5.
         confidence_column (str, optional):
             Which column in the dataframe to use as a confidence for NMS. Defaults to "score"
+            
         min_confidence (float, optional):
             Prediction score threshold for detections to be included.
     Returns:
