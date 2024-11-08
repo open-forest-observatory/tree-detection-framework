@@ -1,6 +1,5 @@
 import logging
 import warnings
-from tqdm import tqdm
 from abc import abstractmethod
 from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -8,10 +7,12 @@ import lightning
 import numpy as np
 import pandas as pd
 import shapely
+import torch
 from deepforest import main
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.models import DeepForestModule
@@ -21,8 +22,6 @@ from tree_detection_framework.detection.region_detections import (
 )
 from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
 from tree_detection_framework.utils.detection import use_release_df
-
-import torch
 
 # Set up logging configuration
 logging.basicConfig(
