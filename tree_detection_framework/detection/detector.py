@@ -47,7 +47,9 @@ class Detector:
             inference_dataloader (DataLoader): Dataloader to generate predictions for
         """
         # Iterate over each batch in the dataloader
-        for batch in tqdm(inference_dataloader, desc="Performing prediction on batches"):
+        for batch in tqdm(
+            inference_dataloader, desc="Performing prediction on batches"
+        ):
 
             # This is the expensive step, generate the predictions using predict_batch from the
             # derived class. The additional arguments are also passed to this method with kwargs
@@ -83,7 +85,6 @@ class Detector:
                 )
                 # Yield this object
                 yield region_detections
-
 
     def predict(
         self, inference_dataloader: DataLoader, return_as_list: bool = False, **kwargs
