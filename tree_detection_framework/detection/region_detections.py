@@ -265,7 +265,12 @@ class RegionDetections:
 
         return bounds
 
-    def get_CRS(self):
+    def get_CRS(self) -> Union[pyproj.CRS, None]:
+        """Return the CRS of the detections dataframe
+
+        Returns:
+            Union[pyproj.CRS, None]: The CRS for the detections
+        """
         return self.detections.crs
 
     def plot(
