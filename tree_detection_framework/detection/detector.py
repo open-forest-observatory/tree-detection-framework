@@ -305,18 +305,18 @@ class LightningDetector(Detector):
 
 class DeepForestDetector(LightningDetector):
 
-    def __init__(self, model: DeepForestModule):
+    def __init__(self, module: DeepForestModule):
         # Setup steps for LightningModule
-        self.setup_model(model)
+        self.setup_model(module)
 
-    def setup_model(self, model: DeepForestModule):
+    def setup_model(self, module: DeepForestModule):
         """Setup the DeepForest model and use latest release.
 
         Args:
             model (DeepForestModule): LightningModule derived object for DeepForest
         """
-        self.model = model
-        self.model.use_release()
+        self.model = module.model
+        # self.model.use_release()
 
     def setup_trainer(self):
         """Create a pytorch lightning trainer from a parameter dictionary
