@@ -22,6 +22,8 @@ from tree_detection_framework.detection.region_detections import (
 from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
 from tree_detection_framework.utils.detection import use_release_df
 
+import torch
+
 # Set up logging configuration
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -322,8 +324,7 @@ class DeepForestDetector(LightningDetector):
         Args:
             model (DeepForestModule): LightningModule derived object for DeepForest
         """
-        self.model = module.model
-        # self.model.use_release()
+        self.lightningmodule = module
 
     def setup_trainer(self):
         """Create a pytorch lightning trainer from a parameter dictionary
@@ -346,8 +347,8 @@ class DeepForestDetector(LightningDetector):
 
         trainer = lightning.Trainer(
             logger=logger,
-            max_epochs=self.model.param_dict["train"]["epochs"],
-            enable_checkpointing=self.model.param_dict["enable_checkpointing"],
+            max_epochs=self.lightningmodule.param_dict["train"]["epochs"],
+            enable_checkpointing=self.lightningmodule.param_dict["enable_checkpointing"],
             callbacks=[checkpoint_callback],
         )
         return trainer
@@ -363,9 +364,10 @@ class DeepForestDetector(LightningDetector):
                 be formatted in a way that can be passed to gpd.GeoPandas data argument.
         """
 
-        self.model.eval()
+        self.lightningmodule.eval()
         images = batch["image"]
-        outputs = self.model(images[:, :3, :, :] / 255)
+        with torch.no_grad():
+            outputs = self.lightningmodule(images[:, :3, :, :] / 255) # .model ??
 
         all_geometries = []
         all_data_dicts = []
@@ -397,7 +399,7 @@ class DeepForestDetector(LightningDetector):
         self.trainer = self.setup_trainer()
 
         # Begin training
-        self.trainer.fit(self.model, datamodule)
+        self.trainer.fit(self.lightningmodule, datamodule)
 
     def save_model(self, save_file: PATH_TYPE):
         """Save a model to disk
