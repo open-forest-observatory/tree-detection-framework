@@ -7,10 +7,12 @@ import lightning
 import numpy as np
 import pandas as pd
 import shapely
+import torch
 from deepforest import main
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.models import DeepForestModule
@@ -45,7 +47,10 @@ class Detector:
             inference_dataloader (DataLoader): Dataloader to generate predictions for
         """
         # Iterate over each batch in the dataloader
-        for batch in inference_dataloader:
+        for batch in tqdm(
+            inference_dataloader, desc="Performing prediction on batches"
+        ):
+
             # This is the expensive step, generate the predictions using predict_batch from the
             # derived class. The additional arguments are also passed to this method with kwargs
             batch_preds_geometries, batch_preds_data = self.predict_batch(
@@ -308,18 +313,17 @@ class LightningDetector(Detector):
 
 class DeepForestDetector(LightningDetector):
 
-    def __init__(self, model: DeepForestModule):
+    def __init__(self, module: DeepForestModule):
         # Setup steps for LightningModule
-        self.setup_model(model)
+        self.setup_model(module)
 
-    def setup_model(self, model: DeepForestModule):
+    def setup_model(self, module: DeepForestModule):
         """Setup the DeepForest model and use latest release.
 
         Args:
             model (DeepForestModule): LightningModule derived object for DeepForest
         """
-        self.model = model
-        self.model.use_release()
+        self.lightningmodule = module
 
     def setup_trainer(self):
         """Create a pytorch lightning trainer from a parameter dictionary
@@ -342,8 +346,10 @@ class DeepForestDetector(LightningDetector):
 
         trainer = lightning.Trainer(
             logger=logger,
-            max_epochs=self.model.param_dict["train"]["epochs"],
-            enable_checkpointing=self.model.param_dict["enable_checkpointing"],
+            max_epochs=self.lightningmodule.param_dict["train"]["epochs"],
+            enable_checkpointing=self.lightningmodule.param_dict[
+                "enable_checkpointing"
+            ],
             callbacks=[checkpoint_callback],
         )
         return trainer
@@ -359,9 +365,10 @@ class DeepForestDetector(LightningDetector):
                 be formatted in a way that can be passed to gpd.GeoPandas data argument.
         """
 
-        self.model.eval()
+        self.lightningmodule.eval()
         images = batch["image"]
-        outputs = self.model(images[:, :3, :, :] / 255)
+        with torch.no_grad():
+            outputs = self.lightningmodule(images[:, :3, :, :] / 255)  # .model ??
 
         all_geometries = []
         all_data_dicts = []
@@ -397,7 +404,7 @@ class DeepForestDetector(LightningDetector):
         self.trainer = self.setup_trainer()
 
         # Begin training
-        self.trainer.fit(self.model, datamodule)
+        self.trainer.fit(self.lightningmodule, datamodule)
 
     def save_model(self, save_file: PATH_TYPE):
         """Save a model to disk

@@ -61,6 +61,7 @@ class DeepForestModule(lightning.LightningModule):
             raise ValueError("Only 'retinanet' backbone is currently supported.")
 
         self.model = retinanet.create_model()
+        self.use_release()
 
     def use_release(self, check_release=True):
         """Use the latest DeepForest model release from github and load model.

@@ -12,6 +12,7 @@ def single_region_NMS(
     detections: RegionDetections,
     iou_theshold: float = 0.5,
     confidence_column: str = "score",
+    min_confidence: float = 0.3,
 ) -> RegionDetections:
     """Run non-max suppresion on predictions from a single region.
 
@@ -22,6 +23,8 @@ def single_region_NMS(
             What intersection over union value to consider an overlapping detection. Defaults to 0.5.
         confidence_column (str, optional):
             Which column in the dataframe to use as a confidence for NMS. Defaults to "score"
+        min_confidence (float, optional):
+            Prediction score threshold for detections to be included.
 
     Returns:
         RegionDetections:
@@ -29,6 +32,12 @@ def single_region_NMS(
     """
     # Extract the geodataframe for the detections
     detections_df = detections.get_data_frame()
+
+    # Filter detections based on minimum confidence score
+    detections_df = detections_df[detections_df[confidence_column] >= min_confidence]
+    if detections_df.empty:
+        # Return empty if no detections pass threshold
+        return detections.subset_detections([])
 
     # Get the axis-aligned bounds of each shape
     boxes = detections_df.bounds.to_numpy()
@@ -48,6 +57,7 @@ def multi_region_NMS(
     run_per_region_NMS: bool = True,
     iou_theshold: float = 0.5,
     confidence_column: str = "score",
+    min_confidence: float = 0.3,
 ) -> RegionDetections:
     """Run non-max suppresion on predictions from multiple regions.
 
@@ -62,6 +72,8 @@ def multi_region_NMS(
         confidence_column (str, optional):
             Which column in the dataframe to use as a confidence for NMS. Defaults to "score"
 
+        min_confidence (float, optional):
+            Prediction score threshold for detections to be included.
     Returns:
         RegionDetections:
             NMS-suppressed set of detections, merged together for the set of regions.
@@ -75,6 +87,7 @@ def multi_region_NMS(
                     region_detections,
                     iou_theshold=iou_theshold,
                     confidence_column=confidence_column,
+                    min_confidence=min_confidence,
                 )
                 for region_detections in detections.region_detections
             ]
@@ -95,6 +108,7 @@ def multi_region_NMS(
         merged_detections,
         iou_theshold=iou_theshold,
         confidence_column=confidence_column,
+        min_confidence=min_confidence,
     )
 
     return NMS_suppressed_merged_detections
