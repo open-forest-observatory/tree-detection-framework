@@ -146,8 +146,11 @@ class Detector:
             List[shapely.geometry.Polygon]: A list of shapely Polygons representing the pixel bounds.
         """
         image_shape = batch["image"].shape[-2:]
+        # Note that the y min bounds are reversed from the expected convention. This is because
+        # they are measured in pixel coordinates, which start at the top and go down. So this
+        # convention matches how the geospatial bounding box is represented.
         image_bounds = shapely.box(
-            xmin=0, ymin=0, xmax=image_shape[1], ymax=image_shape[0]
+            xmin=0, ymin=image_shape[0], xmax=image_shape[1], ymax=0
         )
         return [image_bounds] * batch["image"].shape[0]
 
@@ -362,10 +365,14 @@ class DeepForestDetector(LightningDetector):
 
         all_geometries = []
         all_data_dicts = []
+
         for pred_dict in outputs:
             boxes = pred_dict["boxes"].cpu().detach().numpy()
             shapely_boxes = shapely.box(
-                boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+                boxes[:, 0],
+                boxes[:, 1],
+                boxes[:, 2],
+                boxes[:, 3],
             )
             all_geometries.append(shapely_boxes)
 
