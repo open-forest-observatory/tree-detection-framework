@@ -12,7 +12,7 @@ def single_region_NMS(
     detections: RegionDetections,
     iou_theshold: float = 0.5,
     confidence_column: str = "score",
-    min_confidence: float = 0.3
+    min_confidence: float = 0.3,
 ) -> RegionDetections:
     """Run non-max suppresion on predictions from a single region.
 
@@ -58,7 +58,7 @@ def multi_region_NMS(
     run_per_region_NMS: bool = True,
     iou_theshold: float = 0.5,
     confidence_column: str = "score",
-    min_confidence: float = 0.3
+    min_confidence: float = 0.3,
 ) -> RegionDetections:
     """Run non-max suppresion on predictions from multiple regions.
 

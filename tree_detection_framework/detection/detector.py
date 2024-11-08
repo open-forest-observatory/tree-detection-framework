@@ -47,7 +47,9 @@ class Detector:
             inference_dataloader (DataLoader): Dataloader to generate predictions for
         """
         total_batches = len(inference_dataloader)
-        with tqdm(total=total_batches, desc="Performing prediction on batches") as batch_pbar:
+        with tqdm(
+            total=total_batches, desc="Performing prediction on batches"
+        ) as batch_pbar:
             # Iterate over each batch in the dataloader
             for batch in inference_dataloader:
 
@@ -72,7 +74,7 @@ class Detector:
                     batch_preds_geometries,
                     batch_preds_data,
                     batch_image_bounds,
-                    batch_geospatial_bounds
+                    batch_geospatial_bounds,
                 ):
                     # Create a region detections object
                     region_detections = RegionDetections(
@@ -346,7 +348,9 @@ class DeepForestDetector(LightningDetector):
         trainer = lightning.Trainer(
             logger=logger,
             max_epochs=self.lightningmodule.param_dict["train"]["epochs"],
-            enable_checkpointing=self.lightningmodule.param_dict["enable_checkpointing"],
+            enable_checkpointing=self.lightningmodule.param_dict[
+                "enable_checkpointing"
+            ],
             callbacks=[checkpoint_callback],
         )
         return trainer
@@ -365,7 +369,7 @@ class DeepForestDetector(LightningDetector):
         self.lightningmodule.eval()
         images = batch["image"]
         with torch.no_grad():
-            outputs = self.lightningmodule(images[:, :3, :, :] / 255) # .model ??
+            outputs = self.lightningmodule(images[:, :3, :, :] / 255)  # .model ??
 
         all_geometries = []
         all_data_dicts = []
