@@ -22,6 +22,7 @@ from tree_detection_framework.detection.region_detections import (
 )
 from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
 from tree_detection_framework.utils.detection import use_release_df
+from tree_detection_framework.utils.geometric import mask_to_shapely
 
 # Set up logging configuration
 logging.basicConfig(
@@ -405,6 +406,53 @@ class DeepForestDetector(LightningDetector):
 
         # Begin training
         self.trainer.fit(self.lightningmodule, datamodule)
+
+    def save_model(self, save_file: PATH_TYPE):
+        """Save a model to disk
+
+        Args:
+            save_file (PATH_TYPE):
+                Where to save the model. Containing folders will be created if they don't exist.
+        """
+        # Should be implemented here
+        raise NotImplementedError()
+    
+class Detectree2Detector(LightningDetector):
+
+    def __init__(self, module):
+        self.setup_model(module)
+
+    def setup_model(self, module):
+        raise NotImplementedError()
+
+    def setup_trainer(self):
+        raise NotImplementedError()
+
+    def predict_batch(batch):
+        images = batch["image"]
+        batch_preds = predictor(images)
+
+        all_geometries = []
+        all_data_dicts = []
+
+        for pred in batch_preds:
+            instances = pred["instances"].to("cpu")
+
+            pred_masks = instances.pred_masks.numpy()
+            shapely_objects = [mask_to_shapely(pred_mask) for pred_mask in pred_masks]
+            all_geometries.append(shapely_objects)
+
+            scores = instances.scores.numpy()
+            labels = instances.pred_classes.numpy()
+            all_data_dicts.append({"score": scores, "labels": labels})
+
+        return all_geometries, all_data_dicts
+
+    def train(
+        self,
+        datamodule: CustomDataModule,
+    ):
+        raise NotImplementedError()
 
     def save_model(self, save_file: PATH_TYPE):
         """Save a model to disk
