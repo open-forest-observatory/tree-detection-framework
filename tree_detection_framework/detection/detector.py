@@ -419,7 +419,8 @@ class DeepForestDetector(LightningDetector):
         """
         # Should be implemented here
         raise NotImplementedError()
-    
+
+
 class Detectree2Detector(LightningDetector):
 
     def __init__(self, module):
@@ -430,7 +431,7 @@ class Detectree2Detector(LightningDetector):
 
     def setup_trainer(self):
         raise NotImplementedError()
-    
+
     def setup_predictor(self):
         """Build predictor model architecture and load model weights from config.
         Based on `__init__` of `DefaultPredictor` from `detectron2`"""
@@ -447,7 +448,8 @@ class Detectree2Detector(LightningDetector):
         checkpointer.load(self.module.cfg.MODEL.WEIGHTS)
 
         self.aug = T.ResizeShortestEdge(
-            [self.module.cfg.INPUT.MIN_SIZE_TEST, self.module.cfg.INPUT.MIN_SIZE_TEST], self.module.cfg.INPUT.MAX_SIZE_TEST
+            [self.module.cfg.INPUT.MIN_SIZE_TEST, self.module.cfg.INPUT.MIN_SIZE_TEST],
+            self.module.cfg.INPUT.MAX_SIZE_TEST,
         )
 
         self.input_format = self.module.cfg.INPUT.FORMAT
@@ -462,7 +464,7 @@ class Detectree2Detector(LightningDetector):
             batch (Tensor): 4 dims Tensor with the first dimension having number of images in the batch
 
         Returns:
-            batch_preds (List[Dict[str, Instances]]): An iterable with a dictionary per image having "instances" value 
+            batch_preds (List[Dict[str, Instances]]): An iterable with a dictionary per image having "instances" value
             as an `Instances` object containing prediction results.
         """
         self.setup_predictor()
@@ -473,13 +475,15 @@ class Detectree2Detector(LightningDetector):
                 original_image = original_image.permute(1, 2, 0).byte().numpy()
                 original_image = original_image[:, :, :3]
                 print("Original image shape = ", original_image.shape)
-                
+
                 height, width = original_image.shape[:2]
-                image = self.aug.get_transform(original_image).apply_image(original_image)
+                image = self.aug.get_transform(original_image).apply_image(
+                    original_image
+                )
                 image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
                 image.to(self.cfg.MODEL.DEVICE)
                 print("Final image shape = ", image.shape)
-                
+
                 input = {"image": image, "height": height, "width": width}
                 inputs.append(input)
 
