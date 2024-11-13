@@ -3,20 +3,19 @@ import warnings
 from abc import abstractmethod
 from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
+import detectron2.data.transforms as T
 import lightning
 import numpy as np
 import pandas as pd
 import shapely
 import torch
+from detectron2.checkpoint import DetectionCheckpointer
+from detectron2.data import MetadataCatalog
+from detectron2.modeling import build_model
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
-import detectron2.data.transforms as T
-from detectron2.modeling import build_model
-from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.data import MetadataCatalog
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.models import DeepForestModule

@@ -1,17 +1,18 @@
-from typing import Any, Dict, List, Optional
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 import lightning
 import torch
 import torchvision
+from detectron2 import model_zoo
+from detectron2.config import get_cfg
+from detectron2.engine import DefaultPredictor
 from torch import Tensor, optim
 from torchvision.models.detection.retinanet import (
     AnchorGenerator,
     RetinaNet,
     RetinaNet_ResNet50_FPN_Weights,
 )
-from detectron2.engine import DefaultPredictor
-from detectron2.config import get_cfg
-from detectron2 import model_zoo
 
 from tree_detection_framework.utils.detection import use_release_df
 
