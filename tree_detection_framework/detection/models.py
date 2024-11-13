@@ -144,13 +144,14 @@ class DeepForestModule(lightning.LightningModule):
         return optimizer
 
 class Detectree2Module(lightning.LightningModule):
-
-    def __init__(self, param_dict: Dict[str, Any]):
+    def __init__(self, param_dict: Optional[Dict[str, Any]] = None):
         super().__init__()
-        self.param_dict = param_dict
-        self.setup_cfg(param_dict)
+        # If param_dict is not provided, ensure it is an empty dictionary
+        self.param_dict = param_dict or {}
+        self.cfg = self.setup_cfg(**self.param_dict)
 
     def setup_cfg(
+        self,
         base_model: str = "COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml",
         trains=("trees_train",),
         tests=("trees_val",),
@@ -170,8 +171,7 @@ class Detectree2Module(lightning.LightningModule):
         out_dir="./train_outputs",
         resize=True,
     ):
-        """Set up config object # noqa: D417.
-
+        """Set up config object.
         Args:
             base_model: base pre-trained model from detectron2 model_zoo
             trains: names of registered data to use for training
@@ -190,32 +190,35 @@ class Detectree2Module(lightning.LightningModule):
             num_classes: number of classes
             eval_period: number of iterations between evaluations
             out_dir: directory to save outputs
+            resize: whether to resize input images
         """
+        # Initialize configuration
         cfg = get_cfg()
         cfg.merge_from_file(model_zoo.get_config_file(base_model))
-        cfg.DATASETS.TRAIN = trains
-        cfg.DATASETS.TEST = tests
-        cfg.DATALOADER.NUM_WORKERS = workers
-        cfg.SOLVER.IMS_PER_BATCH = ims_per_batch
-        cfg.SOLVER.GAMMA = gamma
-        cfg.MODEL.BACKBONE.FREEZE_AT = backbone_freeze
-        cfg.SOLVER.WARMUP_ITERS = warm_iter
-        cfg.SOLVER.MOMENTUM = momentum
-        cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = batch_size_per_im
-        cfg.SOLVER.WEIGHT_DECAY = weight_decay
-        cfg.SOLVER.BASE_LR = base_lr
-        cfg.OUTPUT_DIR = out_dir
-        Path(cfg.OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
-        if update_model is not None:
-            cfg.MODEL.WEIGHTS = update_model
-        else:
-            cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(base_model)
 
-        cfg.SOLVER.IMS_PER_BATCH = ims_per_batch
-        cfg.SOLVER.BASE_LR = base_lr
-        cfg.SOLVER.MAX_ITER = max_iter
-        cfg.MODEL.ROI_HEADS.NUM_CLASSES = num_classes
-        cfg.TEST.EVAL_PERIOD = eval_period
-        cfg.RESIZE = resize
+        # Assign values, prioritizing those in param_dict
+        cfg.DATASETS.TRAIN = self.param_dict.get('trains', trains)
+        cfg.DATASETS.TEST = self.param_dict.get('tests', tests)
+        cfg.DATALOADER.NUM_WORKERS = self.param_dict.get('workers', workers)
+        cfg.SOLVER.IMS_PER_BATCH = self.param_dict.get('ims_per_batch', ims_per_batch)
+        cfg.SOLVER.GAMMA = self.param_dict.get('gamma', gamma)
+        cfg.MODEL.BACKBONE.FREEZE_AT = self.param_dict.get('backbone_freeze', backbone_freeze)
+        cfg.SOLVER.WARMUP_ITERS = self.param_dict.get('warm_iter', warm_iter)
+        cfg.SOLVER.MOMENTUM = self.param_dict.get('momentum', momentum)
+        cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = self.param_dict.get('batch_size_per_im', batch_size_per_im)
+        cfg.SOLVER.WEIGHT_DECAY = self.param_dict.get('weight_decay', weight_decay)
+        cfg.SOLVER.BASE_LR = self.param_dict.get('base_lr', base_lr)
+        cfg.OUTPUT_DIR = self.param_dict.get('out_dir', out_dir)
+        cfg.SOLVER.MAX_ITER = self.param_dict.get('max_iter', max_iter)
+        cfg.MODEL.ROI_HEADS.NUM_CLASSES = self.param_dict.get('num_classes', num_classes)
+        cfg.TEST.EVAL_PERIOD = self.param_dict.get('eval_period', eval_period)
+        cfg.RESIZE = self.param_dict.get('resize', resize)
         cfg.INPUT.MIN_SIZE_TRAIN = 1000
+
+        # Create output directory if it doesn't exist
+        Path(cfg.OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+
+        # Set model weights
+        cfg.MODEL.WEIGHTS = self.param_dict.get('update_model', update_model) or model_zoo.get_checkpoint_url(base_model)
+        
         return cfg
