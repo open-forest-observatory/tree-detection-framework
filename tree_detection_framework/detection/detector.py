@@ -424,13 +424,9 @@ class DeepForestDetector(LightningDetector):
 class Detectree2Detector(LightningDetector):
 
     def __init__(self, module):
+        # TODO: Add lightning module implementation
+        # Note: For now, `module` only references to `cfg`
         self.module = module
-
-    def setup_model(self):
-        raise NotImplementedError()
-
-    def setup_trainer(self):
-        raise NotImplementedError()
 
     def setup_predictor(self):
         """Build predictor model architecture and load model weights from config.
@@ -474,17 +470,18 @@ class Detectree2Detector(LightningDetector):
             for original_image in batch:
                 original_image = original_image.permute(1, 2, 0).byte().numpy()
                 original_image = original_image[:, :, :3]
-                print("Original image shape = ", original_image.shape)
 
                 height, width = original_image.shape[:2]
+                # Resize the image if required
                 image = self.aug.get_transform(original_image).apply_image(
                     original_image
                 )
                 image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
                 image.to(self.cfg.MODEL.DEVICE)
-                print("Final image shape = ", image.shape)
 
+                # Create a dict with each image and its properties
                 input = {"image": image, "height": height, "width": width}
+                # Add the dictionary to batch image list
                 inputs.append(input)
 
             batch_preds = self.model(inputs)
@@ -533,18 +530,3 @@ class Detectree2Detector(LightningDetector):
 
         return all_geometries, all_data_dicts
 
-    def train(
-        self,
-        datamodule: CustomDataModule,
-    ):
-        raise NotImplementedError()
-
-    def save_model(self, save_file: PATH_TYPE):
-        """Save a model to disk
-
-        Args:
-            save_file (PATH_TYPE):
-                Where to save the model. Containing folders will be created if they don't exist.
-        """
-        # Should be implemented here
-        raise NotImplementedError()
