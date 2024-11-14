@@ -6,7 +6,10 @@ import pyproj
 import torch
 
 from tree_detection_framework.constants import BOUNDARY_TYPE, PATH_TYPE
-from tree_detection_framework.detection.detector import DeepForestDetector, Detectree2Detector
+from tree_detection_framework.detection.detector import (
+    DeepForestDetector,
+    Detectree2Detector,
+)
 from tree_detection_framework.detection.models import DeepForestModule, Detectree2Module
 from tree_detection_framework.postprocessing.postprocessing import multi_region_NMS
 from tree_detection_framework.preprocessing.preprocessing import create_dataloader
