@@ -102,10 +102,12 @@ def generate_predictions(
         lightning_detector = DeepForestDetector(df_module)
 
     elif tree_detection_model == "detectree2":
-        
+
         # Load detectree2 pretrained weights
         # TODO: download pretrained weights when called, instead of providing a local path
-        trained_model = "/ofo-share/repos-amritha/detectree2-code/230103_randresize_full.pth"
+        trained_model = (
+            "/ofo-share/repos-amritha/detectree2-code/230103_randresize_full.pth"
+        )
         param_dict = {"update_model": trained_model}
 
         dtree2_module = Detectree2Module(param_dict)
