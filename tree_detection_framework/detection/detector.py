@@ -435,6 +435,8 @@ class Detectree2Detector(LightningDetector):
         self.cfg = self.module.cfg.clone()  # cfg can be modified by model
         self.model = build_model(self.cfg)
 
+        self.model.to(self.cfg.MODEL.DEVICE)
+
         # Set the model to eval mode
         self.model.eval()
         if len(self.module.cfg.DATASETS.TEST):
@@ -477,7 +479,7 @@ class Detectree2Detector(LightningDetector):
                     original_image
                 )
                 image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
-                image.to(self.cfg.MODEL.DEVICE)
+                image = image.to(self.cfg.MODEL.DEVICE)
 
                 # Create a dict with each image and its properties
                 input = {"image": image, "height": height, "width": width}
