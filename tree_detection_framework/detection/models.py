@@ -145,7 +145,7 @@ class DeepForestModule(lightning.LightningModule):
         return optimizer
 
 
-class Detectree2Module():
+class Detectree2Module:
     def __init__(self, param_dict: Optional[Dict[str, Any]] = None):
         super().__init__()
         # If param_dict is not provided, ensure it is an empty dictionary

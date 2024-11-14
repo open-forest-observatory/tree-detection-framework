@@ -531,4 +531,3 @@ class Detectree2Detector(LightningDetector):
             all_data_dicts.append({"score": scores, "labels": labels})
 
         return all_geometries, all_data_dicts
-
