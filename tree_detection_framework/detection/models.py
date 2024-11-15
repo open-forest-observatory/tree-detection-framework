@@ -1,8 +1,12 @@
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import lightning
 import torch
 import torchvision
+from detectron2 import model_zoo
+from detectron2.config import get_cfg
+from detectron2.engine import DefaultPredictor
 from torch import Tensor, optim
 from torchvision.models.detection.retinanet import (
     AnchorGenerator,
@@ -139,3 +143,92 @@ class DeepForestModule(lightning.LightningModule):
         # TODO: Return 'optimizer', 'lr_scheduler', 'monitor' when validation data is set
 
         return optimizer
+
+
+class Detectree2Module:
+    def __init__(self, param_dict: Optional[Dict[str, Any]] = None):
+        super().__init__()
+        # If param_dict is not provided, ensure it is an empty dictionary
+        self.param_dict = param_dict or {}
+        self.cfg = self.setup_cfg(**self.param_dict)
+
+    def setup_cfg(
+        self,
+        base_model: str = "COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml",
+        trains=("trees_train",),
+        tests=("trees_val",),
+        update_model=None,
+        workers=2,
+        ims_per_batch=2,
+        gamma=0.1,
+        backbone_freeze=3,
+        warm_iter=120,
+        momentum=0.9,
+        batch_size_per_im=1024,
+        base_lr=0.0003389,
+        weight_decay=0.001,
+        max_iter=1000,
+        num_classes=1,
+        eval_period=100,
+        out_dir="./train_outputs",
+        resize=True,
+    ):
+        """Set up config object.
+        Args:
+            base_model: base pre-trained model from detectron2 model_zoo
+            trains: names of registered data to use for training
+            tests: names of registered data to use for evaluating models
+            update_model: updated pre-trained model from detectree2 model_garden
+            workers: number of workers for dataloader
+            ims_per_batch: number of images per batch
+            gamma: gamma for learning rate scheduler
+            backbone_freeze: backbone layer to freeze
+            warm_iter: number of iterations for warmup
+            momentum: momentum for optimizer
+            batch_size_per_im: batch size per image
+            base_lr: base learning rate
+            weight_decay: weight decay for optimizer
+            max_iter: maximum number of iterations
+            num_classes: number of classes
+            eval_period: number of iterations between evaluations
+            out_dir: directory to save outputs
+            resize: whether to resize input images
+        """
+        # Initialize configuration
+        cfg = get_cfg()
+        cfg.merge_from_file(model_zoo.get_config_file(base_model))
+
+        # Assign values, prioritizing those in param_dict
+        cfg.DATASETS.TRAIN = self.param_dict.get("trains", trains)
+        cfg.DATASETS.TEST = self.param_dict.get("tests", tests)
+        cfg.DATALOADER.NUM_WORKERS = self.param_dict.get("workers", workers)
+        cfg.SOLVER.IMS_PER_BATCH = self.param_dict.get("ims_per_batch", ims_per_batch)
+        cfg.SOLVER.GAMMA = self.param_dict.get("gamma", gamma)
+        cfg.MODEL.BACKBONE.FREEZE_AT = self.param_dict.get(
+            "backbone_freeze", backbone_freeze
+        )
+        cfg.SOLVER.WARMUP_ITERS = self.param_dict.get("warm_iter", warm_iter)
+        cfg.SOLVER.MOMENTUM = self.param_dict.get("momentum", momentum)
+        cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = self.param_dict.get(
+            "batch_size_per_im", batch_size_per_im
+        )
+        cfg.SOLVER.WEIGHT_DECAY = self.param_dict.get("weight_decay", weight_decay)
+        cfg.SOLVER.BASE_LR = self.param_dict.get("base_lr", base_lr)
+        cfg.OUTPUT_DIR = self.param_dict.get("out_dir", out_dir)
+        cfg.SOLVER.MAX_ITER = self.param_dict.get("max_iter", max_iter)
+        cfg.MODEL.ROI_HEADS.NUM_CLASSES = self.param_dict.get(
+            "num_classes", num_classes
+        )
+        cfg.TEST.EVAL_PERIOD = self.param_dict.get("eval_period", eval_period)
+        cfg.RESIZE = self.param_dict.get("resize", resize)
+        cfg.INPUT.MIN_SIZE_TRAIN = 1000
+
+        # Create output directory if it doesn't exist
+        Path(cfg.OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+
+        # Set model weights
+        cfg.MODEL.WEIGHTS = self.param_dict.get(
+            "update_model", update_model
+        ) or model_zoo.get_checkpoint_url(base_model)
+
+        return cfg

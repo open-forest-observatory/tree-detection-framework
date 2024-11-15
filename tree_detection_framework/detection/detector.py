@@ -3,12 +3,15 @@ import warnings
 from abc import abstractmethod
 from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
+import detectron2.data.transforms as T
 import lightning
 import numpy as np
 import pandas as pd
 import shapely
 import torch
-from deepforest import main
+from detectron2.checkpoint import DetectionCheckpointer
+from detectron2.data import MetadataCatalog
+from detectron2.modeling import build_model
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
@@ -22,6 +25,7 @@ from tree_detection_framework.detection.region_detections import (
 )
 from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
 from tree_detection_framework.utils.detection import use_release_df
+from tree_detection_framework.utils.geometric import mask_to_shapely
 
 # Set up logging configuration
 logging.basicConfig(
@@ -415,3 +419,115 @@ class DeepForestDetector(LightningDetector):
         """
         # Should be implemented here
         raise NotImplementedError()
+
+
+class Detectree2Detector(LightningDetector):
+
+    def __init__(self, module):
+        # TODO: Add lightning module implementation
+        # Note: For now, `module` only references to `cfg`
+        self.module = module
+
+    def setup_predictor(self):
+        """Build predictor model architecture and load model weights from config.
+        Based on `__init__` of `DefaultPredictor` from `detectron2`"""
+
+        self.cfg = self.module.cfg.clone()  # cfg can be modified by model
+        self.model = build_model(self.cfg)
+
+        self.model.to(self.cfg.MODEL.DEVICE)
+
+        # Set the model to eval mode
+        self.model.eval()
+        if len(self.module.cfg.DATASETS.TEST):
+            self.metadata = MetadataCatalog.get(self.module.cfg.DATASETS.TEST[0])
+
+        checkpointer = DetectionCheckpointer(self.model)
+        checkpointer.load(self.module.cfg.MODEL.WEIGHTS)
+
+        self.aug = T.ResizeShortestEdge(
+            [self.module.cfg.INPUT.MIN_SIZE_TEST, self.module.cfg.INPUT.MIN_SIZE_TEST],
+            self.module.cfg.INPUT.MAX_SIZE_TEST,
+        )
+
+        self.input_format = self.module.cfg.INPUT.FORMAT
+        assert self.input_format in ["RGB", "BGR"], self.input_format
+
+    def call_predict(self, batch):
+        """
+        Largely based on `__call__` method of `DefaultPredictor` from `detectron2` for single image prediction.
+        Modifications have been made to preprocess images from the torchgeo dataloader and predict for a batch of images.
+
+        Args:
+            batch (Tensor): 4 dims Tensor with the first dimension having number of images in the batch
+
+        Returns:
+            batch_preds (List[Dict[str, Instances]]): An iterable with a dictionary per image having "instances" value
+            as an `Instances` object containing prediction results.
+        """
+        self.setup_predictor()
+
+        with torch.no_grad():
+            inputs = []
+            for original_image in batch:
+                original_image = original_image.permute(1, 2, 0).byte().numpy()
+                original_image = original_image[:, :, :3]
+
+                height, width = original_image.shape[:2]
+                # Resize the image if required
+                image = self.aug.get_transform(original_image).apply_image(
+                    original_image
+                )
+                image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
+                image = image.to(self.cfg.MODEL.DEVICE)
+
+                # Create a dict with each image and its properties
+                input = {"image": image, "height": height, "width": width}
+                # Add the dictionary to batch image list
+                inputs.append(input)
+
+            batch_preds = self.model(inputs)
+            return batch_preds
+
+    def predict_batch(self, batch):
+        """
+        Get predictions for a batch of images.
+
+        Args:
+            batch (defaultDict): A batch from the dataloader
+
+        Returns:
+            all_geometries (List[List[shapely.MultiPolygon]]):
+                A list of predictions one per image in the batch. The predictions for each image
+                are a list of shapely objects.
+            all_data_dicts (Union[None, List[dict]]):
+                Predicted scores and classes
+        """
+        # Get images from batch
+        images = batch["image"]
+        batch_preds = self.call_predict(images)
+
+        # To store all predicted polygons
+        all_geometries = []
+        # To store other related information such as scores and labels
+        all_data_dicts = []
+
+        # Iterate through predictions for each tile in the batch
+        for pred in batch_preds:
+
+            # Get the Instances object
+            instances = pred["instances"].to("cpu")
+
+            # Get the predicted masks for this tile
+            pred_masks = instances.pred_masks.numpy()
+            # Convert each mask to a shapely multipolygon
+            shapely_objects = [mask_to_shapely(pred_mask) for pred_mask in pred_masks]
+            all_geometries.append(shapely_objects)
+
+            # Get prediction scores
+            scores = instances.scores.numpy()
+            # Get predicted classes
+            labels = instances.pred_classes.numpy()
+            all_data_dicts.append({"score": scores, "labels": labels})
+
+        return all_geometries, all_data_dicts

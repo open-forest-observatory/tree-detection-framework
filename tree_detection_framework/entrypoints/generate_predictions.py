@@ -6,8 +6,11 @@ import pyproj
 import torch
 
 from tree_detection_framework.constants import BOUNDARY_TYPE, PATH_TYPE
-from tree_detection_framework.detection.detector import DeepForestDetector
-from tree_detection_framework.detection.models import DeepForestModule
+from tree_detection_framework.detection.detector import (
+    DeepForestDetector,
+    Detectree2Detector,
+)
+from tree_detection_framework.detection.models import DeepForestModule, Detectree2Module
 from tree_detection_framework.postprocessing.postprocessing import multi_region_NMS
 from tree_detection_framework.preprocessing.preprocessing import create_dataloader
 
@@ -98,9 +101,23 @@ def generate_predictions(
         )
         lightning_detector = DeepForestDetector(df_module)
 
+    elif tree_detection_model == "detectree2":
+
+        # Load detectree2 pretrained weights
+        # TODO: download pretrained weights when called, instead of providing a local path
+        trained_model = (
+            "/ofo-share/repos-amritha/detectree2-code/230103_randresize_full.pth"
+        )
+        param_dict = {"update_model": trained_model}
+
+        dtree2_module = Detectree2Module(param_dict)
+        lightning_detector = Detectree2Detector(dtree2_module)
+
     else:
         raise ValueError(
-            "Please enter a valid tree detection model. Currently supported models are: `deepforest`"
+            """Please enter a valid tree detection model. Currently supported models are: 
+                1. deepforest
+                2. detectree2"""
         )
 
     # Get predictions by invoking the tree_detection_model
