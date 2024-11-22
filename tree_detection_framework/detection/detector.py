@@ -8,6 +8,7 @@ import lightning
 import numpy as np
 import pandas as pd
 import shapely
+from shapely.geometry import Point
 import torch
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.data import MetadataCatalog
@@ -260,6 +261,90 @@ class RandomDetector(Detector):
             batch_datas.append(data)
 
         return batch_geometries, batch_datas
+
+
+class GeometricDetector(Detector):
+
+    def __init__(self, a: float = 0.00901, c: float = 2.52503, res: float = 0.2, min_ht: int = 5):
+        self.a = a
+        self.c = c
+        self.res = res
+        self.min_ht = min_ht
+
+    def predict_batch(self, batch):
+        """Generate predictions for a batch of samples
+
+        Args:
+            batch (dict): A batch from the torchgeo dataloader
+
+        Returns:
+            List[List[shapely.geometry]]:
+                A list of predictions one per image in the batch. The predictions for each image
+                are a list of shapely objects.
+            Union[None, List[dict]]:
+                Any additional attributes that are predicted (such as class or confidence). Must
+                be formatted in a way that can be passed to gpd.GeoPandas data argument.
+        """
+        # List to store every image's detections
+        batch_detections = []
+        for image in batch["image"]:
+            image = image.squeeze()
+
+            # Create a meshgrid for the chm tile
+            meshgrid = np.meshgrid(
+                np.arange(0, image.shape[0]), np.arange(0, image.shape[1]), indexing='ij'
+            )
+
+            # Set NaN values to zero
+            image = np.nan_to_num(image)
+
+            circles = []
+            image_treetops = []
+
+            for i in range(image.shape[0]):
+                for j in range(image.shape[1]):
+                    # Get the height of the pixel
+                    ht = image[i,j]
+
+                    # Check if the pixel has a height greater than the threshold
+                    if ht < self.min_ht:
+                        continue
+
+                    # Calculate the radius
+                    radius = self.a * (ht**2) + self.c
+                    # Convert radius from meters to pixels
+                    radius_pixels = radius / self.res
+                    side = int(np.ceil(radius_pixels))
+
+                    # Define bounds for the neighborhood
+                    i_min = max(0, i - side)
+                    i_max = min(image.shape[0], i + side + 1)
+                    j_min = max(0, j - side)
+                    j_max = min(image.shape[1], j + side + 1)
+
+                    # Get the circular neighborhood around (i, j)
+                    region_i = meshgrid[0][i_min:i_max, j_min:j_max]
+                    region_j = meshgrid[1][i_min:i_max, j_min:j_max]
+
+                    # Calculate the distances to every point within the region
+                    distances = np.sqrt((region_i - i) ** 2 + (region_j - j) ** 2)
+                    mask = distances <= radius_pixels  # mask is a boolean array with True for pixels inside the circle
+
+                    # Create a neighborhood from the masked region
+                    neighborhood = image[i_min:i_max, j_min:j_max][mask]
+
+                    # Check if the pixel has the max height within the neighborhood
+                    if ht == np.max(neighborhood):
+                        image_treetops.append((i, j, radius_pixels))
+
+            for (i, j, radius) in image_treetops:
+                # Make a shapely polygon for every treetop circle
+                center = Point(j, i)
+                circles.append(center.buffer(radius))
+
+            batch_detections.append(circles)  # List[List[shapely.geometry]]
+
+        return batch_detections, None      
 
 
 class LightningDetector(Detector):
