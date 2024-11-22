@@ -2633,10 +2633,8 @@ version = "0.1.7"
 description = "Efficient and distributed polygon Non-Maximum Suppression (NMS) library"
 optional = false
 python-versions = ">=3.8"
-files = [
-    {file = "polygone-nms-0.1.7.tar.gz", hash = "sha256:2400ba8f2085dbf738e3e89ca431723ba005c4f808025a4484f34ddd2d86b11f"},
-    {file = "polygone_nms-0.1.7-py3-none-any.whl", hash = "sha256:f43702df9fbe33172384f54fe010bff301ad719b5b2379ca307cc3a96486b6f7"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 numpy = "1.24.3"
@@ -2646,6 +2644,12 @@ shapely = "2.0.1"
 [package.extras]
 dev = ["black (==23.3.0)", "dask[distributed] (==2023.4.0)", "flake8 (==6.0.0)", "isort (==5.12.0)", "mypy (==1.2.0)", "pre-commit (==3.2.2)", "pytest (==7.3.1)", "pytest-cov (==4.0.0)", "ray (==2.3.1)", "tox (==4.4.12)"]
 docs = ["mike (==1.1.2)", "mkdocs (==1.4.2)", "mkdocs-material (==9.1.8)", "mkdocstrings[python] (==0.21.2)"]
+
+[package.source]
+type = "git"
+url = "https://github.com/open-forest-observatory/PolyGoneNMS"
+reference = "HEAD"
+resolved_reference = "120fb75e6b72a45110dc24c4fc745bba17b09e69"
 
 [[package]]
 name = "pretrainedmodels"
@@ -4613,4 +4617,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "50d34bd2bcc3706ad2e1590caae5f80b56e31aaa91a23a955deda8d452a4246e"
+content-hash = "59c51c2726384c9ec53f14a1ca040dacb31c8ef29603535d6c7e3a4bd15b9509"
