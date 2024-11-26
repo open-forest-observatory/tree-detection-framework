@@ -7,8 +7,9 @@ import detectron2.data.transforms as T
 import lightning
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import shapely
-from shapely.geometry import Point
+from shapely.geometry import Point, MultiPoint, Polygon, MultiPolygon
 import torch
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.data import MetadataCatalog
@@ -271,6 +272,132 @@ class GeometricDetector(Detector):
         self.res = res
         self.min_ht = min_ht
 
+    def _get_three_polygon_intersection(self, row):
+        # Perform intersections sequentially
+        intersection = row['geometry'].intersection(row['circle']).intersection(row['multipolygon_mask'])
+
+        # Return an empty MultiPolygon if there's no intersection
+        if intersection.is_empty:
+            return MultiPolygon()
+        elif isinstance(intersection, MultiPolygon):
+            # Return directly if the result is already a MultiPolygon
+            return intersection
+        elif intersection.geom_type == "Polygon":
+            # Wrap a single Polygon as a MultiPolygon
+            return MultiPolygon([intersection])
+        else:
+            # For unexpected cases
+            return MultiPolygon()
+
+    def get_tree_crowns(self, image) -> List[shapely.MultiPolygon]:
+        """Generate tree crowns for an image.
+        
+        Args:
+            batch (dict): A batch from the torchgeo dataloader
+
+        Returns:
+            List[shapely.MultiPolygon]: Detected tree crowns
+        """
+        image = image.squeeze()
+
+        # Create a meshgrid for the chm tile
+        meshgrid = np.meshgrid(
+            np.arange(0, image.shape[0]), np.arange(0, image.shape[1]), indexing='ij'
+        )
+
+        # Set NaN values to zero
+        image = np.nan_to_num(image)
+        all_treetop_pixel_coords = []
+        all_treetop_heights = []
+
+        for i in range(image.shape[0]):
+            for j in range(image.shape[1]):
+                # Get the height of the pixel
+                ht = image[i,j]
+
+                # Check if the pixel has a height greater than the threshold
+                if ht < self.min_ht:
+                    continue
+
+                # Calculate the radius
+                radius = self.a * (ht**2) + self.c
+                # Convert radius from meters to pixels
+                radius_pixels = radius / self.res
+                side = int(np.ceil(radius_pixels))
+
+                # Define bounds for the neighborhood
+                i_min = max(0, i - side)
+                i_max = min(image.shape[0], i + side + 1)
+                j_min = max(0, j - side)
+                j_max = min(image.shape[1], j + side + 1)
+
+                # Get the circular neighborhood around (i, j)
+                region_i = meshgrid[0][i_min:i_max, j_min:j_max]
+                region_j = meshgrid[1][i_min:i_max, j_min:j_max]
+
+                # Calculate the distances to every point within the region
+                distances = np.sqrt((region_i - i) ** 2 + (region_j - j) ** 2)
+                mask = distances <= radius_pixels  # mask is a boolean array with True for pixels inside the circle
+
+                # Create a neighborhood from the masked region
+                neighborhood = image[i_min:i_max, j_min:j_max][mask]
+
+                # Check if the pixel has the max height within the neighborhood
+                if ht == np.max(neighborhood):
+                    all_treetop_pixel_coords.append(Point(j, i))
+                    all_treetop_heights.append(ht)
+        
+        # Get Voronoi Diagram from the calculated treetop points
+        voronoi_diagram = shapely.voronoi_polygons(MultiPoint(all_treetop_pixel_coords))
+
+        # Store the individual polygons from Voronoi diagram in the same sequence as the treetop points
+        ordered_polygons = []
+        for treetop_point in all_treetop_pixel_coords:
+            for polygon in voronoi_diagram.geoms:
+                # Check if the treetop is inside the polygon
+                if polygon.contains(treetop_point):
+                    ordered_polygons.append(polygon)
+                    break
+
+        # Create a GeoDataFrame to store information associated with the image
+        tile_gdf = gpd.GeoDataFrame({'geometry': ordered_polygons, 'treetop_pixel_coords': all_treetop_pixel_coords, 'treetop_height': all_treetop_heights})
+
+        # Here, we get 2 new sets of polygons:
+        # 1. A circle for every detected treetop
+        # 2. A set of multipolygons geenrated from the binary mask of the image
+        all_radius_in_pixels = []
+        all_circles = []
+        all_multipolygon_masks = []
+
+        for treetop_point, treetop_height in zip(tile_gdf['treetop_pixel_coords'], tile_gdf['treetop_height']):
+            # Compute radius as 0.6 times the height, divide by resolution to convert unit to pixels
+            radius = (0.6 * treetop_height) / self.res
+            # Convert to an integer rounded to the upper value
+            radius = int(np.ceil(radius))
+            all_radius_in_pixels.append(radius)
+
+            # Create a circle by buffering it by the radius value and add to list 
+            all_circles.append(treetop_point.buffer(radius))
+
+            # Calculate threshold value for the binary mask as 30% of the treetop height
+            threshold = 0.3 * treetop_height
+            # Thresholding the tile image
+            binary_mask = image > threshold
+            # Convert the mask to shapely polygons, returned as a MultiPolygon
+            multipolygon_mask = mask_to_shapely(binary_mask)
+            all_multipolygon_masks.append(multipolygon_mask)
+
+
+        # Create new columns in the dataframe for radii, circles and multipolygon masks
+        tile_gdf['radius_in_pixels'] = all_radius_in_pixels
+        tile_gdf['circle'] = all_circles
+        tile_gdf['multipolygon_mask'] = all_multipolygon_masks
+        
+        # The final tree crown is computed as the intersection of voronoi polygon, circle and mask
+        tile_gdf['tree_crown'] = tile_gdf.apply(self._get_three_polygon_intersection, axis=1)
+
+        return list(tile_gdf['tree_crown'])
+
     def predict_batch(self, batch):
         """Generate predictions for a batch of samples
 
@@ -288,63 +415,10 @@ class GeometricDetector(Detector):
         # List to store every image's detections
         batch_detections = []
         for image in batch["image"]:
-            image = image.squeeze()
+            polygons = self.get_tree_crowns(image)
+            batch_detections.append(polygons)  # List[List[shapely.geometry]]
 
-            # Create a meshgrid for the chm tile
-            meshgrid = np.meshgrid(
-                np.arange(0, image.shape[0]), np.arange(0, image.shape[1]), indexing='ij'
-            )
-
-            # Set NaN values to zero
-            image = np.nan_to_num(image)
-
-            circles = []
-            image_treetops = []
-
-            for i in range(image.shape[0]):
-                for j in range(image.shape[1]):
-                    # Get the height of the pixel
-                    ht = image[i,j]
-
-                    # Check if the pixel has a height greater than the threshold
-                    if ht < self.min_ht:
-                        continue
-
-                    # Calculate the radius
-                    radius = self.a * (ht**2) + self.c
-                    # Convert radius from meters to pixels
-                    radius_pixels = radius / self.res
-                    side = int(np.ceil(radius_pixels))
-
-                    # Define bounds for the neighborhood
-                    i_min = max(0, i - side)
-                    i_max = min(image.shape[0], i + side + 1)
-                    j_min = max(0, j - side)
-                    j_max = min(image.shape[1], j + side + 1)
-
-                    # Get the circular neighborhood around (i, j)
-                    region_i = meshgrid[0][i_min:i_max, j_min:j_max]
-                    region_j = meshgrid[1][i_min:i_max, j_min:j_max]
-
-                    # Calculate the distances to every point within the region
-                    distances = np.sqrt((region_i - i) ** 2 + (region_j - j) ** 2)
-                    mask = distances <= radius_pixels  # mask is a boolean array with True for pixels inside the circle
-
-                    # Create a neighborhood from the masked region
-                    neighborhood = image[i_min:i_max, j_min:j_max][mask]
-
-                    # Check if the pixel has the max height within the neighborhood
-                    if ht == np.max(neighborhood):
-                        image_treetops.append((i, j, radius_pixels))
-
-            for (i, j, radius) in image_treetops:
-                # Make a shapely polygon for every treetop circle
-                center = Point(j, i)
-                circles.append(center.buffer(radius))
-
-            batch_detections.append(circles)  # List[List[shapely.geometry]]
-
-        return batch_detections, None      
+        return batch_detections, None
 
 
 class LightningDetector(Detector):
