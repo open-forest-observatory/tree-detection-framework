@@ -4,18 +4,18 @@ from abc import abstractmethod
 from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
 import detectron2.data.transforms as T
+import geopandas as gpd
 import lightning
 import numpy as np
 import pandas as pd
-import geopandas as gpd
 import shapely
-from shapely.geometry import Point, MultiPoint, Polygon, MultiPolygon
 import torch
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.data import MetadataCatalog
 from detectron2.modeling import build_model
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
+from shapely.geometry import MultiPoint, MultiPolygon, Point, Polygon
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
