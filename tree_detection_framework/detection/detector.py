@@ -266,7 +266,9 @@ class RandomDetector(Detector):
 
 class GeometricDetector(Detector):
 
-    def __init__(self, a: float = 0.00901, c: float = 2.52503, res: float = 0.2, min_ht: int = 5):
+    def __init__(
+        self, a: float = 0.00901, c: float = 2.52503, res: float = 0.2, min_ht: int = 5
+    ):
         self.a = a
         self.c = c
         self.res = res
@@ -274,7 +276,11 @@ class GeometricDetector(Detector):
 
     def _get_three_polygon_intersection(self, row):
         # Perform intersections sequentially
-        intersection = row['geometry'].intersection(row['circle']).intersection(row['multipolygon_mask'])
+        intersection = (
+            row["geometry"]
+            .intersection(row["circle"])
+            .intersection(row["multipolygon_mask"])
+        )
 
         # Return an empty MultiPolygon if there's no intersection
         if intersection.is_empty:
@@ -291,7 +297,7 @@ class GeometricDetector(Detector):
 
     def get_tree_crowns(self, image) -> List[shapely.MultiPolygon]:
         """Generate tree crowns for an image.
-        
+
         Args:
             batch (dict): A batch from the torchgeo dataloader
 
@@ -302,7 +308,7 @@ class GeometricDetector(Detector):
 
         # Create a meshgrid for the chm tile
         meshgrid = np.meshgrid(
-            np.arange(0, image.shape[0]), np.arange(0, image.shape[1]), indexing='ij'
+            np.arange(0, image.shape[0]), np.arange(0, image.shape[1]), indexing="ij"
         )
 
         # Set NaN values to zero
@@ -313,7 +319,7 @@ class GeometricDetector(Detector):
         for i in range(image.shape[0]):
             for j in range(image.shape[1]):
                 # Get the height of the pixel
-                ht = image[i,j]
+                ht = image[i, j]
 
                 # Check if the pixel has a height greater than the threshold
                 if ht < self.min_ht:
@@ -337,7 +343,9 @@ class GeometricDetector(Detector):
 
                 # Calculate the distances to every point within the region
                 distances = np.sqrt((region_i - i) ** 2 + (region_j - j) ** 2)
-                mask = distances <= radius_pixels  # mask is a boolean array with True for pixels inside the circle
+                mask = (
+                    distances <= radius_pixels
+                )  # mask is a boolean array with True for pixels inside the circle
 
                 # Create a neighborhood from the masked region
                 neighborhood = image[i_min:i_max, j_min:j_max][mask]
@@ -346,7 +354,7 @@ class GeometricDetector(Detector):
                 if ht == np.max(neighborhood):
                     all_treetop_pixel_coords.append(Point(j, i))
                     all_treetop_heights.append(ht)
-        
+
         # Get Voronoi Diagram from the calculated treetop points
         voronoi_diagram = shapely.voronoi_polygons(MultiPoint(all_treetop_pixel_coords))
 
@@ -360,7 +368,13 @@ class GeometricDetector(Detector):
                     break
 
         # Create a GeoDataFrame to store information associated with the image
-        tile_gdf = gpd.GeoDataFrame({'geometry': ordered_polygons, 'treetop_pixel_coords': all_treetop_pixel_coords, 'treetop_height': all_treetop_heights})
+        tile_gdf = gpd.GeoDataFrame(
+            {
+                "geometry": ordered_polygons,
+                "treetop_pixel_coords": all_treetop_pixel_coords,
+                "treetop_height": all_treetop_heights,
+            }
+        )
 
         # Here, we get 2 new sets of polygons:
         # 1. A circle for every detected treetop
@@ -369,14 +383,16 @@ class GeometricDetector(Detector):
         all_circles = []
         all_multipolygon_masks = []
 
-        for treetop_point, treetop_height in zip(tile_gdf['treetop_pixel_coords'], tile_gdf['treetop_height']):
+        for treetop_point, treetop_height in zip(
+            tile_gdf["treetop_pixel_coords"], tile_gdf["treetop_height"]
+        ):
             # Compute radius as 0.6 times the height, divide by resolution to convert unit to pixels
             radius = (0.6 * treetop_height) / self.res
             # Convert to an integer rounded to the upper value
             radius = int(np.ceil(radius))
             all_radius_in_pixels.append(radius)
 
-            # Create a circle by buffering it by the radius value and add to list 
+            # Create a circle by buffering it by the radius value and add to list
             all_circles.append(treetop_point.buffer(radius))
 
             # Calculate threshold value for the binary mask as 30% of the treetop height
@@ -387,16 +403,17 @@ class GeometricDetector(Detector):
             multipolygon_mask = mask_to_shapely(binary_mask)
             all_multipolygon_masks.append(multipolygon_mask)
 
-
         # Create new columns in the dataframe for radii, circles and multipolygon masks
-        tile_gdf['radius_in_pixels'] = all_radius_in_pixels
-        tile_gdf['circle'] = all_circles
-        tile_gdf['multipolygon_mask'] = all_multipolygon_masks
-        
-        # The final tree crown is computed as the intersection of voronoi polygon, circle and mask
-        tile_gdf['tree_crown'] = tile_gdf.apply(self._get_three_polygon_intersection, axis=1)
+        tile_gdf["radius_in_pixels"] = all_radius_in_pixels
+        tile_gdf["circle"] = all_circles
+        tile_gdf["multipolygon_mask"] = all_multipolygon_masks
 
-        return list(tile_gdf['tree_crown'])
+        # The final tree crown is computed as the intersection of voronoi polygon, circle and mask
+        tile_gdf["tree_crown"] = tile_gdf.apply(
+            self._get_three_polygon_intersection, axis=1
+        )
+
+        return list(tile_gdf["tree_crown"])
 
     def predict_batch(self, batch):
         """Generate predictions for a batch of samples
