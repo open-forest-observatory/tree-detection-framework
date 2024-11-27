@@ -29,6 +29,8 @@ from tree_detection_framework.preprocessing.derived_geodatasets import CustomDat
 from tree_detection_framework.utils.detection import use_release_df
 from tree_detection_framework.utils.geometric import mask_to_shapely
 
+import scipy.ndimage as ndi
+
 # Set up logging configuration
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -275,19 +277,11 @@ class GeometricDetector(Detector):
         self.min_ht = min_ht
 
     def _get_three_polygon_intersection(self, row):
-        # Perform intersections sequentially
-        # intersection = (
-        #     row["geometry"]
-        #     .intersection(row["circle"])
-        #     .intersection(row["multipolygon_mask"])
-        # )
 
         intersection = shapely.intersection_all([row["geometry"], row["circle"], row["multipolygon_mask"]])
 
-        if intersection.is_empty:
-            return Polygon()
-        else:
-            return intersection
+        return intersection
+        
 
     def get_tree_crowns(self, image) -> List[shapely.MultiPolygon]:
         """Generate tree crowns for an image.
@@ -296,20 +290,14 @@ class GeometricDetector(Detector):
             image (torch.Tensor): An image from the torchgeo dataloader batch
 
         Returns:
-            List[shapely.MultiPolygon]: Detected tree crowns
+            List[shapely.MultiPolygon]: Detected tree crowns as shapely polygons
         """
         image = image.squeeze()
-
-        # Create a meshgrid for the chm tile
-        meshgrid = np.meshgrid(
-            np.arange(0, image.shape[0]), np.arange(0, image.shape[1]), indexing="ij"
-        )
 
         # Set NaN values to zero
         image = np.nan_to_num(image)
         all_treetop_pixel_coords = []
         all_treetop_heights = []
-
         for i in range(image.shape[0]):
             for j in range(image.shape[1]):
                 # Get the height of the pixel
@@ -320,7 +308,7 @@ class GeometricDetector(Detector):
                     continue
 
                 # Calculate the radius
-                radius = self.a * (ht**2) + self.c
+                radius = self.a * (ht**2) + self.c # add linear term
                 # Convert radius from meters to pixels
                 radius_pixels = radius / self.res
                 side = int(np.ceil(radius_pixels))
@@ -331,17 +319,17 @@ class GeometricDetector(Detector):
                 j_min = max(0, j - side)
                 j_max = min(image.shape[1], j + side + 1)
 
-                # Get the circular neighborhood around (i, j)
-                region_i = meshgrid[0][i_min:i_max, j_min:j_max]
-                region_j = meshgrid[1][i_min:i_max, j_min:j_max]
+                # Create column and row vectors for the neighborhood
+                region_i = np.arange(i_min, i_max)[:, np.newaxis]
+                region_j = np.arange(j_min, j_max)[np.newaxis, :]
 
                 # Calculate the distances to every point within the region
                 distances = np.sqrt((region_i - i) ** 2 + (region_j - j) ** 2)
-                mask = (
-                    distances <= radius_pixels
-                )  # mask is a boolean array with True for pixels inside the circle
 
-                # Create a neighborhood from the masked region
+                # Create a mask for pixels inside the circle
+                mask = distances <= radius_pixels
+
+                # Apply the mask to the neighborhood
                 neighborhood = image[i_min:i_max, j_min:j_max][mask]
 
                 # Check if the pixel has the max height within the neighborhood
@@ -352,7 +340,7 @@ class GeometricDetector(Detector):
         # Get Voronoi Diagram from the calculated treetop points
         voronoi_diagram = shapely.voronoi_polygons(MultiPoint(all_treetop_pixel_coords))
 
-        # Store the individual polygons from Voronoi diagram in the same sequence as the treetop points
+        # Store the individual polygons from Voronoi diagram in the same sequence as the treetop points  # check time
         ordered_polygons = []
         for treetop_point in all_treetop_pixel_coords:
             for polygon in voronoi_diagram.geoms:
