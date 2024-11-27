@@ -269,9 +269,10 @@ class RandomDetector(Detector):
 class GeometricDetector(Detector):
 
     def __init__(
-        self, a: float = 0.00901, c: float = 2.52503, res: float = 0.2, min_ht: int = 5
+        self, a: float = 0.00901, b: float = 0, c: float = 2.52503, res: float = 0.2, min_ht: int = 5
     ):
         self.a = a
+        self.b = b
         self.c = c
         self.res = res
         self.min_ht = min_ht
@@ -308,7 +309,7 @@ class GeometricDetector(Detector):
                     continue
 
                 # Calculate the radius
-                radius = self.a * (ht**2) + self.c # add linear term
+                radius = (self.a * (ht**2)) + (self.b * ht) + self.c 
                 # Convert radius from meters to pixels
                 radius_pixels = radius / self.res
                 side = int(np.ceil(radius_pixels))
@@ -340,7 +341,8 @@ class GeometricDetector(Detector):
         # Get Voronoi Diagram from the calculated treetop points
         voronoi_diagram = shapely.voronoi_polygons(MultiPoint(all_treetop_pixel_coords))
 
-        # Store the individual polygons from Voronoi diagram in the same sequence as the treetop points  # check time
+        # Store the individual polygons from Voronoi diagram in the same sequence as the treetop points
+        # TODO: Check how expensive the 2 for-loops are, try to optimize
         ordered_polygons = []
         for treetop_point in all_treetop_pixel_coords:
             for polygon in voronoi_diagram.geoms:
