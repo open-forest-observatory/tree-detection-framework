@@ -276,30 +276,24 @@ class GeometricDetector(Detector):
 
     def _get_three_polygon_intersection(self, row):
         # Perform intersections sequentially
-        intersection = (
-            row["geometry"]
-            .intersection(row["circle"])
-            .intersection(row["multipolygon_mask"])
-        )
+        # intersection = (
+        #     row["geometry"]
+        #     .intersection(row["circle"])
+        #     .intersection(row["multipolygon_mask"])
+        # )
 
-        # Return an empty MultiPolygon if there's no intersection
+        intersection = shapely.intersection_all([row["geometry"], row["circle"], row["multipolygon_mask"]])
+
         if intersection.is_empty:
-            return MultiPolygon()
-        elif isinstance(intersection, MultiPolygon):
-            # Return directly if the result is already a MultiPolygon
-            return intersection
-        elif intersection.geom_type == "Polygon":
-            # Wrap a single Polygon as a MultiPolygon
-            return MultiPolygon([intersection])
+            return Polygon()
         else:
-            # For unexpected cases
-            return MultiPolygon()
+            return intersection
 
     def get_tree_crowns(self, image) -> List[shapely.MultiPolygon]:
         """Generate tree crowns for an image.
 
         Args:
-            batch (dict): A batch from the torchgeo dataloader
+            image (torch.Tensor): An image from the torchgeo dataloader batch
 
         Returns:
             List[shapely.MultiPolygon]: Detected tree crowns
