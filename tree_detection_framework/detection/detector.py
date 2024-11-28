@@ -8,6 +8,7 @@ import geopandas as gpd
 import lightning
 import numpy as np
 import pandas as pd
+import scipy.ndimage as ndi
 import shapely
 import torch
 from detectron2.checkpoint import DetectionCheckpointer
@@ -28,8 +29,6 @@ from tree_detection_framework.detection.region_detections import (
 from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
 from tree_detection_framework.utils.detection import use_release_df
 from tree_detection_framework.utils.geometric import mask_to_shapely
-
-import scipy.ndimage as ndi
 
 # Set up logging configuration
 logging.basicConfig(
