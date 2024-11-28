@@ -282,21 +282,18 @@ class GeometricDetector(Detector):
         intersection = shapely.intersection_all([row["geometry"], row["circle"], row["multipolygon_mask"]])
 
         return intersection
-        
-
-    def get_tree_crowns(self, image) -> List[shapely.MultiPolygon]:
-        """Generate tree crowns for an image.
+    
+    def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
+        """Calculate treetop coordinates based on a treetop window function.
 
         Args:
-            image (torch.Tensor): An image from the torchgeo dataloader batch
+            image (np.ndarray): A single channel CHM image
 
         Returns:
-            List[shapely.MultiPolygon]: Detected tree crowns as shapely polygons
+            tuple[List[Point], List[float]] containing:
+                all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
+                all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
         """
-        image = image.squeeze()
-
-        # Set NaN values to zero
-        image = np.nan_to_num(image)
         all_treetop_pixel_coords = []
         all_treetop_heights = []
         for i in range(image.shape[0]):
@@ -338,6 +335,22 @@ class GeometricDetector(Detector):
                     all_treetop_pixel_coords.append(Point(j, i))
                     all_treetop_heights.append(ht)
 
+        return all_treetop_pixel_coords, all_treetop_heights
+        
+
+
+    def get_tree_crowns(self, image: np.ndarray, all_treetop_pixel_coords: List[Point], all_treetop_heights: List[float]) -> List[shapely.MultiPolygon]:
+        """Generate tree crowns for an image.
+
+        Args:
+            image (np.ndarray): A single channel CHM image
+            all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
+            all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
+            
+        Returns:
+            List[shapely.MultiPolygon]: Detected tree crowns as shapely polygons
+        """
+
         # Get Voronoi Diagram from the calculated treetop points
         voronoi_diagram = shapely.voronoi_polygons(MultiPoint(all_treetop_pixel_coords))
 
@@ -360,7 +373,7 @@ class GeometricDetector(Detector):
             }
         )
 
-        # Here, we get 2 new sets of polygons:
+        # Next, we get 2 new sets of polygons:
         # 1. A circle for every detected treetop
         # 2. A set of multipolygons geenrated from the binary mask of the image
         all_radius_in_pixels = []
@@ -416,7 +429,12 @@ class GeometricDetector(Detector):
         # List to store every image's detections
         batch_detections = []
         for image in batch["image"]:
-            polygons = self.get_tree_crowns(image)
+            image = image.squeeze()
+            # Set NaN values to zero
+            image = np.nan_to_num(image)
+
+            treetop_pixel_coords, treetop_heights = self.get_treetops(image)
+            polygons = self.get_tree_crowns(image, treetop_pixel_coords, treetop_heights)
             batch_detections.append(polygons)  # List[List[shapely.geometry]]
 
         return batch_detections, None
