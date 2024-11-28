@@ -387,8 +387,6 @@ class GeometricDetector(Detector):
         ):
             # Compute radius as a fraction of the height, divide by resolution to convert unit to pixels
             radius = (self.radius_factor * treetop_height) / self.res
-            # Convert to an integer rounded to the upper value
-            radius = int(np.ceil(radius))
             all_radius_in_pixels.append(radius)
 
             # Create a circle by buffering it by the radius value and add to list
