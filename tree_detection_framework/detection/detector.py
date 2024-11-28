@@ -269,13 +269,15 @@ class RandomDetector(Detector):
 class GeometricDetector(Detector):
 
     def __init__(
-        self, a: float = 0.00901, b: float = 0, c: float = 2.52503, res: float = 0.2, min_ht: int = 5
+        self, a: float = 0.00901, b: float = 0, c: float = 2.52503, res: float = 0.2, min_ht: int = 5, radius_factor: float = 0.6, threshold_factor: float = 0.3
     ):
         self.a = a
         self.b = b
         self.c = c
         self.res = res
         self.min_ht = min_ht
+        self.radius_factor = radius_factor
+        self.threshold_factor = threshold_factor
 
     def _get_three_polygon_intersection(self, row):
 
@@ -383,8 +385,8 @@ class GeometricDetector(Detector):
         for treetop_point, treetop_height in zip(
             tile_gdf["treetop_pixel_coords"], tile_gdf["treetop_height"]
         ):
-            # Compute radius as 0.6 times the height, divide by resolution to convert unit to pixels
-            radius = (0.6 * treetop_height) / self.res
+            # Compute radius as a fraction of the height, divide by resolution to convert unit to pixels
+            radius = (self.radius_factor * treetop_height) / self.res
             # Convert to an integer rounded to the upper value
             radius = int(np.ceil(radius))
             all_radius_in_pixels.append(radius)
@@ -392,8 +394,8 @@ class GeometricDetector(Detector):
             # Create a circle by buffering it by the radius value and add to list
             all_circles.append(treetop_point.buffer(radius))
 
-            # Calculate threshold value for the binary mask as 30% of the treetop height
-            threshold = 0.3 * treetop_height
+            # Calculate threshold value for the binary mask as a fraction of the treetop height
+            threshold = self.threshold_factor * treetop_height
             # Thresholding the tile image
             binary_mask = image > threshold
             # Convert the mask to shapely polygons, returned as a MultiPolygon
