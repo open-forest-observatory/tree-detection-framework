@@ -9,8 +9,6 @@ import numpy as np
 import pandas as pd
 import shapely
 import torch
-from sam2.build_sam import build_sam2
-from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.data import MetadataCatalog
 from detectron2.modeling import build_model
@@ -20,7 +18,6 @@ from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
 from sam2.build_sam import build_sam2
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.models import DeepForestModule
