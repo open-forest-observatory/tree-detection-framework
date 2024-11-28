@@ -649,9 +649,6 @@ class Detectree2Detector(LightningDetector):
         with torch.no_grad():
             inputs = []
             for original_image in batch:
-                import pdb
-
-                pdb.set_trace()
                 original_image = original_image.permute(1, 2, 0).byte().numpy()
                 original_image = original_image[:, :, :3]
 
@@ -685,9 +682,6 @@ class Detectree2Detector(LightningDetector):
             all_data_dicts (Union[None, List[dict]]):
                 Predicted scores and classes
         """
-        import pdb
-
-        pdb.set_trace()
         # Get images from batch
         images = batch["image"]
         batch_preds = self.call_predict(images)
