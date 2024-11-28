@@ -420,16 +420,21 @@ class DeepForestDetector(LightningDetector):
         """
         # Should be implemented here
         raise NotImplementedError()
-    
+
+
 class SAMV2Detector(Detector):
     def __init__(self):
-        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        
+        self.device = (
+            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        )
+
     def setup_predictor(self):
         sam2_checkpoint = "checkpoints/sam2.1_hiera_large.pt"
         model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
         # Build the SAM2 model
-        self.sam2 = build_sam2(model_cfg, sam2_checkpoint, device=self.device, apply_postprocessing=False)
+        self.sam2 = build_sam2(
+            model_cfg, sam2_checkpoint, device=self.device, apply_postprocessing=False
+        )
 
         # Create the automatic mask generator
         self.mask_generator = SAM2AutomaticMaskGenerator(self.sam2)
@@ -447,16 +452,17 @@ class SAMV2Detector(Detector):
         with torch.no_grad():
             masks = []
             for original_image in batch:
-                original_image = original_image.permute(1, 2, 0).byte().numpy() #(4, h, w)
+                original_image = (
+                    original_image.permute(1, 2, 0).byte().numpy()
+                )  # (4, h, w)
                 # permuted_image = original_image.permute(1, 2, 0)
-                rgb_image = original_image[:, :, :3] #(h, w, 3)
+                rgb_image = original_image[:, :, :3]  # (h, w, 3)
 
                 mask = self.mask_generator.generate(rgb_image)
-                #FUTURE TODO: Support batched predictions
+                # FUTURE TODO: Support batched predictions
                 masks.append(mask)
 
             return masks
-
 
     def predict_batch(self, batch):
         """
@@ -472,7 +478,7 @@ class SAMV2Detector(Detector):
             all_data_dicts (Union[None, List[dict]]):
                 Predicted scores and classes
         """
-        images = batch["image"] 
+        images = batch["image"]
 
         self.setup_predictor()
 
@@ -490,7 +496,9 @@ class SAMV2Detector(Detector):
             segmentations = [dic["segmentation"].astype(float) for dic in pred]
 
             # Convert each mask to a shapely multipolygon
-            shapely_objects = [mask_to_shapely(pred_mask) for pred_mask in segmentations]
+            shapely_objects = [
+                mask_to_shapely(pred_mask) for pred_mask in segmentations
+            ]
 
             all_geometries.append(shapely_objects)
 
@@ -501,7 +509,6 @@ class SAMV2Detector(Detector):
             all_data_dicts.append({"score": scores, "labels": labels})
 
         return all_geometries, all_data_dicts
-
 
 
 class SAMV2Detector(Detector):
