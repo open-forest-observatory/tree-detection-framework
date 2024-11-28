@@ -268,7 +268,14 @@ class RandomDetector(Detector):
 class GeometricDetector(Detector):
 
     def __init__(
-        self, a: float = 0.00901, b: float = 0, c: float = 2.52503, res: float = 0.2, min_ht: int = 5, radius_factor: float = 0.6, threshold_factor: float = 0.3
+        self,
+        a: float = 0.00901,
+        b: float = 0,
+        c: float = 2.52503,
+        res: float = 0.2,
+        min_ht: int = 5,
+        radius_factor: float = 0.6,
+        threshold_factor: float = 0.3,
     ):
         self.a = a
         self.b = b
@@ -280,10 +287,12 @@ class GeometricDetector(Detector):
 
     def _get_three_polygon_intersection(self, row):
 
-        intersection = shapely.intersection_all([row["geometry"], row["circle"], row["multipolygon_mask"]])
+        intersection = shapely.intersection_all(
+            [row["geometry"], row["circle"], row["multipolygon_mask"]]
+        )
 
         return intersection
-    
+
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates based on a treetop window function.
 
@@ -307,7 +316,7 @@ class GeometricDetector(Detector):
                     continue
 
                 # Calculate the radius
-                radius = (self.a * (ht**2)) + (self.b * ht) + self.c 
+                radius = (self.a * (ht**2)) + (self.b * ht) + self.c
                 # Convert radius from meters to pixels
                 radius_pixels = radius / self.res
                 side = int(np.ceil(radius_pixels))
@@ -337,17 +346,20 @@ class GeometricDetector(Detector):
                     all_treetop_heights.append(ht)
 
         return all_treetop_pixel_coords, all_treetop_heights
-        
 
-
-    def get_tree_crowns(self, image: np.ndarray, all_treetop_pixel_coords: List[Point], all_treetop_heights: List[float]) -> List[shapely.MultiPolygon]:
+    def get_tree_crowns(
+        self,
+        image: np.ndarray,
+        all_treetop_pixel_coords: List[Point],
+        all_treetop_heights: List[float],
+    ) -> List[shapely.MultiPolygon]:
         """Generate tree crowns for an image.
 
         Args:
             image (np.ndarray): A single channel CHM image
             all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
             all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
-            
+
         Returns:
             List[shapely.MultiPolygon]: Detected tree crowns as shapely polygons
         """
@@ -433,7 +445,9 @@ class GeometricDetector(Detector):
             image = np.nan_to_num(image)
 
             treetop_pixel_coords, treetop_heights = self.get_treetops(image)
-            polygons = self.get_tree_crowns(image, treetop_pixel_coords, treetop_heights)
+            polygons = self.get_tree_crowns(
+                image, treetop_pixel_coords, treetop_heights
+            )
             batch_detections.append(polygons)  # List[List[shapely.geometry]]
 
         return batch_detections, None
