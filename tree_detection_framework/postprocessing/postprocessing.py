@@ -1,6 +1,7 @@
 import logging
 
-from lsnms import nms
+import numpy as np
+from polygone_nms import nms
 
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
@@ -33,21 +34,40 @@ def single_region_NMS(
     # Extract the geodataframe for the detections
     detections_df = detections.get_data_frame()
 
+    # Determine which detections are high enough confidence to retain
+    high_conf_inds = np.where(
+        (detections_df[confidence_column] >= min_confidence).to_numpy()
+    )[0]
+
     # Filter detections based on minimum confidence score
-    detections_df = detections_df[detections_df[confidence_column] >= min_confidence]
+    detections_df = detections_df.iloc[high_conf_inds]
     if detections_df.empty:
         # Return empty if no detections pass threshold
         return detections.subset_detections([])
 
-    # Get the axis-aligned bounds of each shape
-    boxes = detections_df.bounds.to_numpy()
+    ## Get the polygons for each detection object
+    polygons = detections_df.geometry.to_list()
     # Extract the score
     confidences = detections_df[confidence_column].to_numpy()
 
-    # Run NMS
-    keep = nms(boxes, confidences, iou_threshold=iou_theshold)
+    # Put the data into the required format, list[(polygon, class, confidence)]
+    # TODO consider adding a class, currently set to all ones
+    input_data = list(zip(polygons, np.ones_like(confidences), confidences))
+
+    # Run polygon NMS
+    keep_inds = nms(
+        input_data=input_data,
+        distributed=None,
+        nms_method="Default",
+        intersection_method="IOU",
+        threshold=iou_theshold,
+    )
+
+    # We only performed NMS on the high-confidence detections, but we need the indices w.r.t. the
+    # original data with all detections. Sort for convenience so data is not permuted.
+    keep_inds_in_original = sorted(high_conf_inds[keep_inds])
     # Extract the detections that were kept
-    subset_region_detections = detections.subset_detections(keep)
+    subset_region_detections = detections.subset_detections(keep_inds_in_original)
 
     return subset_region_detections
 
