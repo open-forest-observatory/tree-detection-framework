@@ -285,6 +285,10 @@ class GeometricDetector(Detector):
         self.radius_factor = radius_factor
         self.threshold_factor = threshold_factor
 
+    # TODO: If a crown consists of a multipolygon, keep just the polygon in which the treetop point actually falls
+    # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
+    # as opposed to applying the mask to the whole tile CHM for each tree
+    
     def _get_three_polygon_intersection(self, row):
 
         intersection = shapely.intersection_all(
