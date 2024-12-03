@@ -137,18 +137,18 @@ def multi_region_NMS(
 
     return NMS_suppressed_merged_detections
 
+
 def postprocess_detections(
-        detections: RegionDetectionsSet,
-        crs: Optional[pyproj.CRS] = None,
-        tolerance: Optional[float] = 0.2,
-        min_area_threshold: Optional[float] = 20.0
+    detections: RegionDetectionsSet,
+    crs: Optional[pyproj.CRS] = None,
+    tolerance: Optional[float] = 0.2,
+    min_area_threshold: Optional[float] = 20.0,
 ) -> RegionDetections:
-    
-    """Apply postprocessing techniques that include: 
+    """Apply postprocessing techniques that include:
     1. Get a union of polygons that have been split across tiles
     2. Simplify the edges of polygons by `tolerance` value
     3. Remove holes within the polygons that are smaller than `min_area` value
-    Merges regions into a single RegionDetections. 
+    Merges regions into a single RegionDetections.
 
     Args:
         detections(RegionDetectionsSet):
@@ -168,14 +168,15 @@ def postprocess_detections(
     # Get the detections as a merged GeoDataFrame
     all_detections_gdf = detections.get_data_frame(merge=True)
 
-    # Compute the union of the set of polyogns. This step removes any vertical lines caused by the tile edges 
+    # Compute the union of the set of polyogns. This step removes any vertical lines caused by the tile edges
     # and combines a single polygon that might have been split into multiple. Also removes any overlaps.
     union_detections = unary_union(all_detections_gdf.geometry)
 
-    # Simplify the polygons by tolerance value and extract only Polygons and MultiPolygons 
+    # Simplify the polygons by tolerance value and extract only Polygons and MultiPolygons
     # since `union_detections` can have Point objects as well
     filtered_geoms = [
-        geom.simplify(tolerance) for geom in list(union_detections.geoms)
+        geom.simplify(tolerance)
+        for geom in list(union_detections.geoms)
         if isinstance(geom, (Polygon, MultiPolygon))
     ]
 
@@ -186,7 +187,7 @@ def postprocess_detections(
 
         for interior in polygon.interiors:
             p = Polygon(interior)
-            # If the area of the hole is greater than the threshold, include it in the final output    
+            # If the area of the hole is greater than the threshold, include it in the final output
             if p.area > min_area_threshold:
                 list_interiors.append(interior)
 
@@ -194,7 +195,9 @@ def postprocess_detections(
         new_polygon = Polygon(polygon.exterior.coords, holes=list_interiors)
         new_polygons.append(new_polygon)
 
-    # Create a RegionDetections for the merged and postprocessed detections 
-    postprocessed_detections = RegionDetections(new_polygons, CRS=crs, input_in_pixels=False)
+    # Create a RegionDetections for the merged and postprocessed detections
+    postprocessed_detections = RegionDetections(
+        new_polygons, CRS=crs, input_in_pixels=False
+    )
 
     return postprocessed_detections
