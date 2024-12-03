@@ -4,8 +4,8 @@ from typing import Optional
 import numpy as np
 import pyproj
 from polygone_nms import nms
+from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
-from shapely.geometry import Polygon, MultiPolygon
 
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
