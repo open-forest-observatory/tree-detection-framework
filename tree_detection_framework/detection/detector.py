@@ -7,6 +7,7 @@ import detectron2.data.transforms as T
 import geopandas as gpd
 import lightning
 import numpy as np
+import pyproj
 import pandas as pd
 import scipy.ndimage as ndi
 import shapely
@@ -73,6 +74,7 @@ class Detector:
             batch_image_bounds = self.get_image_bounds_as_shapely(batch)
             batch_geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
             CRS = self.get_CRS_from_batch(batch)
+            CRS = CRS.to_epsg()
 
             # Iterate over samples in the batch so we can yield them one at a time
             for preds_geometry, preds_data, image_bounds, geospatial_bounds in zip(
@@ -190,7 +192,13 @@ class Detector:
     @staticmethod
     def get_CRS_from_batch(batch):
         # Assume that the CRS is the same across all elements in the batch
-        return batch["crs"][0]
+        CRS = batch["crs"][0]
+        CRS = CRS.to_epsg()
+        # Convert CRS to a pyproj object
+        CRS = pyproj.CRS(CRS)
+        if CRS.to_epsg() is None:
+            raise ValueError(f"Invalid CRS. Found CRS = {CRS.to_epsg()}")
+        return CRS
 
 
 class RandomDetector(Detector):
@@ -423,7 +431,7 @@ class GeometricDetector(Detector):
         # The final tree crown is computed as the intersection of voronoi polygon, circle and mask
         tile_gdf["tree_crown"] = tile_gdf.apply(
             self._get_three_polygon_intersection, axis=1
-        )
+        ) # element wise row intersection
 
         return list(tile_gdf["tree_crown"])
 
