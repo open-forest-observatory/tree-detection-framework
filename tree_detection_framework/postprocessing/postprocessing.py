@@ -138,7 +138,7 @@ def multi_region_NMS(
     return NMS_suppressed_merged_detections
 
 
-def postprocess_detections(
+def merge_and_postprocess_detections(
     detections: RegionDetectionsSet,
     crs: Optional[pyproj.CRS] = None,
     tolerance: Optional[float] = 0.2,
@@ -147,7 +147,7 @@ def postprocess_detections(
     """Apply postprocessing techniques that include:
     1. Get a union of polygons that have been split across tiles
     2. Simplify the edges of polygons by `tolerance` value
-    3. Remove holes within the polygons that are smaller than `min_area` value
+    3. Remove holes within the polygons that are smaller than `min_area_theshold` value
     Merges regions into a single RegionDetections.
 
     Args:
@@ -194,7 +194,7 @@ def postprocess_detections(
             if p.area > min_area_threshold:
                 list_interiors.append(interior)
 
-        # Create a new polygon for the same that does not have the smaller holes
+        # Create a new polygon for the same, without the smaller holes
         new_polygon = Polygon(polygon.exterior.coords, holes=list_interiors)
         new_polygons.append(new_polygon)
 
