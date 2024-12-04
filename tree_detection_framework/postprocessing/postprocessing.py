@@ -168,9 +168,12 @@ def postprocess_detections(
     # Get the detections as a merged GeoDataFrame
     all_detections_gdf = detections.get_data_frame(merge=True)
 
+    # Apply a small negative buffer to shrink polygons slightly
+    buffered_geoms = [geom.buffer(-0.001) for geom in all_detections_gdf.geometry]
+
     # Compute the union of the set of polyogns. This step removes any vertical lines caused by the tile edges
     # and combines a single polygon that might have been split into multiple. Also removes any overlaps.
-    union_detections = unary_union(all_detections_gdf.geometry)
+    union_detections = unary_union(buffered_geoms)
 
     # Simplify the polygons by tolerance value and extract only Polygons and MultiPolygons
     # since `union_detections` can have Point objects as well
