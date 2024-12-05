@@ -439,7 +439,7 @@ class GeometricDetector(Detector):
         # The final tree crown is computed as the intersection of voronoi polygon, circle and mask
         tile_gdf["tree_crown"] = tile_gdf.apply(
             self._get_three_polygon_intersection, axis=1
-        ) # element wise row intersection
+        )  # element wise row intersection
 
         return list(tile_gdf["tree_crown"])
 
