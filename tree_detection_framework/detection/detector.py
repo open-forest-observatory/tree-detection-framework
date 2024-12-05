@@ -7,8 +7,8 @@ import detectron2.data.transforms as T
 import geopandas as gpd
 import lightning
 import numpy as np
-import pyproj
 import pandas as pd
+import pyproj
 import scipy.ndimage as ndi
 import shapely
 import torch
