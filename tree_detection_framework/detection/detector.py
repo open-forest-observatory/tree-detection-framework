@@ -420,8 +420,16 @@ class GeometricDetector(Detector):
             # Thresholding the tile image
             binary_mask = image > threshold
             # Convert the mask to shapely polygons, returned as a MultiPolygon
-            multipolygon_mask = mask_to_shapely(binary_mask)
-            all_multipolygon_masks.append(multipolygon_mask)
+            shapely_polygon_mask = mask_to_shapely(binary_mask)
+            # Iterate through each polygon in the multipolygon
+            for i, polygon in enumerate(shapely_polygon_mask.geoms):
+                # If the polygon with the treetop has been found, add it to list and ignore all other polygons
+                if polygon.contains(treetop_point):
+                    all_multipolygon_masks.append(polygon)
+                    break
+                # For other cases, add an empty polygon to avoid having a mismatch in number of rows in the gdf
+                if i == (len(shapely_polygon_mask.geoms) - 1):
+                    all_multipolygon_masks.append(Polygon())
 
         # Create new columns in the dataframe for radii, circles and multipolygon masks
         tile_gdf["radius_in_pixels"] = all_radius_in_pixels
