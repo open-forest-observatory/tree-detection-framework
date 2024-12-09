@@ -8,6 +8,7 @@ import geopandas as gpd
 import lightning
 import numpy as np
 import pandas as pd
+import pyproj
 import scipy.ndimage as ndi
 import shapely
 import torch
@@ -73,6 +74,7 @@ class Detector:
             batch_image_bounds = self.get_image_bounds_as_shapely(batch)
             batch_geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
             CRS = self.get_CRS_from_batch(batch)
+            CRS = CRS.to_epsg()
 
             # Iterate over samples in the batch so we can yield them one at a time
             for preds_geometry, preds_data, image_bounds, geospatial_bounds in zip(
@@ -190,7 +192,12 @@ class Detector:
     @staticmethod
     def get_CRS_from_batch(batch):
         # Assume that the CRS is the same across all elements in the batch
-        return batch["crs"][0]
+        CRS = batch["crs"][0]
+        # Get the CRS EPSG value and convert it to a pyproj object
+        CRS = pyproj.CRS(CRS.to_epsg())
+        if CRS.to_epsg() is None:
+            raise ValueError(f"Invalid CRS. Found CRS = {CRS.to_epsg()}")
+        return CRS
 
 
 class RandomDetector(Detector):
@@ -285,17 +292,8 @@ class GeometricDetector(Detector):
         self.radius_factor = radius_factor
         self.threshold_factor = threshold_factor
 
-    # TODO: If a crown consists of a multipolygon, keep just the polygon in which the treetop point actually falls
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
-
-    def _get_three_polygon_intersection(self, row):
-
-        intersection = shapely.intersection_all(
-            [row["geometry"], row["circle"], row["multipolygon_mask"]]
-        )
-
-        return intersection
 
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates based on a treetop window function.
@@ -372,7 +370,6 @@ class GeometricDetector(Detector):
         voronoi_diagram = shapely.voronoi_polygons(MultiPoint(all_treetop_pixel_coords))
 
         # Store the individual polygons from Voronoi diagram in the same sequence as the treetop points
-        # TODO: Check how expensive the 2 for-loops are, try to optimize
         ordered_polygons = []
         for treetop_point in all_treetop_pixel_coords:
             for polygon in voronoi_diagram.geoms:
@@ -395,7 +392,7 @@ class GeometricDetector(Detector):
         # 2. A set of multipolygons geenrated from the binary mask of the image
         all_radius_in_pixels = []
         all_circles = []
-        all_multipolygon_masks = []
+        all_polygon_masks = []
 
         for treetop_point, treetop_height in zip(
             tile_gdf["treetop_pixel_coords"], tile_gdf["treetop_height"]
@@ -412,17 +409,31 @@ class GeometricDetector(Detector):
             # Thresholding the tile image
             binary_mask = image > threshold
             # Convert the mask to shapely polygons, returned as a MultiPolygon
-            multipolygon_mask = mask_to_shapely(binary_mask)
-            all_multipolygon_masks.append(multipolygon_mask)
+            shapely_polygon_mask = mask_to_shapely(binary_mask)
+            # If the returned mask is a single Polygon add it to the final list
+            if isinstance(shapely_polygon_mask, Polygon):
+                all_polygon_masks.append(Polygon)
+                continue
+            # Iterate through each polygon in the multipolygon
+            for i, polygon in enumerate(shapely_polygon_mask.geoms):
+                # If the polygon with the treetop has been found, add it to list and ignore all other polygons
+                if polygon.contains(treetop_point):
+                    all_polygon_masks.append(polygon)
+                    break
+                # For other cases, add an empty polygon to avoid having a mismatch in number of rows in the gdf
+                if i == (len(shapely_polygon_mask.geoms) - 1):
+                    all_polygon_masks.append(Polygon())
 
         # Create new columns in the dataframe for radii, circles and multipolygon masks
         tile_gdf["radius_in_pixels"] = all_radius_in_pixels
         tile_gdf["circle"] = all_circles
-        tile_gdf["multipolygon_mask"] = all_multipolygon_masks
+        tile_gdf["multipolygon_mask"] = all_polygon_masks
 
         # The final tree crown is computed as the intersection of voronoi polygon, circle and mask
-        tile_gdf["tree_crown"] = tile_gdf.apply(
-            self._get_three_polygon_intersection, axis=1
+        tile_gdf["tree_crown"] = (
+            gpd.GeoSeries(tile_gdf["geometry"])
+            .intersection(gpd.GeoSeries(tile_gdf["circle"]))
+            .intersection(gpd.GeoSeries(tile_gdf["multipolygon_mask"]))
         )
 
         return list(tile_gdf["tree_crown"])
