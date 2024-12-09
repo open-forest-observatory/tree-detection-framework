@@ -297,14 +297,6 @@ class GeometricDetector(Detector):
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
 
-    def _get_three_polygon_intersection(self, row):
-
-        intersection = shapely.intersection_all(
-            [row["geometry"], row["circle"], row["multipolygon_mask"]]
-        )
-
-        return intersection
-
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates based on a treetop window function.
 
@@ -437,9 +429,11 @@ class GeometricDetector(Detector):
         tile_gdf["multipolygon_mask"] = all_multipolygon_masks
 
         # The final tree crown is computed as the intersection of voronoi polygon, circle and mask
-        tile_gdf["tree_crown"] = tile_gdf.apply(
-            self._get_three_polygon_intersection, axis=1
-        )  # element wise row intersection
+        tile_gdf["tree_crown"] = gpd.GeoSeries(tile_gdf["geometry"]).intersection(
+            gpd.GeoSeries(tile_gdf["circle"])
+        ).intersection(
+            gpd.GeoSeries(tile_gdf["multipolygon_mask"])
+        )
 
         return list(tile_gdf["tree_crown"])
 
