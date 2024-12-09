@@ -430,10 +430,10 @@ class GeometricDetector(Detector):
         tile_gdf["multipolygon_mask"] = all_polygon_masks
 
         # The final tree crown is computed as the intersection of voronoi polygon, circle and mask
-        tile_gdf["tree_crown"] = gpd.GeoSeries(tile_gdf["geometry"]).intersection(
-            gpd.GeoSeries(tile_gdf["circle"])
-        ).intersection(
-            gpd.GeoSeries(tile_gdf["multipolygon_mask"])
+        tile_gdf["tree_crown"] = (
+            gpd.GeoSeries(tile_gdf["geometry"])
+            .intersection(gpd.GeoSeries(tile_gdf["circle"]))
+            .intersection(gpd.GeoSeries(tile_gdf["multipolygon_mask"]))
         )
 
         return list(tile_gdf["tree_crown"])

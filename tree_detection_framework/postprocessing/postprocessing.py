@@ -137,9 +137,10 @@ def multi_region_NMS(
 
     return NMS_suppressed_merged_detections
 
+
 def polygon_hole_suppression(polygon: Polygon, min_area_threshold: float = 20.0):
     """To remove holes within a polygon
-    
+
     Args:
         polygon(shapely.Polygon):
             A shapely polygon object
@@ -162,15 +163,17 @@ def polygon_hole_suppression(polygon: Polygon, min_area_threshold: float = 20.0)
     return Polygon(polygon.exterior.coords, holes=list_interiors)
 
 
-def single_region_hole_suppression(detections: RegionDetections, min_area_threshold: float = 20.0):
-    """ Suppress polygon holes in a RegionDetections object.
+def single_region_hole_suppression(
+    detections: RegionDetections, min_area_threshold: float = 20.0
+):
+    """Suppress polygon holes in a RegionDetections object.
 
     Args:
         detections (RegionDetections):
             Detections from a single region that needs suppression of polygon holes.
         min_area_threshold(float):
             Remove holes within the polygons that have area smaller than this value.
-    
+
     Returns:
         RegionDetections:
             Detections after suppressing polygon holes.
@@ -200,9 +203,17 @@ def single_region_hole_suppression(detections: RegionDetections, min_area_thresh
     # Set this list as the geometry column in the dataframe
     detections_df.geometry = modified_geometries
     # Return a new RegionDetections object created using the updated dataframe
-    return RegionDetections(detection_geometries=None, data = detections_df, input_in_pixels=False, CRS=detections.get_CRS())
+    return RegionDetections(
+        detection_geometries=None,
+        data=detections_df,
+        input_in_pixels=False,
+        CRS=detections.get_CRS(),
+    )
 
-def multi_region_hole_suppression(detections: RegionDetectionsSet, min_area_threshold: float = 20.0):
+
+def multi_region_hole_suppression(
+    detections: RegionDetectionsSet, min_area_threshold: float = 20.0
+):
     """Suppress polygon holes in a RegionDetectionsSet object.
 
     Args:
@@ -210,7 +221,7 @@ def multi_region_hole_suppression(detections: RegionDetectionsSet, min_area_thre
             Set of detections from a multiple regions that need suppression of polygon holes.
         min_area_threshold(float):
             Remove holes within the polygons that have area smaller than this value.
-    
+
     Returns:
         RegionDetectionsSet:
             Set of detections after suppressing polygon holes.
@@ -218,12 +229,11 @@ def multi_region_hole_suppression(detections: RegionDetectionsSet, min_area_thre
     # Perform single_region_hole_suppression for every region within the RegionDetectionsSet
     return RegionDetectionsSet(
         [
-            single_region_hole_suppression(
-                region_detections, min_area_threshold
-            )
+            single_region_hole_suppression(region_detections, min_area_threshold)
             for region_detections in detections.region_detections
         ]
     )
+
 
 def merge_and_postprocess_detections(
     detections: RegionDetectionsSet,
