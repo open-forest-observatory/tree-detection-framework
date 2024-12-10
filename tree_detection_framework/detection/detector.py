@@ -283,6 +283,7 @@ class GeometricDetector(Detector):
         min_ht: int = 5,
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
+        confidence_factor: str = "height"
     ):
         self.a = a
         self.b = b
@@ -291,9 +292,25 @@ class GeometricDetector(Detector):
         self.min_ht = min_ht
         self.radius_factor = radius_factor
         self.threshold_factor = threshold_factor
+        self.confidence_factor = confidence_factor
 
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
+
+    def calculate_scores(self, tile_gdf):
+        if self.confidence_factor not in ['height', 'area', 'distance', 'all']:
+            raise ValueError("Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`")
+        
+        if self.confidence_factor == 'height':
+            # Normalize the heights to a range between 0 and 1
+            max_height = tile_gdf['treetop_height'].max()
+            min_height = tile_gdf['treetop_height'].min()
+
+            confidence_scores = (
+                (tile_gdf['treetop_height'] - min_height) / (max_height - min_height)
+            )
+            return list(confidence_scores)
+        
 
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates based on a treetop window function.
@@ -435,8 +452,9 @@ class GeometricDetector(Detector):
             .intersection(gpd.GeoSeries(tile_gdf["circle"]))
             .intersection(gpd.GeoSeries(tile_gdf["multipolygon_mask"]))
         )
-
-        return list(tile_gdf["tree_crown"])
+        final_tree_crowns = list(tile_gdf["tree_crown"])
+        confidence_scores = self.calculate_scores(tile_gdf)
+        return final_tree_crowns, confidence_scores
 
     def predict_batch(self, batch):
         """Generate predictions for a batch of samples
@@ -454,18 +472,19 @@ class GeometricDetector(Detector):
         """
         # List to store every image's detections
         batch_detections = []
+        batch_detections_data = []
         for image in batch["image"]:
             image = image.squeeze()
             # Set NaN values to zero
             image = np.nan_to_num(image)
 
             treetop_pixel_coords, treetop_heights = self.get_treetops(image)
-            polygons = self.get_tree_crowns(
+            final_tree_crowns, confidence_scores = self.get_tree_crowns(
                 image, treetop_pixel_coords, treetop_heights
             )
-            batch_detections.append(polygons)  # List[List[shapely.geometry]]
-
-        return batch_detections, None
+            batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
+            batch_detections_data.append({"score": confidence_scores})
+        return batch_detections, batch_detections_data
 
 
 class LightningDetector(Detector):
