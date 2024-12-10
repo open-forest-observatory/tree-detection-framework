@@ -283,7 +283,7 @@ class GeometricDetector(Detector):
         min_ht: int = 5,
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
-        confidence_factor: str = "height"
+        confidence_factor: str = "height",
     ):
         self.a = a
         self.b = b
@@ -298,19 +298,20 @@ class GeometricDetector(Detector):
     # as opposed to applying the mask to the whole tile CHM for each tree
 
     def calculate_scores(self, tile_gdf):
-        if self.confidence_factor not in ['height', 'area', 'distance', 'all']:
-            raise ValueError("Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`")
-        
-        if self.confidence_factor == 'height':
-            # Normalize the heights to a range between 0 and 1
-            max_height = tile_gdf['treetop_height'].max()
-            min_height = tile_gdf['treetop_height'].min()
+        if self.confidence_factor not in ["height", "area", "distance", "all"]:
+            raise ValueError(
+                "Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`"
+            )
 
-            confidence_scores = (
-                (tile_gdf['treetop_height'] - min_height) / (max_height - min_height)
+        if self.confidence_factor == "height":
+            # Normalize the heights to a range between 0 and 1
+            max_height = tile_gdf["treetop_height"].max()
+            min_height = tile_gdf["treetop_height"].min()
+
+            confidence_scores = (tile_gdf["treetop_height"] - min_height) / (
+                max_height - min_height
             )
             return list(confidence_scores)
-        
 
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates based on a treetop window function.
