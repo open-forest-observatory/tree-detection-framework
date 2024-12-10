@@ -203,6 +203,7 @@ def single_region_hole_suppression(
     # Set this list as the geometry column in the dataframe
     detections_df.geometry = modified_geometries
     # Return a new RegionDetections object created using the updated dataframe
+    # TODO: Handle cases where the data is in pixels with no transform to geospatial
     return RegionDetections(
         detection_geometries=None,
         data=detections_df,
@@ -237,7 +238,6 @@ def multi_region_hole_suppression(
 
 def merge_and_postprocess_detections(
     detections: RegionDetectionsSet,
-    crs: Optional[pyproj.CRS] = None,
     tolerance: Optional[float] = 0.2,
     min_area_threshold: Optional[float] = 20.0,
 ) -> RegionDetections:
@@ -250,8 +250,6 @@ def merge_and_postprocess_detections(
     Args:
         detections(RegionDetectionsSet):
             Detections from multiple regions to postprocess.
-        crs (Optional[pyproj.CRS], optional):
-            What CRS to use. Defaults to None.
         tolerance (Optional[float], optional):
             A value that controls the simplification of the detection polygons.
             The higher this value, the smaller the number of vertices in the resulting geometry.
@@ -283,12 +281,12 @@ def merge_and_postprocess_detections(
     # To remove small holes within polygons
     new_polygons = []
     for polygon in filtered_geoms:
-        new_polygon = polygon_hole_suppression(polygon)
+        new_polygon = polygon_hole_suppression(polygon, min_area_threshold)
         new_polygons.append(new_polygon)
 
     # Create a RegionDetections for the merged and postprocessed detections
     postprocessed_detections = RegionDetections(
-        new_polygons, CRS=crs, input_in_pixels=False
+        new_polygons, input_in_pixels=False
     )
 
     return postprocessed_detections

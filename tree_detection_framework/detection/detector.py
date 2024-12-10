@@ -17,7 +17,7 @@ from detectron2.data import MetadataCatalog
 from detectron2.modeling import build_model
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
-from shapely.geometry import MultiPoint, MultiPolygon, Point, Polygon
+from shapely.geometry import MultiPoint, MultiPolygon, Point, Polygon, GeometryCollection
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -74,7 +74,6 @@ class Detector:
             batch_image_bounds = self.get_image_bounds_as_shapely(batch)
             batch_geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
             CRS = self.get_CRS_from_batch(batch)
-            CRS = CRS.to_epsg()
 
             # Iterate over samples in the batch so we can yield them one at a time
             for preds_geometry, preds_data, image_bounds, geospatial_bounds in zip(
@@ -194,6 +193,7 @@ class Detector:
         # Assume that the CRS is the same across all elements in the batch
         CRS = batch["crs"][0]
         # Get the CRS EPSG value and convert it to a pyproj object
+        # This is to avoid relying on WKT strings which are more likely to be invalid
         CRS = pyproj.CRS(CRS.to_epsg())
         if CRS.to_epsg() is None:
             raise ValueError(f"Invalid CRS. Found CRS = {CRS.to_epsg()}")
@@ -297,7 +297,7 @@ class GeometricDetector(Detector):
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
 
-    def calculate_scores(self, tile_gdf):
+    def calculate_scores(self, tile_gdf: gpd.GeoDataFrame):
         if self.confidence_factor not in ["height", "area", "distance", "all"]:
             raise ValueError(
                 "Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`"
@@ -372,7 +372,7 @@ class GeometricDetector(Detector):
         image: np.ndarray,
         all_treetop_pixel_coords: List[Point],
         all_treetop_heights: List[float],
-    ) -> List[shapely.MultiPolygon]:
+    ) -> Tuple[List[shapely.Polygon], List[float]]:
         """Generate tree crowns for an image.
 
         Args:
@@ -381,7 +381,9 @@ class GeometricDetector(Detector):
             all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
 
         Returns:
-            List[shapely.MultiPolygon]: Detected tree crowns as shapely polygons
+            filtered_crowns (List[shapely.Polygon]): Detected tree crowns as shapely polygons/multipolygons
+            confidence_scores (List[float]): Pseudo-confidence scores for the detections
+
         """
 
         # Get Voronoi Diagram from the calculated treetop points
@@ -453,9 +455,32 @@ class GeometricDetector(Detector):
             .intersection(gpd.GeoSeries(tile_gdf["circle"]))
             .intersection(gpd.GeoSeries(tile_gdf["multipolygon_mask"]))
         )
-        final_tree_crowns = list(tile_gdf["tree_crown"])
+        # Remove all empty polygons if any
+        tile_gdf = tile_gdf[tile_gdf['tree_crown'].area > 0.5]
+
+        # Cast all `GeometryCollection` objects as `MultiPolygon`
+        filtered_crowns = []
+        for tree_crown in list(tile_gdf["tree_crown"]):
+            # If tree_crown is of type Polygon or MultiPolygon, retain it as it is
+            if isinstance(tree_crown, (Polygon, MultiPolygon)):
+                filtered_crowns.append(tree_crown)
+            # If it is of type GeometryCollection, filter out just the Polygons from it
+            elif isinstance(tree_crown, GeometryCollection):
+                # Initialize a list to add all the Polygons
+                multipolygon = []
+                for polygon in list(tree_crown.geoms):
+                    # Note that any LineString/Point/MultiPoint objects get ignored. MultiPolygon is rarely found.
+                    if isinstance(polygon, Polygon):
+                        multipolygon.append(polygon)
+                # Finally create an equivalent MultiPolygon object for the GeometryCollection
+                filtered_crowns.append(MultiPolygon(multipolygon))
+
+        # Update the 'tree_crown' column
+        tile_gdf['tree_crown'] = filtered_crowns
+
+        # Calculate pseudo-confidence scores for the detections
         confidence_scores = self.calculate_scores(tile_gdf)
-        return final_tree_crowns, confidence_scores
+        return filtered_crowns, confidence_scores
 
     def predict_batch(self, batch):
         """Generate predictions for a batch of samples
