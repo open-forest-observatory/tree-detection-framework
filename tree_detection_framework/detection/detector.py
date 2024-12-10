@@ -19,6 +19,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from shapely.geometry import MultiPoint, MultiPolygon, Point, Polygon, GeometryCollection
 from torch.utils.data import DataLoader
+from torchgeo.datasets.utils import BoundingBox
 from tqdm import tqdm
 
 from tree_detection_framework.constants import PATH_TYPE
@@ -297,7 +298,21 @@ class GeometricDetector(Detector):
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
 
-    def calculate_scores(self, tile_gdf: gpd.GeoDataFrame):
+    def calculate_scores(self, tile_gdf: gpd.GeoDataFrame, bounds: BoundingBox) -> List[float]:
+        """ Calculate pseudo-confidence scores for the detections based on the following features of the tree crown:
+
+            1. Height - Taller trees are generally more easier to detect, making their confidence higher
+            2. Area - Larger tree crowns are easier to detect, hence less likely to be false positives
+            3. Distance - Trees near the edge of a tile might have incomplete data, reducing confidence
+            4. All - An option to compute a weighted combination of all factors as the confidence score
+
+        Args:
+            tile_gdf (gpd.GeoDataFrame): A geopandas dataframe with 'treetop_height' and 'tree_crown' columns
+            bounds (BoundingBox): Bounds of the tile in geospatial coordinates
+
+        Returns:
+            List[float]: Calculated confidence scores.
+        """
         if self.confidence_factor not in ["height", "area", "distance", "all"]:
             raise ValueError(
                 "Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`"
@@ -311,7 +326,43 @@ class GeometricDetector(Detector):
             confidence_scores = (tile_gdf["treetop_height"] - min_height) / (
                 max_height - min_height
             )
-            return list(confidence_scores)
+
+        elif self.confidence_factor == "area":
+            # Normalize the areas to a range between 0 and 1
+            max_area = tile_gdf["tree_crown"].apply(lambda geom: geom.area).max()
+            min_area = tile_gdf["tree_crown"].apply(lambda geom: geom.area).min()
+
+            confidence_scores = tile_gdf["tree_crown"].apply(lambda geom: (geom.area - min_area) / (max_area - min_area))
+
+        elif self.confidence_factor == "distance":
+            # Calculate the centroid of each tree crown
+            tile_gdf["centroid"] = tile_gdf["tree_crown"].apply(lambda geom: geom.centroid)
+            
+            # Calculate distances to the closest edge for each centroid
+            def calculate_edge_distance(centroid):
+                x, y = centroid.x, centroid.y
+                distances = [
+                    x - bounds.minx,  # left edge
+                    bounds.maxx - x,  # right edge
+                    y - bounds.miny,  # bottom edge
+                    bounds.maxy - y   # top edge
+                ]
+                # Return the distance to the closest edge
+                return min(distances)
+
+            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(calculate_edge_distance)
+            
+            # Normalize the distances to a range between 0 and 1
+            max_distance = tile_gdf["edge_distance"].max()
+            min_distance = tile_gdf["edge_distance"].min()
+            confidence_scores = (tile_gdf["edge_distance"] - min_distance) / (
+                max_distance - min_distance
+            )
+            
+        elif self.confidence_factor == "all":
+            raise NotImplementedError()
+
+        return list(confidence_scores)
 
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates based on a treetop window function.
@@ -370,6 +421,7 @@ class GeometricDetector(Detector):
     def get_tree_crowns(
         self,
         image: np.ndarray,
+        bounds: BoundingBox,
         all_treetop_pixel_coords: List[Point],
         all_treetop_heights: List[float],
     ) -> Tuple[List[shapely.Polygon], List[float]]:
@@ -377,6 +429,7 @@ class GeometricDetector(Detector):
 
         Args:
             image (np.ndarray): A single channel CHM image
+            bounds (BoundingBox): Bounds of the tile in geospatial coordinates
             all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
             all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
 
@@ -479,7 +532,7 @@ class GeometricDetector(Detector):
         tile_gdf['tree_crown'] = filtered_crowns
 
         # Calculate pseudo-confidence scores for the detections
-        confidence_scores = self.calculate_scores(tile_gdf)
+        confidence_scores = self.calculate_scores(tile_gdf, bounds)
         return filtered_crowns, confidence_scores
 
     def predict_batch(self, batch):
@@ -499,14 +552,14 @@ class GeometricDetector(Detector):
         # List to store every image's detections
         batch_detections = []
         batch_detections_data = []
-        for image in batch["image"]:
+        for image, bounds in zip(batch["image"], batch['bounds']):
             image = image.squeeze()
             # Set NaN values to zero
             image = np.nan_to_num(image)
 
             treetop_pixel_coords, treetop_heights = self.get_treetops(image)
             final_tree_crowns, confidence_scores = self.get_tree_crowns(
-                image, treetop_pixel_coords, treetop_heights
+                image, bounds, treetop_pixel_coords, treetop_heights
             )
             batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
             batch_detections_data.append({"score": confidence_scores})
