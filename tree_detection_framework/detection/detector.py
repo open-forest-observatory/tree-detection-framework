@@ -17,7 +17,13 @@ from detectron2.data import MetadataCatalog
 from detectron2.modeling import build_model
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
-from shapely.geometry import MultiPoint, MultiPolygon, Point, Polygon, GeometryCollection
+from shapely.geometry import (
+    GeometryCollection,
+    MultiPoint,
+    MultiPolygon,
+    Point,
+    Polygon,
+)
 from torch.utils.data import DataLoader
 from torchgeo.datasets.utils import BoundingBox
 from tqdm import tqdm
