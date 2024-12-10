@@ -1,7 +1,11 @@
 import logging
+from typing import Optional
 
 import numpy as np
+import pyproj
 from polygone_nms import nms
+from shapely.geometry import MultiPolygon, Polygon
+from shapely.ops import unary_union
 
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
@@ -132,3 +136,155 @@ def multi_region_NMS(
     )
 
     return NMS_suppressed_merged_detections
+
+
+def polygon_hole_suppression(polygon: Polygon, min_area_threshold: float = 20.0):
+    """To remove holes within a polygon
+
+    Args:
+        polygon(shapely.Polygon):
+            A shapely polygon object
+        min_area_threshold(float):
+            Remove holes within the polygons that have area smaller than this value
+
+    Returns:
+        shapely.Polygon:
+            The equivalent polygon created after suppressing the holes
+    """
+    list_interiors = []
+    # Iterate through interiors list which includes the holes
+    for interior in polygon.interiors:
+        interior_polygon = Polygon(interior)
+        # If area of the hole is greater than the threshold, include it in the final output
+        if interior_polygon.area > min_area_threshold:
+            list_interiors.append(interior)
+
+    # Return a new polygon with holes suppressed
+    return Polygon(polygon.exterior.coords, holes=list_interiors)
+
+
+def single_region_hole_suppression(
+    detections: RegionDetections, min_area_threshold: float = 20.0
+):
+    """Suppress polygon holes in a RegionDetections object.
+
+    Args:
+        detections (RegionDetections):
+            Detections from a single region that needs suppression of polygon holes.
+        min_area_threshold(float):
+            Remove holes within the polygons that have area smaller than this value.
+
+    Returns:
+        RegionDetections:
+            Detections after suppressing polygon holes.
+    """
+    detections_df = detections.get_data_frame()
+    modified_geometries = []
+
+    for tree_crown in detections_df.geometry.to_list():
+        # If tree_crown is a Polygon, directly do polygon hole suppression
+        if isinstance(tree_crown, Polygon):
+            clean_tree_crown = polygon_hole_suppression(tree_crown, min_area_threshold)
+        # If it is a MultiPolygon, do polygon hole suppression for each polygon within it
+        elif isinstance(tree_crown, MultiPolygon):
+            clean_polygons = []
+            for polygon in tree_crown.geoms:
+                clean_polygon = polygon_hole_suppression(polygon, min_area_threshold)
+                clean_polygons.append(clean_polygon)
+            # Create a new MultiPolygon with the suppressed polygons
+            clean_tree_crown = MultiPolygon(clean_polygons)
+        # For any other cases, create an empty polygon (just to be safe)
+        else:
+            clean_tree_crown = Polygon()
+
+        # Add the cleaned polygon/multipolygon to a list
+        modified_geometries.append(clean_tree_crown)
+
+    # Set this list as the geometry column in the dataframe
+    detections_df.geometry = modified_geometries
+    # Return a new RegionDetections object created using the updated dataframe
+    # TODO: Handle cases where the data is in pixels with no transform to geospatial
+    return RegionDetections(
+        detection_geometries=None,
+        data=detections_df,
+        input_in_pixels=False,
+        CRS=detections.get_CRS(),
+    )
+
+
+def multi_region_hole_suppression(
+    detections: RegionDetectionsSet, min_area_threshold: float = 20.0
+):
+    """Suppress polygon holes in a RegionDetectionsSet object.
+
+    Args:
+        detections (RegionDetectionsSet):
+            Set of detections from a multiple regions that need suppression of polygon holes.
+        min_area_threshold(float):
+            Remove holes within the polygons that have area smaller than this value.
+
+    Returns:
+        RegionDetectionsSet:
+            Set of detections after suppressing polygon holes.
+    """
+    # Perform single_region_hole_suppression for every region within the RegionDetectionsSet
+    return RegionDetectionsSet(
+        [
+            single_region_hole_suppression(region_detections, min_area_threshold)
+            for region_detections in detections.region_detections
+        ]
+    )
+
+
+def merge_and_postprocess_detections(
+    detections: RegionDetectionsSet,
+    tolerance: Optional[float] = 0.2,
+    min_area_threshold: Optional[float] = 20.0,
+) -> RegionDetections:
+    """Apply postprocessing techniques that include:
+    1. Get a union of polygons that have been split across tiles
+    2. Simplify the edges of polygons by `tolerance` value
+    3. Remove holes within the polygons that are smaller than `min_area_theshold` value
+    Merges regions into a single RegionDetections.
+
+    Args:
+        detections(RegionDetectionsSet):
+            Detections from multiple regions to postprocess.
+        tolerance (Optional[float], optional):
+            A value that controls the simplification of the detection polygons.
+            The higher this value, the smaller the number of vertices in the resulting geometry.
+        min_area_threshold (Optional[float], optional):
+            Holes within polygons having an area lesser than this value get removed.
+
+    Returns:
+        RegionDetections:
+            Postprocessed set of detections, merged together for the set of regions.
+    """
+    # Get the detections as a merged GeoDataFrame
+    all_detections_gdf = detections.get_data_frame(merge=True)
+
+    # Apply a small negative buffer to shrink polygons slightly
+    buffered_geoms = [geom.buffer(-0.001) for geom in all_detections_gdf.geometry]
+
+    # Compute the union of the set of polyogns. This step removes any vertical lines caused by the tile edges
+    # and combines a single polygon that might have been split into multiple. Also removes any overlaps.
+    union_detections = unary_union(buffered_geoms)
+
+    # Simplify the polygons by tolerance value and extract only Polygons and MultiPolygons
+    # since `union_detections` can have Point objects as well
+    filtered_geoms = [
+        geom.simplify(tolerance)
+        for geom in list(union_detections.geoms)
+        if isinstance(geom, (Polygon, MultiPolygon))
+    ]
+
+    # To remove small holes within polygons
+    new_polygons = []
+    for polygon in filtered_geoms:
+        new_polygon = polygon_hole_suppression(polygon, min_area_threshold)
+        new_polygons.append(new_polygon)
+
+    # Create a RegionDetections for the merged and postprocessed detections
+    postprocessed_detections = RegionDetections(new_polygons, input_in_pixels=False)
+
+    return postprocessed_detections
