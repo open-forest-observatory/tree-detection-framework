@@ -304,8 +304,10 @@ class GeometricDetector(Detector):
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
 
-    def calculate_scores(self, tile_gdf: gpd.GeoDataFrame, bounds: BoundingBox) -> List[float]:
-        """ Calculate pseudo-confidence scores for the detections based on the following features of the tree crown:
+    def calculate_scores(
+        self, tile_gdf: gpd.GeoDataFrame, bounds: BoundingBox
+    ) -> List[float]:
+        """Calculate pseudo-confidence scores for the detections based on the following features of the tree crown:
 
             1. Height - Taller trees are generally more easier to detect, making their confidence higher
             2. Area - Larger tree crowns are easier to detect, hence less likely to be false positives
@@ -338,12 +340,16 @@ class GeometricDetector(Detector):
             max_area = tile_gdf["tree_crown"].apply(lambda geom: geom.area).max()
             min_area = tile_gdf["tree_crown"].apply(lambda geom: geom.area).min()
 
-            confidence_scores = tile_gdf["tree_crown"].apply(lambda geom: (geom.area - min_area) / (max_area - min_area))
+            confidence_scores = tile_gdf["tree_crown"].apply(
+                lambda geom: (geom.area - min_area) / (max_area - min_area)
+            )
 
         elif self.confidence_factor == "distance":
             # Calculate the centroid of each tree crown
-            tile_gdf["centroid"] = tile_gdf["tree_crown"].apply(lambda geom: geom.centroid)
-            
+            tile_gdf["centroid"] = tile_gdf["tree_crown"].apply(
+                lambda geom: geom.centroid
+            )
+
             # Calculate distances to the closest edge for each centroid
             def calculate_edge_distance(centroid):
                 x, y = centroid.x, centroid.y
@@ -351,20 +357,22 @@ class GeometricDetector(Detector):
                     x - bounds.minx,  # left edge
                     bounds.maxx - x,  # right edge
                     y - bounds.miny,  # bottom edge
-                    bounds.maxy - y   # top edge
+                    bounds.maxy - y,  # top edge
                 ]
                 # Return the distance to the closest edge
                 return min(distances)
 
-            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(calculate_edge_distance)
-            
+            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(
+                calculate_edge_distance
+            )
+
             # Normalize the distances to a range between 0 and 1
             max_distance = tile_gdf["edge_distance"].max()
             min_distance = tile_gdf["edge_distance"].min()
             confidence_scores = (tile_gdf["edge_distance"] - min_distance) / (
                 max_distance - min_distance
             )
-            
+
         elif self.confidence_factor == "all":
             raise NotImplementedError()
 
@@ -515,7 +523,7 @@ class GeometricDetector(Detector):
             .intersection(gpd.GeoSeries(tile_gdf["multipolygon_mask"]))
         )
         # Remove all empty polygons if any
-        tile_gdf = tile_gdf[tile_gdf['tree_crown'].area > 0.5]
+        tile_gdf = tile_gdf[tile_gdf["tree_crown"].area > 0.5]
 
         # Cast all `GeometryCollection` objects as `MultiPolygon`
         filtered_crowns = []
@@ -535,7 +543,7 @@ class GeometricDetector(Detector):
                 filtered_crowns.append(MultiPolygon(multipolygon))
 
         # Update the 'tree_crown' column
-        tile_gdf['tree_crown'] = filtered_crowns
+        tile_gdf["tree_crown"] = filtered_crowns
 
         # Calculate pseudo-confidence scores for the detections
         confidence_scores = self.calculate_scores(tile_gdf, bounds)
@@ -558,7 +566,7 @@ class GeometricDetector(Detector):
         # List to store every image's detections
         batch_detections = []
         batch_detections_data = []
-        for image, bounds in zip(batch["image"], batch['bounds']):
+        for image, bounds in zip(batch["image"], batch["bounds"]):
             image = image.squeeze()
             # Set NaN values to zero
             image = np.nan_to_num(image)

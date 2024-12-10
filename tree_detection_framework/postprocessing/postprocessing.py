@@ -285,8 +285,6 @@ def merge_and_postprocess_detections(
         new_polygons.append(new_polygon)
 
     # Create a RegionDetections for the merged and postprocessed detections
-    postprocessed_detections = RegionDetections(
-        new_polygons, input_in_pixels=False
-    )
+    postprocessed_detections = RegionDetections(new_polygons, input_in_pixels=False)
 
     return postprocessed_detections
