@@ -468,6 +468,17 @@ class RegionDetectionsSet:
 
         return CRS
 
+    def get_region_detections(self, index: int) -> RegionDetections:
+        """Get a single region detections object by index
+
+        Args:
+            index (int): Which one to select
+
+        Returns:
+            RegionDetections: The RegionDetections object from the list of objects in the set
+        """
+        return self.region_detections[index]
+
     def merge(
         self,
         region_ID_key: Optional[str] = "region_ID",
