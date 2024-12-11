@@ -305,7 +305,7 @@ class GeometricDetector(Detector):
     # as opposed to applying the mask to the whole tile CHM for each tree
 
     def calculate_scores(
-        self, tile_gdf: gpd.GeoDataFrame, bounds: BoundingBox
+        self, tile_gdf: gpd.GeoDataFrame, image_shape: tuple
     ) -> List[float]:
         """Calculate pseudo-confidence scores for the detections based on the following features of the tree crown:
 
@@ -316,7 +316,7 @@ class GeometricDetector(Detector):
 
         Args:
             tile_gdf (gpd.GeoDataFrame): A geopandas dataframe with 'treetop_height' and 'tree_crown' columns
-            bounds (BoundingBox): Bounds of the tile in geospatial coordinates
+            image_shape (tuple): The (i, j, channel) shape of the image that predictions were generated from
 
         Returns:
             List[float]: Calculated confidence scores.
@@ -354,10 +354,10 @@ class GeometricDetector(Detector):
             def calculate_edge_distance(centroid):
                 x, y = centroid.x, centroid.y
                 distances = [
-                    x - bounds.minx,  # left edge
-                    bounds.maxx - x,  # right edge
-                    y - bounds.miny,  # bottom edge
-                    bounds.maxy - y,  # top edge
+                    x,  # left edge
+                    image_shape[1] - x,  # right edge
+                    y,  # bottom edge
+                    image_shape[0] - y,  # top edge
                 ]
                 # Return the distance to the closest edge
                 return min(distances)
@@ -546,7 +546,7 @@ class GeometricDetector(Detector):
         tile_gdf["tree_crown"] = filtered_crowns
 
         # Calculate pseudo-confidence scores for the detections
-        confidence_scores = self.calculate_scores(tile_gdf, bounds)
+        confidence_scores = self.calculate_scores(tile_gdf, image.shape)
         return filtered_crowns, confidence_scores
 
     def predict_batch(self, batch):
