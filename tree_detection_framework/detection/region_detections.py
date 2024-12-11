@@ -16,6 +16,88 @@ from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.utils.raster import show_raster
 
 
+def plot_detections(
+    data_frame: gpd.GeoDataFrame,
+    bounds: gpd.GeoSeries,
+    CRS: Optional[pyproj.CRS] = None,
+    plt_ax: Optional[plt.axes] = None,
+    plt_show: bool = True,
+    visualization_column: Optional[str] = None,
+    bounds_color: Optional[Union[str, np.array, pd.Series]] = None,
+    detection_kwargs: dict = {},
+    bounds_kwargs: dict = {},
+    raster_file: Optional[PATH_TYPE] = None,
+    raster_vis_downsample: float = 10.0,
+) -> plt.axes:
+    """Plot the detections and the bounds of the region
+
+    Args:
+        data_frame: (gpd.GeoDataFrame):
+            The data representing the detections
+        bounds: (gpd.GeoSeries):
+            The spatial bounds of the predicted region
+        CRS (Optional[pyproj.CRS], optional):
+            What CRS to use. Defaults to None.
+        as_pixels (bool, optional):
+            Whether to display in pixel coordinates. Defaults to False.
+        plt_ax (Optional[plt.axes], optional):
+            A pyplot axes to plot on. If not provided, one will be created. Defaults to None.
+        plt_show (bool, optional):
+            Whether to plot the result or just return it. Defaults to True.
+        visualization_column (Optional[str], optional):
+            Which column to visualize from the detections dataframe. Defaults to None.
+        bounds_color (Optional[Union[str, np.array, pd.Series]], optional):
+            The color to plot the bounds. Must be accepted by the gpd.plot color argument.
+            Defaults to None.
+        detection_kwargs (dict, optional):
+            Additional keyword arguments to pass to the .plot method for the detections.
+            Defaults to {}.
+        bounds_kwargs (dict, optional):
+            Additional keyword arguments to pass to the .plot method for the bounds.
+            Defaults to {}.
+        raster_file (Optional[PATH_TYPE], optional):
+            A path to a raster file to visualize the detections over if provided. Defaults to None.
+        raster_vis_downsample (float, optional):
+            The raster file is downsampled by this fraction before visualization to avoid
+            excessive memory use or plotting time. Defaults to 10.0.
+
+    Returns:
+        plt.axes: The axes that were plotted on
+    """
+
+    # If no axes are provided, create new ones
+    if plt_ax is None:
+        _, plt_ax = plt.subplots()
+
+    # Show the raster if provided
+    if raster_file is not None:
+        show_raster(
+            raster_file_path=raster_file,
+            downsample_factor=raster_vis_downsample,
+            plt_ax=plt_ax,
+            CRS=CRS,
+        )
+
+    # Plot the detections dataframe and the bounds on the same axes
+    if "facecolor" not in detection_kwargs:
+        # Plot with transperent faces unless requested
+        detection_kwargs["facecolor"] = "none"
+
+    data_frame.plot(
+        ax=plt_ax, column=visualization_column, **detection_kwargs, legend=True
+    )
+    # Use the .boundary attribute to plot just the border. This works since it's a geoseries,
+    # not a geodataframe
+    bounds.boundary.plot(ax=plt_ax, color=bounds_color, **bounds_kwargs)
+
+    # Show if requested
+    if plt_show:
+        plt.show()
+
+    # Return the axes in case they need to be used later
+    return plt_ax
+
+
 class RegionDetections:
     detections: gpd.GeoDataFrame
     pixel_to_CRS_transform: rasterio.transform.AffineTransformer
@@ -322,37 +404,20 @@ class RegionDetections:
         data_frame = self.get_data_frame(CRS=CRS, as_pixels=as_pixels)
         bounds = self.get_bounds(CRS, as_pixels=as_pixels)
 
-        # If no axes are provided, create new ones
-        if plt_ax is None:
-            _, plt_ax = plt.subplots()
-
-        # Show the raster if provided
-        if raster_file is not None:
-            show_raster(
-                raster_file_path=raster_file,
-                downsample_factor=raster_vis_downsample,
-                plt_ax=plt_ax,
-                CRS=self.get_CRS(),
-            )
-
-        # Plot the detections dataframe and the bounds on the same axes
-        if "facecolor" not in detection_kwargs:
-            # Plot with transperent faces unless requested
-            detection_kwargs["facecolor"] = "none"
-
-        data_frame.plot(
-            ax=plt_ax, column=visualization_column, **detection_kwargs, legend=True
+        # Perform plotting and return the axes
+        plot_detections(
+            data_frame=data_frame,
+            bounds=bounds,
+            CRS=data_frame.crs,
+            plt_ax=plt_ax,
+            plt_show=plt_show,
+            visualization_column=visualization_column,
+            detection_kwargs=detection_kwargs,
+            bounds_kwargs=bounds_kwargs,
+            raster_file=raster_file,
+            raster_vis_downsample=raster_vis_downsample,
+            bounds_color=bounds_color,
         )
-        # Use the .boundary attribute to plot just the border. This works since it's a geoseries,
-        # not a geodataframe
-        bounds.boundary.plot(ax=plt_ax, color=bounds_color, **bounds_kwargs)
-
-        # Show if requested
-        if plt_show:
-            plt.show()
-
-        # Return the axes in case they need to be used later
-        return plt_ax
 
 
 class RegionDetectionsSet:
@@ -626,41 +691,21 @@ class RegionDetectionsSet:
         Returns:
             plt.axes: The axes that have been plotted on.
         """
-        # If no axes are provided, create a new one that will be shared across all plots
-        if plt_ax is None:
-            _, plt_ax = plt.subplots()
-
-        # If no CRS is provided, select the default one
-        if CRS is None:
-            CRS = self.get_default_CRS()
-
-        # Show the raster if provided
-        if raster_file is not None:
-            show_raster(
-                raster_file_path=raster_file,
-                downsample_factor=raster_vis_downsample,
-                plt_ax=plt_ax,
-                CRS=CRS,
-            )
-
         # Extract the bounds for each of the sub-regions
         bounds = self.get_bounds(CRS=CRS, union_bounds=False)
-        # Plot the bounds
-        bounds.boundary.plot(ax=plt_ax, color=bounds_color, **bounds_kwargs)
-
-        # Plot with transperent faces unless requested
-        if "facecolor" not in detection_kwargs:
-            detection_kwargs["facecolor"] = "none"
-
-        # Extract the data from all sub-regions
         data_frame = self.get_data_frame(CRS=CRS, merge=True)
-        # Plot the data for each of the sub-regions unioned together
-        data_frame.plot(
-            ax=plt_ax, column=visualization_column, **detection_kwargs, legend=True
+
+        # Perform plotting and return the axes
+        return plot_detections(
+            data_frame=data_frame,
+            bounds=bounds,
+            CRS=data_frame.crs,
+            plt_ax=plt_ax,
+            plt_show=plt_show,
+            visualization_column=visualization_column,
+            bounds_color=bounds_color,
+            detection_kwargs=detection_kwargs,
+            bounds_kwargs=bounds_kwargs,
+            raster_file=raster_file,
+            raster_vis_downsample=raster_vis_downsample,
         )
-
-        # Show all regions if requested
-        if plt_show:
-            plt.show()
-
-        return plt_ax
