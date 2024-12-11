@@ -339,7 +339,10 @@ class RegionDetections:
         if "facecolor" not in detection_kwargs:
             # Plot with transperent faces unless requested
             detection_kwargs["facecolor"] = "none"
-        data_frame.plot(ax=plt_ax, column=visualization_column, **detection_kwargs)
+
+        data_frame.plot(
+            ax=plt_ax, column=visualization_column, **detection_kwargs, legend=True
+        )
         # Use the .boundary attribute to plot just the border. This works since it's a geoseries,
         # not a geodataframe
         bounds.boundary.plot(ax=plt_ax, color=bounds_color, **bounds_kwargs)
@@ -588,7 +591,6 @@ class RegionDetectionsSet:
     def plot(
         self,
         CRS: Optional[pyproj.CRS] = None,
-        as_pixels: bool = False,
         plt_ax: Optional[plt.axes] = None,
         plt_show: bool = True,
         visualization_column: Optional[str] = None,
@@ -604,8 +606,6 @@ class RegionDetectionsSet:
             CRS (Optional[pyproj.CRS], optional):
                 The CRS to use for plotting all regions. If unset, the default one for this object
                 will be selected. Defaults to None.
-            as_pixels (bool, optional):
-                See RegionDetections.plot. Defaults to False.
             plt_ax (Optional[plt.axes], optional):
                 The axes to plot on. Will be created if not provided. Defaults to None.
             plt_show (bool, optional):
@@ -643,18 +643,21 @@ class RegionDetectionsSet:
                 CRS=CRS,
             )
 
-        # Iterate over each region and call the plot method of each
-        for rd in self.region_detections:
-            rd.plot(
-                CRS=CRS,
-                as_pixels=as_pixels,
-                plt_ax=plt_ax,
-                visualization_column=visualization_column,
-                bounds_color=bounds_color,
-                detection_kwargs=detection_kwargs,
-                bounds_kwargs=bounds_kwargs,
-                plt_show=False,  # don't show each one individually
-            )
+        # Extract the bounds for each of the sub-regions
+        bounds = self.get_bounds(CRS=CRS, union_bounds=False)
+        # Plot the bounds
+        bounds.boundary.plot(ax=plt_ax, color=bounds_color, **bounds_kwargs)
+
+        # Plot with transperent faces unless requested
+        if "facecolor" not in detection_kwargs:
+            detection_kwargs["facecolor"] = "none"
+
+        # Extract the data from all sub-regions
+        data_frame = self.get_data_frame(CRS=CRS, merge=True)
+        # Plot the data for each of the sub-regions unioned together
+        data_frame.plot(
+            ax=plt_ax, column=visualization_column, **detection_kwargs, legend=True
+        )
 
         # Show all regions if requested
         if plt_show:
