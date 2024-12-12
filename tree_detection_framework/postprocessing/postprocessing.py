@@ -42,7 +42,9 @@ def single_region_NMS(
     # Get rows that are both high confidence and not empty
     not_empty_mask = ~detections_df.geometry.is_empty
     high_conf_not_empty_inds = np.where(
-        ((detections_df[confidence_column] >= min_confidence) & not_empty_mask).to_numpy()
+        (
+            (detections_df[confidence_column] >= min_confidence) & not_empty_mask
+        ).to_numpy()
     )[0]
 
     # Filter detections based on minimum confidence score
