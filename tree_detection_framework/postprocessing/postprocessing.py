@@ -38,6 +38,9 @@ def single_region_NMS(
     # Extract the geodataframe for the detections
     detections_df = detections.get_data_frame()
 
+    # Remove all empty polygons if any
+    detections_df = detections_df[~detections_df.geometry.is_empty]
+
     # Determine which detections are high enough confidence to retain
     high_conf_inds = np.where(
         (detections_df[confidence_column] >= min_confidence).to_numpy()
@@ -285,6 +288,6 @@ def merge_and_postprocess_detections(
         new_polygons.append(new_polygon)
 
     # Create a RegionDetections for the merged and postprocessed detections
-    postprocessed_detections = RegionDetections(new_polygons, input_in_pixels=False)
+    postprocessed_detections = RegionDetections(new_polygons, input_in_pixels=False)  # add CRS from the df
 
     return postprocessed_detections
