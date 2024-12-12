@@ -38,16 +38,15 @@ def single_region_NMS(
     # Extract the geodataframe for the detections
     detections_df = detections.get_data_frame()
 
-    # Remove all empty polygons if any
-    detections_df = detections_df[~detections_df.geometry.is_empty]
-
     # Determine which detections are high enough confidence to retain
-    high_conf_inds = np.where(
-        (detections_df[confidence_column] >= min_confidence).to_numpy()
+    # Get rows that are both high confidence and not empty
+    not_empty_mask = ~detections_df.geometry.is_empty
+    high_conf_not_empty_inds = np.where(
+        ((detections_df[confidence_column] >= min_confidence) & not_empty_mask).to_numpy()
     )[0]
 
     # Filter detections based on minimum confidence score
-    detections_df = detections_df.iloc[high_conf_inds]
+    detections_df = detections_df.iloc[high_conf_not_empty_inds]
     if detections_df.empty:
         # Return empty if no detections pass threshold
         return detections.subset_detections([])
@@ -72,7 +71,7 @@ def single_region_NMS(
 
     # We only performed NMS on the high-confidence detections, but we need the indices w.r.t. the
     # original data with all detections. Sort for convenience so data is not permuted.
-    keep_inds_in_original = sorted(high_conf_inds[keep_inds])
+    keep_inds_in_original = sorted(high_conf_not_empty_inds[keep_inds])
     # Extract the detections that were kept
     subset_region_detections = detections.subset_detections(keep_inds_in_original)
 
