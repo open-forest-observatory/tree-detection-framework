@@ -38,6 +38,10 @@ def mask_to_shapely(mask: np.ndarray) -> shapely.MultiPolygon:
     # This generally follows the example here:
     # https://contourpy.readthedocs.io/en/v1.3.0/user_guide/external/shapely.html#filled-contours-to-shapely
 
+    # If mask is empty, return an empty Polygon
+    if not np.any(mask):
+        return shapely.Polygon()
+
     # Extract the contours and create a filled contour for the regions above 0.5
     filled = contour_generator(z=mask, fill_type="ChunkCombinedOffsetOffset").filled(
         0.5, np.inf
