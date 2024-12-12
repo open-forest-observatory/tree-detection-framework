@@ -288,6 +288,6 @@ def merge_and_postprocess_detections(
         new_polygons.append(new_polygon)
 
     # Create a RegionDetections for the merged and postprocessed detections
-    postprocessed_detections = RegionDetections(new_polygons, input_in_pixels=False)  # add CRS from the df
+    postprocessed_detections = RegionDetections(new_polygons, input_in_pixels=False, CRS=all_detections_gdf.crs)
 
     return postprocessed_detections
