@@ -1,5 +1,8 @@
 from typing import Any, Optional
+from collections import defaultdict
 
+from pathlib import Path
+from PIL import Image
 import fiona
 import fiona.transform
 import matplotlib.pyplot as plt
@@ -8,7 +11,8 @@ import rasterio
 import shapely.geometry
 import torch
 from shapely.affinity import affine_transform
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 from torchgeo.datamodules import GeoDataModule
 from torchgeo.datasets import (
     IntersectionDataset,
@@ -18,6 +22,8 @@ from torchgeo.datasets import (
 )
 from torchgeo.datasets.utils import BoundingBox, array_to_tensor
 from torchgeo.samplers import GridGeoSampler, Units
+
+from tree_detection_framework.constants import PATH_TYPE
 
 
 class CustomRasterDataset(RasterDataset):
@@ -176,6 +182,71 @@ class CustomVectorDataset(VectorDataset):
 
         return sample
 
+class CustomImageDataset(Dataset):
+    def __init__(
+        self,
+        folder_path: PATH_TYPE,
+        chip_size: float,
+        chip_stride: float,
+    ):
+        """
+        Dataset for creating a dataloader froma folder of individual images, with an option to create tiles.
+
+        Args:
+            folder_path (Path): Path to the folder containing image files.
+            chip_size (float): Dimension of each image chip (width, height) in pixels.
+            chip_stride (float): Stride to take while chipping the images (horizontal, vertical) in pixels.
+        """
+        self.folder_path = Path(folder_path)
+        self.chip_size = chip_size
+        self.chip_stride = chip_stride
+        self.image_paths = list(self.folder_path.glob("*.JPG")) + list(self.folder_path.glob("*.png"))
+
+        if not self.image_paths:
+            raise ValueError(f"No image files found in {self.folder_path}")
+
+        self.tile_metadata = self._get_metadata()
+
+    def _get_metadata(self):
+        metadata = []
+        for img_idx, img_path in enumerate(self.image_paths):
+            with Image.open(img_path) as img:
+                img_width, img_height = img.size
+                
+                # Generate tile coordinates
+                for y in range(0, img_height - self.chip_size + 1, self.chip_stride):
+                    for x in range(0, img_width - self.chip_size + 1, self.chip_stride):
+                        metadata.append((img_idx, img_path, x, y))
+        return metadata
+
+    def __len__(self):
+        return len(self.tile_metadata)
+
+    def __getitem__(self, idx):
+        img_idx, img_path, x, y = self.tile_metadata[idx]
+        with Image.open(img_path) as img:
+            img = img.convert("RGB")
+            tile = img.crop((x, y, x + self.chip_size, y + self.chip_size))
+
+            if not isinstance(tile, torch.Tensor):
+                tile = transforms.ToTensor()(tile)
+
+        return {
+            "image": tile,
+            "metadata": {
+                "image_index": img_idx,
+                "source_image": str(img_path),
+                "tile_coords": (x, y),
+            },
+        }
+    
+    @staticmethod
+    def collate_as_defaultdict(batch):
+        # Stack images from batch into a single tensor
+        images = torch.stack([item["image"] for item in batch])
+        # Collect metadata as a list
+        metadata = [item["metadata"] for item in batch]
+        return defaultdict(lambda: None, {"image": images, "metadata": metadata})
 
 class CustomDataModule(GeoDataModule):
     # TODO: Add docstring
