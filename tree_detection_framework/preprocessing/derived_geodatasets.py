@@ -201,6 +201,7 @@ class CustomImageDataset(Dataset):
         self.chip_size = chip_size
         self.chip_stride = chip_stride
 
+        # Get a list of all image paths
         image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]
         self.image_paths = sorted([path for path in self.folder_path.glob("*") if path.suffix.lower() in image_extensions])
 
@@ -211,7 +212,8 @@ class CustomImageDataset(Dataset):
 
     def _get_metadata(self):
         metadata = []
-        for img_idx, img_path in enumerate(self.image_paths):
+        for img_path in self.image_paths:
+            tile_idx = 0  # A unique tile index value within this image, resets for every new image
             with Image.open(img_path) as img:
                 img_width, img_height = img.size
 
@@ -219,7 +221,8 @@ class CustomImageDataset(Dataset):
                 for y in range(0, img_height, self.chip_stride):
                     for x in range(0, img_width, self.chip_stride):
                         # Add metadata for the current tile
-                        metadata.append((img_idx, img_path, x, y))
+                        metadata.append((tile_idx, img_path, x, y))
+                        tile_idx += 1
         return metadata
 
     def __len__(self):
