@@ -16,9 +16,9 @@ from torchvision.transforms import ToPILImage
 
 from tree_detection_framework.constants import ARRAY_TYPE, BOUNDARY_TYPE, PATH_TYPE
 from tree_detection_framework.preprocessing.derived_geodatasets import (
+    CustomImageDataset,
     CustomRasterDataset,
     CustomVectorDataset,
-    CustomImageDataset,
 )
 from tree_detection_framework.utils.geospatial import get_projected_CRS
 

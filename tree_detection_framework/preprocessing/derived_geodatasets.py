@@ -1,8 +1,7 @@
-from typing import Any, Optional
 from collections import defaultdict
-
 from pathlib import Path
-from PIL import Image
+from typing import Any, Optional
+
 import fiona
 import fiona.transform
 import matplotlib.pyplot as plt
@@ -10,9 +9,9 @@ import numpy as np
 import rasterio
 import shapely.geometry
 import torch
+from PIL import Image
 from shapely.affinity import affine_transform
 from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms
 from torchgeo.datamodules import GeoDataModule
 from torchgeo.datasets import (
     IntersectionDataset,
@@ -22,6 +21,7 @@ from torchgeo.datasets import (
 )
 from torchgeo.datasets.utils import BoundingBox, array_to_tensor
 from torchgeo.samplers import GridGeoSampler, Units
+from torchvision import transforms
 
 from tree_detection_framework.constants import PATH_TYPE
 
