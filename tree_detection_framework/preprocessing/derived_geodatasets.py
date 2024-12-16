@@ -182,6 +182,7 @@ class CustomVectorDataset(VectorDataset):
 
         return sample
 
+
 class CustomImageDataset(Dataset):
     def __init__(
         self,
@@ -203,7 +204,13 @@ class CustomImageDataset(Dataset):
 
         # Get a list of all image paths
         image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]
-        self.image_paths = sorted([path for path in self.folder_path.glob("*") if path.suffix.lower() in image_extensions])
+        self.image_paths = sorted(
+            [
+                path
+                for path in self.folder_path.glob("*")
+                if path.suffix.lower() in image_extensions
+            ]
+        )
 
         if not self.image_paths:
             raise ValueError(f"No image files found in {self.folder_path}")
@@ -232,7 +239,7 @@ class CustomImageDataset(Dataset):
         img_idx, img_path, x, y = self.tile_metadata[idx]
         with Image.open(img_path) as img:
             img = img.convert("RGB")
-            
+
             # Check if the tile extends beyond the image boundary
             tile_width = min(self.chip_size, img.width - x)
             tile_height = min(self.chip_size, img.height - y)
@@ -241,8 +248,10 @@ class CustomImageDataset(Dataset):
             if tile_width == self.chip_size and tile_height == self.chip_size:
                 tile = img.crop((x, y, x + self.chip_size, y + self.chip_size))
             else:
-                # Create a white square tile of shape 'chip_size' 
-                tile = Image.new("RGB", (self.chip_size, self.chip_size), (255, 255, 255))
+                # Create a white square tile of shape 'chip_size'
+                tile = Image.new(
+                    "RGB", (self.chip_size, self.chip_size), (255, 255, 255)
+                )
 
                 # Crop the image section and paste onto the white image
                 img_section = img.crop((x, y, x + tile_width, y + tile_height))
@@ -260,7 +269,7 @@ class CustomImageDataset(Dataset):
                 "tile_coords": (x, y),
             },
         }
-    
+
     # TODO: Think of a way to make this a common function for `CustomRasterDataset` and `CustomImageDataset`
     def plot(self, sample):
         """
@@ -299,7 +308,7 @@ class CustomImageDataset(Dataset):
             raise ValueError(f"Cannot plot image with {n_channels} channels")
 
         return fig
-        
+
     @staticmethod
     def collate_as_defaultdict(batch):
         # Stack images from batch into a single tensor
@@ -307,6 +316,7 @@ class CustomImageDataset(Dataset):
         # Collect metadata as a list
         metadata = [item["metadata"] for item in batch]
         return defaultdict(lambda: None, {"image": images, "metadata": metadata})
+
 
 class CustomDataModule(GeoDataModule):
     # TODO: Add docstring

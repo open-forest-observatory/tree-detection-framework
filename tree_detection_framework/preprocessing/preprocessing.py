@@ -26,6 +26,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 def create_spatial_split(
     region_to_be_split: BOUNDARY_TYPE, split_fractions: ARRAY_TYPE
 ) -> List[shapely.MultiPolygon]:
@@ -175,6 +176,7 @@ def create_dataloader(
 
     return dataloader
 
+
 def create_image_dataloader(
     folder_path: Path,
     chip_size: int,
@@ -219,8 +221,14 @@ def create_image_dataloader(
         chip_size=chip_size,
         chip_stride=chip_stride,
     )
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=CustomImageDataset.collate_as_defaultdict)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=CustomImageDataset.collate_as_defaultdict,
+    )
     return dataloader
+
 
 def visualize_dataloader(dataloader: DataLoader, n_tiles: int):
     """Show samples from the dataloader.
