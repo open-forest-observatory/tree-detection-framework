@@ -18,9 +18,13 @@ from tree_detection_framework.constants import ARRAY_TYPE, BOUNDARY_TYPE, PATH_T
 from tree_detection_framework.preprocessing.derived_geodatasets import (
     CustomRasterDataset,
     CustomVectorDataset,
+    CustomImageDataset,
 )
 from tree_detection_framework.utils.geospatial import get_projected_CRS
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 def create_spatial_split(
     region_to_be_split: BOUNDARY_TYPE, split_fractions: ARRAY_TYPE
@@ -171,6 +175,52 @@ def create_dataloader(
 
     return dataloader
 
+def create_image_dataloader(
+    folder_path: Path,
+    chip_size: int,
+    chip_stride: Optional[int] = None,
+    chip_overlap_percentage: Optional[float] = None,
+    batch_size: int = 1,
+) -> DataLoader:
+    """
+    Create a dataloader for a folder of normal images (e.g., JPGs), tiling them into smaller patches.
+
+    Args:
+        folder_path (Path):
+            Path to the folder containing image files.
+        chip_size (int):
+            Size of the tiles (width, height) in pixels.
+        chip_stride (Optional[int], optional):
+            Stride of the tiling (horizontal, vertical) in pixels.
+        chip_overlap_percentage (Optional[float], optional):
+            Percent overlap of the chip from 0-100. If used, `chip_stride` should not be set.
+        batch_size (int, optional):
+            Number of tiles in a batch. Defaults to 1.
+
+    Returns:
+        DataLoader: A dataloader containing the tiles and associated metadata.
+    """
+
+    logging.info("Units set in PIXELS")
+
+    if chip_overlap_percentage:
+        # Calculate `chip_stride` if `chip_overlap_percentage` is provided
+        chip_stride = chip_size * (1 - chip_overlap_percentage / 100.0)
+        chip_stride = int(chip_stride)
+        logging.info(f"Calculated stride based on overlap: {chip_stride}")
+
+    elif chip_stride is None:
+        raise ValueError(
+            "Either 'chip_stride' or 'chip_overlap_percentage' must be provided."
+        )
+
+    dataset = CustomImageDataset(
+        folder_path=folder_path,
+        chip_size=chip_size,
+        chip_stride=chip_stride,
+    )
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=CustomImageDataset.collate_as_defaultdict)
+    return dataloader
 
 def visualize_dataloader(dataloader: DataLoader, n_tiles: int):
     """Show samples from the dataloader.
