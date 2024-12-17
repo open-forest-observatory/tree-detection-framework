@@ -191,7 +191,7 @@ class CustomImageDataset(Dataset):
         chip_stride: int,
     ):
         """
-        Dataset for creating a dataloader froma folder of individual images, with an option to create tiles.
+        Dataset for creating a dataloader from a folder of individual images, with an option to create tiles.
 
         Args:
             folder_path (Path): Path to the folder containing image files.
@@ -203,7 +203,7 @@ class CustomImageDataset(Dataset):
         self.chip_stride = chip_stride
 
         # Get a list of all image paths
-        image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]
+        image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]
         self.image_paths = sorted(
             [
                 path
