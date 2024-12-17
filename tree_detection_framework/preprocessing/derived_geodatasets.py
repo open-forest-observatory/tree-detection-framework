@@ -228,7 +228,7 @@ class CustomImageDataset(Dataset):
             "metadata": {
                 "image_index": img_idx,
                 "source_image": str(img_path),
-                "tile_coords": (x, y),
+                "bounds": BoundingBox(float(x), float(x + tile_width), float(y), float(y + tile_height), mint=0.0, maxt=9.223372036854776e+18)
             },
         }
 
@@ -238,7 +238,7 @@ class CustomImageDataset(Dataset):
         images = torch.stack([item["image"] for item in batch])
         # Collect metadata as a list
         metadata = [item["metadata"] for item in batch]
-        return defaultdict(lambda: None, {"image": images, "metadata": metadata})
+        return defaultdict(lambda: None, {"image": images, "metadata": metadata, "crs": None})
 
 
 class CustomDataModule(GeoDataModule):
