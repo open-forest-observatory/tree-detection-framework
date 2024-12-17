@@ -130,3 +130,41 @@ def show_raster(
     )
     # Plot the image
     rio.plot.show(source=img, transform=transform, ax=plt_ax)
+
+def plot_from_dataloader(sample):
+    """
+    Plots an image from the dataset.
+
+    Args:
+        sample (dict): A dictionary containing the tile to plot. The 'image' key should have a tensor of shape (C, H, W).
+
+    Returns:
+        matplotlib.figure.Figure: A figure containing the plotted image.
+    """
+    # Reorder and rescale the image
+    image = sample["image"].permute(1, 2, 0).numpy()
+
+    # Create the figure to plot on and return
+    fig, ax = plt.subplots()
+    # Plot differently based on the number of channels
+    n_channels = image.shape[2]
+
+    # Show with a colorbar and default matplotlib mapping for scalar data
+    if n_channels == 1:
+        cbar = ax.imshow(image)
+        plt.colorbar(cbar, ax=ax)
+    # Plot as RGB(A)
+    elif n_channels in (3, 4):
+        if image.dtype != np.uint8:
+            # See if this should be interpreted as data 0-255, even if it's float data
+            max_val = np.max(image)
+            # If the values are greater than 1, assume it's supposed to be unsigned int8
+            # and cast to that so it's properly shown
+            if max_val > 1:
+                image = image.astype(np.uint8)
+        # Plot the image
+        ax.imshow(image)
+    else:
+        raise ValueError(f"Cannot plot image with {n_channels} channels")
+
+    return fig

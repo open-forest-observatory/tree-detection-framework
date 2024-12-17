@@ -21,6 +21,7 @@ from tree_detection_framework.preprocessing.derived_geodatasets import (
     CustomVectorDataset,
 )
 from tree_detection_framework.utils.geospatial import get_projected_CRS
+from tree_detection_framework.utils.raster import plot_from_dataloader
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -249,11 +250,8 @@ def visualize_dataloader(dataloader: DataLoader, n_tiles: int):
         # Get the referenced sample from the dataloader
         sample = dataloader.dataset[sample_bbox]
 
-        # Plot the sample image. If the dataloader has label data, index the first dataset to plot.
-        if isinstance(dataloader.dataset, IntersectionDataset):
-            dataloader.dataset.datasets[0].plot(sample)
-        else:
-            dataloader.dataset.plot(sample)
+        # Plot the sample image.
+        plot_from_dataloader(sample)
         plt.axis("off")
         plt.show()
 
