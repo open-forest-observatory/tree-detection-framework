@@ -131,6 +131,7 @@ def show_raster(
     # Plot the image
     rio.plot.show(source=img, transform=transform, ax=plt_ax)
 
+
 def plot_from_dataloader(sample):
     """
     Plots an image from the dataset.
