@@ -745,6 +745,7 @@ class Detectree2Detector(LightningDetector):
         # TODO: Add lightning module implementation
         # Note: For now, `module` only references to `cfg`
         self.module = module
+        self.setup_predictor()
 
     def setup_predictor(self):
         """Build predictor model architecture and load model weights from config.
@@ -783,7 +784,6 @@ class Detectree2Detector(LightningDetector):
             batch_preds (List[Dict[str, Instances]]): An iterable with a dictionary per image having "instances" value
             as an `Instances` object containing prediction results.
         """
-        self.setup_predictor()
 
         with torch.no_grad():
             inputs = []
