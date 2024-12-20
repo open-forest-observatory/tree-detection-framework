@@ -375,7 +375,7 @@ class GeometricDetector(Detector):
             raise NotImplementedError()
 
         return list(confidence_scores)
-    
+
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates using pre-filtering to identify potential maxima.
 
@@ -397,7 +397,9 @@ class GeometricDetector(Detector):
         window_size = int(np.ceil(min_radius_pixels)) * 2 + 1
 
         # Use a sliding window to find the maximum value in the region
-        filtered_image = maximum_filter(image, size=window_size, mode="constant", cval=0)
+        filtered_image = maximum_filter(
+            image, size=window_size, mode="constant", cval=0
+        )
 
         # Ignore pixels below the minimum height and get the valid indices
         thresholded_mask = (image >= self.min_ht) & (image == filtered_image)
@@ -439,7 +441,9 @@ class GeometricDetector(Detector):
 
         return all_treetop_pixel_coords, all_treetop_heights
 
-    def get_treetops_bruteforce(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
+    def get_treetops_bruteforce(
+        self, image: np.ndarray
+    ) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates based on a treetop window function.
 
         Args:
