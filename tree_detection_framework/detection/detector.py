@@ -7,7 +7,6 @@ import detectron2.data.transforms as T
 import geopandas as gpd
 import lightning
 import numpy as np
-import pandas as pd
 import pyproj
 from scipy.ndimage import maximum_filter
 import shapely
@@ -35,7 +34,6 @@ from tree_detection_framework.detection.region_detections import (
     RegionDetectionsSet,
 )
 from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
-from tree_detection_framework.utils.detection import use_release_df
 from tree_detection_framework.utils.geometric import mask_to_shapely
 
 # Set up logging configuration
@@ -395,12 +393,13 @@ class GeometricDetector(Detector):
         # Calculate the minimum suppression radius
         min_radius = (self.a * (self.min_ht**2)) + (self.b * self.min_ht) + self.c
         min_radius_pixels = min_radius / self.res
-        window_size = int(np.ceil(min_radius_pixels)) * 2 + 1  # Ensure odd window size
+        # Ensure odd window size for the filter
+        window_size = int(np.ceil(min_radius_pixels)) * 2 + 1
 
         # Use a sliding window to find the maximum value in the region
         filtered_image = maximum_filter(image, size=window_size, mode="constant", cval=0)
 
-        # Ignore pixels below the minimum height
+        # Ignore pixels below the minimum height and get the valid indices
         thresholded_mask = (image >= self.min_ht) & (image == filtered_image)
 
         # Get the selected coordinates
