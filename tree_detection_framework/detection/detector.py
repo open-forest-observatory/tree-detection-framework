@@ -8,7 +8,6 @@ import geopandas as gpd
 import lightning
 import numpy as np
 import pyproj
-from scipy.ndimage import maximum_filter
 import shapely
 import torch
 from detectron2.checkpoint import DetectionCheckpointer
@@ -16,6 +15,7 @@ from detectron2.data import MetadataCatalog
 from detectron2.modeling import build_model
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
+from scipy.ndimage import maximum_filter
 from shapely.geometry import (
     GeometryCollection,
     MultiPoint,
