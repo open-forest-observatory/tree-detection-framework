@@ -9,7 +9,7 @@ import lightning
 import numpy as np
 import pandas as pd
 import pyproj
-import scipy.ndimage as ndi
+from scipy.ndimage import maximum_filter
 import shapely
 import torch
 from detectron2.checkpoint import DetectionCheckpointer
@@ -377,8 +377,70 @@ class GeometricDetector(Detector):
             raise NotImplementedError()
 
         return list(confidence_scores)
-
+    
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
+        """Calculate treetop coordinates using pre-filtering to identify potential maxima.
+
+        Args:
+            image (np.ndarray): A single-channel CHM image.
+
+        Returns:
+            tuple[List[Point], List[float]] containing:
+                all_treetop_pixel_coords (List[Point]): Detected treetop coordinates in pixel units.
+                all_treetop_heights (List[float]): Treetop heights corresponding to the coordinates.
+        """
+        all_treetop_pixel_coords = []
+        all_treetop_heights = []
+
+        # Calculate the minimum suppression radius
+        min_radius = (self.a * (self.min_ht**2)) + (self.b * self.min_ht) + self.c
+        min_radius_pixels = min_radius / self.res
+        window_size = int(np.ceil(min_radius_pixels)) * 2 + 1  # Ensure odd window size
+
+        # Use a sliding window to find the maximum value in the region
+        filtered_image = maximum_filter(image, size=window_size, mode="constant", cval=0)
+
+        # Ignore pixels below the minimum height
+        thresholded_mask = (image >= self.min_ht) & (image == filtered_image)
+
+        # Get the selected coordinates
+        selected_indices = np.argwhere(thresholded_mask)
+
+        for i, j in selected_indices:
+            ht = image[i, j]
+
+            # Calculate the radius based on the pixel height
+            radius = (self.a * (ht**2)) + (self.b * ht) + self.c
+            radius_pixels = radius / self.res
+            side = int(np.ceil(radius_pixels))
+
+            # Define bounds for the neighborhood
+            i_min = max(0, i - side)
+            i_max = min(image.shape[0], i + side + 1)
+            j_min = max(0, j - side)
+            j_max = min(image.shape[1], j + side + 1)
+
+            # Create column and row vectors for the neighborhood
+            region_i = np.arange(i_min, i_max)[:, np.newaxis]
+            region_j = np.arange(j_min, j_max)[np.newaxis, :]
+
+            # Calculate the distances to every point within the region
+            distances = np.sqrt((region_i - i) ** 2 + (region_j - j) ** 2)
+
+            # Create a mask for pixels inside the circle
+            mask = distances <= radius_pixels
+
+            # Apply the mask to the neighborhood
+            neighborhood = image[i_min:i_max, j_min:j_max][mask]
+
+            # Check if the pixel has the max height within the neighborhood
+            if ht == np.max(neighborhood):
+                all_treetop_pixel_coords.append(Point(j, i))
+                all_treetop_heights.append(ht)
+
+        return all_treetop_pixel_coords, all_treetop_heights
+
+    def get_treetops_bruteforce(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates based on a treetop window function.
 
         Args:
