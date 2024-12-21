@@ -7,9 +7,7 @@ import detectron2.data.transforms as T
 import geopandas as gpd
 import lightning
 import numpy as np
-import pandas as pd
 import pyproj
-import scipy.ndimage as ndi
 import shapely
 import torch
 from detectron2.checkpoint import DetectionCheckpointer
@@ -17,6 +15,7 @@ from detectron2.data import MetadataCatalog
 from detectron2.modeling import build_model
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
+from scipy.ndimage import maximum_filter
 from shapely.geometry import (
     GeometryCollection,
     MultiPoint,
@@ -35,7 +34,6 @@ from tree_detection_framework.detection.region_detections import (
     RegionDetectionsSet,
 )
 from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
-from tree_detection_framework.utils.detection import use_release_df
 from tree_detection_framework.utils.geometric import mask_to_shapely
 
 # Set up logging configuration
@@ -291,6 +289,7 @@ class GeometricDetector(Detector):
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
         confidence_factor: str = "height",
+        filter_shape: str = "square",
     ):
         self.a = a
         self.b = b
@@ -300,6 +299,7 @@ class GeometricDetector(Detector):
         self.radius_factor = radius_factor
         self.threshold_factor = threshold_factor
         self.confidence_factor = confidence_factor
+        self.filter_shape = filter_shape
 
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
@@ -379,56 +379,96 @@ class GeometricDetector(Detector):
         return list(confidence_scores)
 
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
-        """Calculate treetop coordinates based on a treetop window function.
+        """Calculate treetop coordinates using pre-filtering to identify potential maxima.
 
         Args:
-            image (np.ndarray): A single channel CHM image
+            image (np.ndarray): A single-channel CHM image.
 
         Returns:
             tuple[List[Point], List[float]] containing:
-                all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
-                all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
+                all_treetop_pixel_coords (List[Point]): Detected treetop coordinates in pixel units.
+                all_treetop_heights (List[float]): Treetop heights corresponding to the coordinates.
         """
         all_treetop_pixel_coords = []
         all_treetop_heights = []
-        for i in range(image.shape[0]):
-            for j in range(image.shape[1]):
-                # Get the height of the pixel
-                ht = image[i, j]
 
-                # Check if the pixel has a height greater than the threshold
-                if ht < self.min_ht:
-                    continue
+        # Apply a maximum filter to the CHM to identify potential treetops based on the local maxima
+        # Calculate the minimum suppression radius as a function of the minimum height
+        min_radius = (self.a * (self.min_ht**2)) + (self.b * self.min_ht) + self.c
 
-                # Calculate the radius
-                radius = (self.a * (ht**2)) + (self.b * ht) + self.c
-                # Convert radius from meters to pixels
-                radius_pixels = radius / self.res
-                side = int(np.ceil(radius_pixels))
+        # Determine filter size in pixels
+        min_radius_pixels = int(np.floor(min_radius / self.res))
 
-                # Define bounds for the neighborhood
-                i_min = max(0, i - side)
-                i_max = min(image.shape[0], i + side + 1)
-                j_min = max(0, j - side)
-                j_max = min(image.shape[1], j + side + 1)
+        if self.filter_shape == "circle":
+            # Create a circular footprint
+            y, x = np.ogrid[
+                -min_radius_pixels : min_radius_pixels + 1,
+                -min_radius_pixels : min_radius_pixels + 1,
+            ]
+            footprint = x**2 + y**2 <= min_radius_pixels**2
 
-                # Create column and row vectors for the neighborhood
-                region_i = np.arange(i_min, i_max)[:, np.newaxis]
-                region_j = np.arange(j_min, j_max)[np.newaxis, :]
+            # Use a sliding window to find the maximum value in the region
+            filtered_image = maximum_filter(
+                image, footprint=footprint, mode="constant", cval=0
+            )
 
-                # Calculate the distances to every point within the region
-                distances = np.sqrt((region_i - i) ** 2 + (region_j - j) ** 2)
+        elif self.filter_shape == "square":
+            # Create a square window using the computed radius. Add 1 to make it odd.
+            window_size = (min_radius_pixels * 2) + 1
 
-                # Create a mask for pixels inside the circle
-                mask = distances <= radius_pixels
+            # Use a sliding window to find the maximum value in the region
+            filtered_image = maximum_filter(
+                image, size=window_size, mode="constant", cval=0
+            )
 
-                # Apply the mask to the neighborhood
-                neighborhood = image[i_min:i_max, j_min:j_max][mask]
+        elif self.filter_shape == "none":
+            # Local maxima filtering step is skipped
+            logging.info("No filter applied to the image. Using brute-force method.")
+            filtered_image = image
 
-                # Check if the pixel has the max height within the neighborhood
-                if ht == np.max(neighborhood):
-                    all_treetop_pixel_coords.append(Point(j, i))
-                    all_treetop_heights.append(ht)
+        else:
+            raise ValueError(
+                "Invalid filter_shape. Choose from: 'circle', 'square', 'none'."
+            )
+
+        # Create a mask for pixels that are above the min_ht threshold (left condition)
+        # and are local maxima (right condition) if the image was filtered
+        thresholded_mask = (image >= self.min_ht) & (image == filtered_image)
+
+        # Get the selected coordinates
+        selected_indices = np.argwhere(thresholded_mask)
+
+        for i, j in selected_indices:
+            ht = image[i, j]
+
+            # Calculate the radius based on the pixel height
+            radius = (self.a * (ht**2)) + (self.b * ht) + self.c
+            radius_pixels = radius / self.res
+            side = int(np.ceil(radius_pixels))
+
+            # Define bounds for the neighborhood
+            i_min = max(0, i - side)
+            i_max = min(image.shape[0], i + side + 1)
+            j_min = max(0, j - side)
+            j_max = min(image.shape[1], j + side + 1)
+
+            # Create column and row vectors for the neighborhood
+            region_i = np.arange(i_min, i_max)[:, np.newaxis]
+            region_j = np.arange(j_min, j_max)[np.newaxis, :]
+
+            # Calculate the distances to every point within the region
+            distances = np.sqrt((region_i - i) ** 2 + (region_j - j) ** 2)
+
+            # Create a mask for pixels inside the circle
+            mask = distances <= radius_pixels
+
+            # Apply the mask to the neighborhood
+            neighborhood = image[i_min:i_max, j_min:j_max][mask]
+
+            # Check if the pixel has the max height within the neighborhood
+            if ht == np.max(neighborhood):
+                all_treetop_pixel_coords.append(Point(j, i))
+                all_treetop_heights.append(ht)
 
         return all_treetop_pixel_coords, all_treetop_heights
 
@@ -745,6 +785,7 @@ class Detectree2Detector(LightningDetector):
         # TODO: Add lightning module implementation
         # Note: For now, `module` only references to `cfg`
         self.module = module
+        self.setup_predictor()
 
     def setup_predictor(self):
         """Build predictor model architecture and load model weights from config.
@@ -783,7 +824,6 @@ class Detectree2Detector(LightningDetector):
             batch_preds (List[Dict[str, Instances]]): An iterable with a dictionary per image having "instances" value
             as an `Instances` object containing prediction results.
         """
-        self.setup_predictor()
 
         with torch.no_grad():
             inputs = []
