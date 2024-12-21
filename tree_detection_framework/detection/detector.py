@@ -289,6 +289,7 @@ class GeometricDetector(Detector):
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
         confidence_factor: str = "height",
+        filter_shape: str = "square",
     ):
         self.a = a
         self.b = b
@@ -298,6 +299,7 @@ class GeometricDetector(Detector):
         self.radius_factor = radius_factor
         self.threshold_factor = threshold_factor
         self.confidence_factor = confidence_factor
+        self.filter_shape = filter_shape
 
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
@@ -390,18 +392,42 @@ class GeometricDetector(Detector):
         all_treetop_pixel_coords = []
         all_treetop_heights = []
 
-        # Calculate the minimum suppression radius
+        # Apply a maximum filter to the CHM to identify potential treetops based on the local maxima
+        # Calculate the minimum suppression radius as a function of the minimum height
         min_radius = (self.a * (self.min_ht**2)) + (self.b * self.min_ht) + self.c
-        min_radius_pixels = min_radius / self.res
-        # Ensure odd window size for the filter
-        window_size = int(np.ceil(min_radius_pixels)) * 2 + 1
 
-        # Use a sliding window to find the maximum value in the region
-        filtered_image = maximum_filter(
-            image, size=window_size, mode="constant", cval=0
-        )
+        # Determine filter size in pixels
+        min_radius_pixels = int(np.floor(min_radius / self.res))
 
-        # Ignore pixels below the minimum height and get the valid indices
+        if self.filter_shape == "circle":
+            # Create a circular footprint
+            y, x = np.ogrid[-min_radius_pixels:min_radius_pixels + 1, -min_radius_pixels:min_radius_pixels + 1]
+            footprint = x**2 + y**2 <= min_radius_pixels**2
+
+            # Use a sliding window to find the maximum value in the region
+            filtered_image = maximum_filter(
+                image, footprint=footprint, mode="constant", cval=0
+            )
+
+        elif self.filter_shape == "square":
+            # Create a square window using the computed radius. Add 1 to make it odd.
+            window_size = (min_radius_pixels * 2) + 1
+
+            # Use a sliding window to find the maximum value in the region
+            filtered_image = maximum_filter(
+                image, size=window_size, mode="constant", cval=0
+            )
+
+        elif self.filter_shape == "none":
+            # Local maxima filtering step is skipped
+            logging.info("No filter applied to the image. Using brute-force method.")
+            filtered_image = image
+
+        else:
+            raise ValueError("Invalid filter_shape. Choose from: 'circle', 'square', 'none'.")
+
+        # Create a mask for pixels that are above the min_ht threshold (left condition)
+        # and are local maxima (right condition) if the image was filtered
         thresholded_mask = (image >= self.min_ht) & (image == filtered_image)
 
         # Get the selected coordinates
@@ -438,62 +464,6 @@ class GeometricDetector(Detector):
             if ht == np.max(neighborhood):
                 all_treetop_pixel_coords.append(Point(j, i))
                 all_treetop_heights.append(ht)
-
-        return all_treetop_pixel_coords, all_treetop_heights
-
-    def get_treetops_bruteforce(
-        self, image: np.ndarray
-    ) -> tuple[List[Point], List[float]]:
-        """Calculate treetop coordinates based on a treetop window function.
-
-        Args:
-            image (np.ndarray): A single channel CHM image
-
-        Returns:
-            tuple[List[Point], List[float]] containing:
-                all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
-                all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
-        """
-        all_treetop_pixel_coords = []
-        all_treetop_heights = []
-        for i in range(image.shape[0]):
-            for j in range(image.shape[1]):
-                # Get the height of the pixel
-                ht = image[i, j]
-
-                # Check if the pixel has a height greater than the threshold
-                if ht < self.min_ht:
-                    continue
-
-                # Calculate the radius
-                radius = (self.a * (ht**2)) + (self.b * ht) + self.c
-                # Convert radius from meters to pixels
-                radius_pixels = radius / self.res
-                side = int(np.ceil(radius_pixels))
-
-                # Define bounds for the neighborhood
-                i_min = max(0, i - side)
-                i_max = min(image.shape[0], i + side + 1)
-                j_min = max(0, j - side)
-                j_max = min(image.shape[1], j + side + 1)
-
-                # Create column and row vectors for the neighborhood
-                region_i = np.arange(i_min, i_max)[:, np.newaxis]
-                region_j = np.arange(j_min, j_max)[np.newaxis, :]
-
-                # Calculate the distances to every point within the region
-                distances = np.sqrt((region_i - i) ** 2 + (region_j - j) ** 2)
-
-                # Create a mask for pixels inside the circle
-                mask = distances <= radius_pixels
-
-                # Apply the mask to the neighborhood
-                neighborhood = image[i_min:i_max, j_min:j_max][mask]
-
-                # Check if the pixel has the max height within the neighborhood
-                if ht == np.max(neighborhood):
-                    all_treetop_pixel_coords.append(Point(j, i))
-                    all_treetop_heights.append(ht)
 
         return all_treetop_pixel_coords, all_treetop_heights
 
