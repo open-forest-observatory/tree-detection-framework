@@ -401,7 +401,10 @@ class GeometricDetector(Detector):
 
         if self.filter_shape == "circle":
             # Create a circular footprint
-            y, x = np.ogrid[-min_radius_pixels:min_radius_pixels + 1, -min_radius_pixels:min_radius_pixels + 1]
+            y, x = np.ogrid[
+                -min_radius_pixels : min_radius_pixels + 1,
+                -min_radius_pixels : min_radius_pixels + 1,
+            ]
             footprint = x**2 + y**2 <= min_radius_pixels**2
 
             # Use a sliding window to find the maximum value in the region
@@ -424,7 +427,9 @@ class GeometricDetector(Detector):
             filtered_image = image
 
         else:
-            raise ValueError("Invalid filter_shape. Choose from: 'circle', 'square', 'none'.")
+            raise ValueError(
+                "Invalid filter_shape. Choose from: 'circle', 'square', 'none'."
+            )
 
         # Create a mask for pixels that are above the min_ht threshold (left condition)
         # and are local maxima (right condition) if the image was filtered
