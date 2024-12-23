@@ -291,6 +291,22 @@ class GeometricDetector(Detector):
         confidence_factor: str = "height",
         filter_shape: str = "circle",
     ):
+        """Create a GeometricDetector object
+
+        Args:
+            a (float, optional): Coefficient for the quadratic term in the radius calculation. Defaults to 0.00901.
+            b (float, optional): Coefficient for the linear term in the radius calculation. Defaults to 0.
+            c (float, optional): Constant term in the radius calculation. Defaults to 2.52503.
+            res (float, optional): Resolution of the CHM image. Defaults to 0.2.
+            min_ht (int, optional): Minimum height for a pixel to be considered as a tree. Defaults to 5.
+            radius_factor (float, optional): Factor to determine the radius of the tree crown. Defaults to 0.6.
+            threshold_factor (float, optional): Factor to determine the threshold for the binary mask. Defaults to 0.3.
+            confidence_factor (str, optional): Feature to use to compute the confidence scores for the predictions.
+                Choose from "height", "area", "distance", "all". Defaults to "height".
+            filter_shape (str, optional): Shape of the filter to use for local maxima detection.
+                Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
+        
+        """
         self.a = a
         self.b = b
         self.c = c
