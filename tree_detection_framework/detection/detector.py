@@ -289,7 +289,7 @@ class GeometricDetector(Detector):
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
         confidence_factor: str = "height",
-        filter_shape: str = "square",
+        filter_shape: str = "circle",
     ):
         self.a = a
         self.b = b
@@ -414,7 +414,8 @@ class GeometricDetector(Detector):
 
         elif self.filter_shape == "square":
             # Create a square window using the computed radius. Add 1 to make it odd.
-            window_size = (min_radius_pixels * 2) + 1
+            # Reduce filter size by 1/sqrt(2) to keep corners within the suppression radius.
+            window_size = int((min_radius_pixels * 2 + 1) / np.sqrt(2))
 
             # Use a sliding window to find the maximum value in the region
             filtered_image = maximum_filter(
