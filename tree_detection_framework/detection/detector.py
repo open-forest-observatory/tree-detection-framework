@@ -429,9 +429,9 @@ class GeometricDetector(Detector):
             )
 
         elif self.filter_shape == "square":
-            # Create a square window using the computed radius. Add 1 to make it odd.
-            # Reduce filter size by 1/sqrt(2) to keep corners within the suppression radius.
-            window_size = int((min_radius_pixels * 2 + 1) / np.sqrt(2))
+            # Create a square window using the computed radius
+            # Reduce filter size by 1/sqrt(2) to keep corners within the suppression radius
+            window_size = int((min_radius_pixels * 2) / np.sqrt(2))
 
             # Use a sliding window to find the maximum value in the region
             filtered_image = maximum_filter(
