@@ -305,7 +305,7 @@ class GeometricDetector(Detector):
                 Choose from "height", "area", "distance", "all". Defaults to "height".
             filter_shape (str, optional): Shape of the filter to use for local maxima detection.
                 Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
-        
+
         """
         self.a = a
         self.b = b
