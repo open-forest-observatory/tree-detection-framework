@@ -18,6 +18,7 @@ def single_region_NMS(
     iou_theshold: float = 0.5,
     confidence_column: str = "score",
     min_confidence: float = 0.3,
+    intersection_method: str = "IOU",
 ) -> RegionDetections:
     """Run non-max suppresion on predictions from a single region.
 
@@ -67,7 +68,7 @@ def single_region_NMS(
         input_data=input_data,
         distributed=None,
         nms_method="Default",
-        intersection_method="IOU",
+        intersection_method=intersection_method,
         threshold=iou_theshold,
     )
 
@@ -86,6 +87,7 @@ def multi_region_NMS(
     iou_theshold: float = 0.5,
     confidence_column: str = "score",
     min_confidence: float = 0.3,
+    intersection_method: str = "IOU",
 ) -> RegionDetections:
     """Run non-max suppresion on predictions from multiple regions.
 
@@ -116,6 +118,7 @@ def multi_region_NMS(
                     iou_theshold=iou_theshold,
                     confidence_column=confidence_column,
                     min_confidence=min_confidence,
+                    intersection_method=intersection_method,
                 )
                 for region_detections in detections.region_detections
             ]
