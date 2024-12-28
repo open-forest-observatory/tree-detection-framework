@@ -320,7 +320,7 @@ class GeometricDetector(Detector):
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
 
-    def calculate_scores(
+    def calculate_normalized_scores(
         self, tile_gdf: gpd.GeoDataFrame, image_shape: tuple
     ) -> List[float]:
         """Calculate pseudo-confidence scores for the detections based on the following features of the tree crown:
@@ -391,6 +391,60 @@ class GeometricDetector(Detector):
 
         elif self.confidence_factor == "all":
             raise NotImplementedError()
+
+        return list(confidence_scores)
+
+    def calculate_scores(
+        self, tile_gdf: gpd.GeoDataFrame, image_shape: tuple
+    ) -> List[float]:
+        """Calculate pseudo-confidence scores for the detections based on the following features of the tree crown:
+
+            1. Height - Taller trees are generally more easier to detect, making their confidence higher
+            2. Area - Larger tree crowns are easier to detect, hence less likely to be false positives
+            3. Distance - Trees near the edge of a tile might have incomplete data, reducing confidence
+            4. All - An option to compute a weighted combination of all factors as the confidence score
+
+        Args:
+            tile_gdf (gpd.GeoDataFrame): A geopandas dataframe with 'treetop_height' and 'tree_crown' columns
+            image_shape (tuple): The (i, j, channel) shape of the image that predictions were generated from
+
+        Returns:
+            List[float]: Calculated confidence scores.
+        """
+        if self.confidence_factor not in ["height", "area", "distance", "all"]:
+            raise ValueError(
+                "Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`"
+            )
+
+        if self.confidence_factor == "height":
+            # Use height values as scores
+            confidence_scores = tile_gdf["treetop_height"]
+
+        elif self.confidence_factor == "area":
+            # Use area values as scores
+            confidence_scores = tile_gdf["tree_crown"].apply(lambda geom: geom.area)
+
+        elif self.confidence_factor == "distance":
+            # Calculate the centroid of each tree crown
+            tile_gdf["centroid"] = tile_gdf["tree_crown"].apply(
+                lambda geom: geom.centroid
+            )
+
+            # Calculate distances to the closest edge for each centroid
+            def calculate_edge_distance(centroid):
+                x, y = centroid.x, centroid.y
+                distances = [
+                    x,  # left edge
+                    image_shape[1] - x,  # right edge
+                    y,  # bottom edge
+                    image_shape[0] - y,  # top edge
+                ]
+                # Return the distance to the closest edge
+                return min(distances)
+
+            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(calculate_edge_distance)
+            # Use edge distance values as scores
+            confidence_scores = tile_gdf["edge_distance"]
 
         return list(confidence_scores)
 
