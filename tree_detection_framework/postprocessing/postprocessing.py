@@ -31,6 +31,8 @@ def single_region_NMS(
             Which column in the dataframe to use as a confidence for NMS. Defaults to "score"
         min_confidence (float, optional):
             Prediction score threshold for detections to be included.
+        intersection_method (str, optional):
+            The method to compute intersections, one of ("IOU", "IOS", "Dice", "IOT"). Defaults to "IOU".
 
     Returns:
         RegionDetections:
@@ -104,6 +106,8 @@ def multi_region_NMS(
 
         min_confidence (float, optional):
             Prediction score threshold for detections to be included.
+        intersection_method (str, optional):
+            The method to compute intersections, one of ("IOU", "IOS", "Dice", "IOT"). Defaults to "IOU".
     Returns:
         RegionDetections:
             NMS-suppressed set of detections, merged together for the set of regions.
