@@ -312,6 +312,7 @@ def suppress_tile_boundary_with_NMS(
 ) -> RegionDetections:
     """
     Used as a post-processing step with the `GeometricDetector` class to suppress detections that are split across tiles.
+    This is done by applying NMS twice, first using IOU and then using IOS.
 
     Args:
         predictions (RegionDetectionsSet):
