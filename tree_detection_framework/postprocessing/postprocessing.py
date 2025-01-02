@@ -144,6 +144,7 @@ def multi_region_NMS(
         threshold=threshold,
         confidence_column=confidence_column,
         min_confidence=min_confidence,
+        intersection_method=intersection_method,
     )
 
     return NMS_suppressed_merged_detections
