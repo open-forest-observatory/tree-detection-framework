@@ -594,7 +594,7 @@ class GeometricDetector(Detector):
         # List to store every image's detections
         batch_detections = []
         batch_detections_data = []
-        for _, image in enumerate(batch["image"]):
+        for image in batch["image"]:
             image = image.squeeze()
             # Set NaN values to zero
             image = np.nan_to_num(image)
