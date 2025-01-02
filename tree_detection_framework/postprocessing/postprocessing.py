@@ -307,7 +307,8 @@ def merge_and_postprocess_detections(
 
 def suppress_tile_boundary_with_NMS(
     predictions: RegionDetectionsSet,
-    threshold: float = 0.5,
+    iou_threshold: float = 0.5,
+    ios_threshold: float = 0.5,
     min_confidence: float = 0.3,
 ) -> RegionDetections:
     """
@@ -317,8 +318,10 @@ def suppress_tile_boundary_with_NMS(
     Args:
         predictions (RegionDetectionsSet):
             Detections from multiple regions.
-        threshold (float, optional):
-            The threshold for the NMS(intersection) method. Defaults to 0.5.
+        iou_threshold (float, optional):
+            The threshold for the NMS method that uses IoU metric. Defaults to 0.5.
+        ios_threshold (float, optional):
+            The threshold for the NMS method that uses IoS metric. Defaults to 0.5.
         min_confidence (float, optional):
             Prediction score threshold for detections to be included.
 
@@ -330,14 +333,14 @@ def suppress_tile_boundary_with_NMS(
     iou_nms = multi_region_NMS(
         predictions,
         intersection_method="IOU",
-        threshold=threshold,
+        threshold=iou_threshold,
         min_confidence=min_confidence,
     )
 
     iou_ios_nms = single_region_NMS(
         iou_nms,
         intersection_method="IOS",
-        threshold=threshold,
+        threshold=ios_threshold,
         min_confidence=min_confidence,
     )
 
