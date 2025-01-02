@@ -343,31 +343,23 @@ class GeometricDetector(Detector):
             )
 
         if self.confidence_factor == "height":
-            # Normalize the heights to a range between 0 and 1
-            max_height = tile_gdf["treetop_height"].max()
-            min_height = tile_gdf["treetop_height"].min()
-
-            confidence_scores = (tile_gdf["treetop_height"] - min_height) / (
-                max_height - min_height
-            )
+            # Use height values as scores
+            confidence_scores = tile_gdf["treetop_height"]
 
         elif self.confidence_factor == "area":
-            # Normalize the areas to a range between 0 and 1
-            max_area = tile_gdf["tree_crown"].apply(lambda geom: geom.area).max()
-            min_area = tile_gdf["tree_crown"].apply(lambda geom: geom.area).min()
-
-            confidence_scores = tile_gdf["tree_crown"].apply(
-                lambda geom: (geom.area - min_area) / (max_area - min_area)
-            )
+            # Use area values as scores
+            confidence_scores = tile_gdf["tree_crown"].apply(lambda geom: geom.area)
 
         elif self.confidence_factor == "distance":
             # Calculate the centroid of each tree crown
             tile_gdf["centroid"] = tile_gdf["tree_crown"].apply(
-                lambda geom: geom.centroid
+                lambda geom: geom.centroid if not geom.is_empty else None
             )
 
             # Calculate distances to the closest edge for each centroid
             def calculate_edge_distance(centroid):
+                if centroid is None:  # Check if centroid is None (empty geometry case)
+                    return 0
                 x, y = centroid.x, centroid.y
                 distances = [
                     x,  # left edge
@@ -381,16 +373,8 @@ class GeometricDetector(Detector):
             tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(
                 calculate_edge_distance
             )
-
-            # Normalize the distances to a range between 0 and 1
-            max_distance = tile_gdf["edge_distance"].max()
-            min_distance = tile_gdf["edge_distance"].min()
-            confidence_scores = (tile_gdf["edge_distance"] - min_distance) / (
-                max_distance - min_distance
-            )
-
-        elif self.confidence_factor == "all":
-            raise NotImplementedError()
+            # Use edge distance values as scores
+            confidence_scores = tile_gdf["edge_distance"]
 
         return list(confidence_scores)
 
@@ -492,7 +476,6 @@ class GeometricDetector(Detector):
     def get_tree_crowns(
         self,
         image: np.ndarray,
-        bounds: BoundingBox,
         all_treetop_pixel_coords: List[Point],
         all_treetop_heights: List[float],
     ) -> Tuple[List[shapely.Polygon], List[float]]:
@@ -500,14 +483,12 @@ class GeometricDetector(Detector):
 
         Args:
             image (np.ndarray): A single channel CHM image
-            bounds (BoundingBox): Bounds of the tile in geospatial coordinates
             all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
             all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
 
         Returns:
             filtered_crowns (List[shapely.Polygon]): Detected tree crowns as shapely polygons/multipolygons
             confidence_scores (List[float]): Pseudo-confidence scores for the detections
-
         """
 
         # Get Voronoi Diagram from the calculated treetop points
@@ -554,53 +535,43 @@ class GeometricDetector(Detector):
             binary_mask = image > threshold
             # Convert the mask to shapely polygons, returned as a MultiPolygon
             shapely_polygon_mask = mask_to_shapely(binary_mask)
-            # If the returned mask is a single Polygon add it to the final list
-            if isinstance(shapely_polygon_mask, Polygon):
-                all_polygon_masks.append(Polygon)
-                continue
-            # Iterate through each polygon in the multipolygon
-            for i, polygon in enumerate(shapely_polygon_mask.geoms):
-                # If the polygon with the treetop has been found, add it to list and ignore all other polygons
-                if polygon.contains(treetop_point):
-                    all_polygon_masks.append(polygon)
-                    break
-                # For other cases, add an empty polygon to avoid having a mismatch in number of rows in the gdf
-                if i == (len(shapely_polygon_mask.geoms) - 1):
-                    all_polygon_masks.append(Polygon())
+            all_polygon_masks.append(shapely_polygon_mask)
 
-        # Create new columns in the dataframe for radii, circles and multipolygon masks
+        # Add the calculated radii, circles and polygon masks to the GeoDataFrame
         tile_gdf["radius_in_pixels"] = all_radius_in_pixels
         tile_gdf["circle"] = all_circles
         tile_gdf["multipolygon_mask"] = all_polygon_masks
 
-        # The final tree crown is computed as the intersection of voronoi polygon, circle and mask
+        # The final tree crown is computed as the intersection of voronoi polygon, circle, and mask
         tile_gdf["tree_crown"] = (
             gpd.GeoSeries(tile_gdf["geometry"])
             .intersection(gpd.GeoSeries(tile_gdf["circle"]))
             .intersection(gpd.GeoSeries(tile_gdf["multipolygon_mask"]))
         )
-        # Remove all empty polygons if any
-        tile_gdf = tile_gdf[tile_gdf["tree_crown"].area > 0.5]
 
-        # Cast all `GeometryCollection` objects as `MultiPolygon`
         filtered_crowns = []
-        for tree_crown in list(tile_gdf["tree_crown"]):
-            # If tree_crown is of type Polygon or MultiPolygon, retain it as it is
-            if isinstance(tree_crown, (Polygon, MultiPolygon)):
+        for tree_crown, treetop_point in zip(
+            tile_gdf["tree_crown"], tile_gdf["treetop_pixel_coords"]
+        ):
+            # Only keep valid polygons
+            if (
+                isinstance(tree_crown, Polygon)
+                and tree_crown.is_valid
+                and tree_crown.area > 0
+            ):
                 filtered_crowns.append(tree_crown)
-            # If it is of type GeometryCollection, filter out just the Polygons from it
-            elif isinstance(tree_crown, GeometryCollection):
-                # Initialize a list to add all the Polygons
-                multipolygon = []
-                for polygon in list(tree_crown.geoms):
-                    # Note that any LineString/Point/MultiPoint objects get ignored. MultiPolygon is rarely found.
-                    if isinstance(polygon, Polygon):
-                        multipolygon.append(polygon)
-                # Finally create an equivalent MultiPolygon object for the GeometryCollection
-                filtered_crowns.append(MultiPolygon(multipolygon))
-
-        # Update the 'tree_crown' column
-        tile_gdf["tree_crown"] = filtered_crowns
+            elif isinstance(tree_crown, (MultiPolygon, GeometryCollection)):
+                # Iterate through each polygon in the MultiPolygon
+                for i, geom in enumerate(tree_crown.geoms):
+                    # Exclude LineString/Point/MultiPoint objects in case geom is a GeometryCollection
+                    if isinstance(geom, Polygon) and geom.is_valid and geom.area > 0:
+                        # If the polygon with the treetop has been found, add it to list and ignore all other polygons
+                        if geom.contains(treetop_point):
+                            filtered_crowns.append(geom)
+                            break
+                    # For other cases, add an empty polygon to avoid having a mismatch in number of rows in the gdf
+                    if i == (len(tree_crown.geoms) - 1):
+                        filtered_crowns.append(Polygon())
 
         # Calculate pseudo-confidence scores for the detections
         confidence_scores = self.calculate_scores(tile_gdf, image.shape)
@@ -623,14 +594,14 @@ class GeometricDetector(Detector):
         # List to store every image's detections
         batch_detections = []
         batch_detections_data = []
-        for image, bounds in zip(batch["image"], batch["bounds"]):
+        for image in batch["image"]:
             image = image.squeeze()
             # Set NaN values to zero
             image = np.nan_to_num(image)
 
             treetop_pixel_coords, treetop_heights = self.get_treetops(image)
             final_tree_crowns, confidence_scores = self.get_tree_crowns(
-                image, bounds, treetop_pixel_coords, treetop_heights
+                image, treetop_pixel_coords, treetop_heights
             )
             batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
             batch_detections_data.append({"score": confidence_scores})

@@ -15,21 +15,24 @@ from tree_detection_framework.detection.region_detections import (
 
 def single_region_NMS(
     detections: RegionDetections,
-    iou_theshold: float = 0.5,
+    threshold: float = 0.5,
     confidence_column: str = "score",
     min_confidence: float = 0.3,
+    intersection_method: str = "IOU",
 ) -> RegionDetections:
     """Run non-max suppresion on predictions from a single region.
 
     Args:
         detections (RegionDetections):
             Detections from a single region to run NMS on.
-        iou_threshold (float, optional):
-            What intersection over union value to consider an overlapping detection. Defaults to 0.5.
+        threshold (float, optional):
+            The threshold for the NMS(intersection) method. Defaults to 0.5.
         confidence_column (str, optional):
             Which column in the dataframe to use as a confidence for NMS. Defaults to "score"
         min_confidence (float, optional):
             Prediction score threshold for detections to be included.
+        intersection_method (str, optional):
+            The method to compute intersections, one of ("IOU", "IOS", "Dice", "IOT"). Defaults to "IOU".
 
     Returns:
         RegionDetections:
@@ -67,8 +70,8 @@ def single_region_NMS(
         input_data=input_data,
         distributed=None,
         nms_method="Default",
-        intersection_method="IOU",
-        threshold=iou_theshold,
+        intersection_method=intersection_method,
+        threshold=threshold,
     )
 
     # We only performed NMS on the high-confidence detections, but we need the indices w.r.t. the
@@ -83,9 +86,10 @@ def single_region_NMS(
 def multi_region_NMS(
     detections: RegionDetectionsSet,
     run_per_region_NMS: bool = True,
-    iou_theshold: float = 0.5,
+    threshold: float = 0.5,
     confidence_column: str = "score",
     min_confidence: float = 0.3,
+    intersection_method: str = "IOU",
 ) -> RegionDetections:
     """Run non-max suppresion on predictions from multiple regions.
 
@@ -95,13 +99,15 @@ def multi_region_NMS(
         run_per_region_NMS (bool):
             Should nonmax-suppression be run on each region before the regions are merged. This may
             lead to a speedup if there is a large amount of within-region overlap. Defaults to True.
-        iou_threshold (float, optional):
-            What intersection over union value to consider an overlapping detection. Defaults to 0.5.
+        threshold (float, optional):
+            The threshold for the NMS(intersection) method. Defaults to 0.5.
         confidence_column (str, optional):
             Which column in the dataframe to use as a confidence for NMS. Defaults to "score"
 
         min_confidence (float, optional):
             Prediction score threshold for detections to be included.
+        intersection_method (str, optional):
+            The method to compute intersections, one of ("IOU", "IOS", "Dice", "IOT"). Defaults to "IOU".
     Returns:
         RegionDetections:
             NMS-suppressed set of detections, merged together for the set of regions.
@@ -113,9 +119,10 @@ def multi_region_NMS(
             [
                 single_region_NMS(
                     region_detections,
-                    iou_theshold=iou_theshold,
+                    threshold=threshold,
                     confidence_column=confidence_column,
                     min_confidence=min_confidence,
+                    intersection_method=intersection_method,
                 )
                 for region_detections in detections.region_detections
             ]
@@ -134,9 +141,10 @@ def multi_region_NMS(
     # Run NMS on this merged RegionDetections
     NMS_suppressed_merged_detections = single_region_NMS(
         merged_detections,
-        iou_theshold=iou_theshold,
+        threshold=threshold,
         confidence_column=confidence_column,
         min_confidence=min_confidence,
+        intersection_method=intersection_method,
     )
 
     return NMS_suppressed_merged_detections
@@ -248,7 +256,7 @@ def merge_and_postprocess_detections(
     """Apply postprocessing techniques that include:
     1. Get a union of polygons that have been split across tiles
     2. Simplify the edges of polygons by `tolerance` value
-    3. Remove holes within the polygons that are smaller than `min_area_theshold` value
+    3. Remove holes within the polygons that are smaller than `min_area_threshold` value
     Merges regions into a single RegionDetections.
 
     Args:
@@ -295,3 +303,45 @@ def merge_and_postprocess_detections(
     )
 
     return postprocessed_detections
+
+
+def suppress_tile_boundary_with_NMS(
+    predictions: RegionDetectionsSet,
+    iou_threshold: float = 0.5,
+    ios_threshold: float = 0.5,
+    min_confidence: float = 0.3,
+) -> RegionDetections:
+    """
+    Used as a post-processing step with the `GeometricDetector` class to suppress detections that are split across tiles.
+    This is done by applying NMS twice, first using IOU and then using IOS.
+
+    Args:
+        predictions (RegionDetectionsSet):
+            Detections from multiple regions.
+        iou_threshold (float, optional):
+            The threshold for the NMS method that uses IoU metric. Defaults to 0.5.
+        ios_threshold (float, optional):
+            The threshold for the NMS method that uses IoS metric. Defaults to 0.5.
+        min_confidence (float, optional):
+            Prediction score threshold for detections to be included.
+
+    Returns:
+        RegionDetections:
+            NMS postprocessed set of detections, merged together.
+    """
+
+    iou_nms = multi_region_NMS(
+        predictions,
+        intersection_method="IOU",
+        threshold=iou_threshold,
+        min_confidence=min_confidence,
+    )
+
+    iou_ios_nms = single_region_NMS(
+        iou_nms,
+        intersection_method="IOS",
+        threshold=ios_threshold,
+        min_confidence=min_confidence,
+    )
+
+    return iou_ios_nms
