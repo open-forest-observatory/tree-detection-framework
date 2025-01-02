@@ -370,7 +370,9 @@ class GeometricDetector(Detector):
                 # Return the distance to the closest edge
                 return min(distances)
 
-            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(calculate_edge_distance)
+            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(
+                calculate_edge_distance
+            )
             # Use edge distance values as scores
             confidence_scores = tile_gdf["edge_distance"]
 
@@ -470,7 +472,7 @@ class GeometricDetector(Detector):
                 all_treetop_heights.append(ht)
 
         return all_treetop_pixel_coords, all_treetop_heights
-    
+
     def get_tree_crowns(
         self,
         image: np.ndarray,
@@ -548,9 +550,15 @@ class GeometricDetector(Detector):
         )
 
         filtered_crowns = []
-        for tree_crown, treetop_point in zip(tile_gdf["tree_crown"], tile_gdf["treetop_pixel_coords"]):
+        for tree_crown, treetop_point in zip(
+            tile_gdf["tree_crown"], tile_gdf["treetop_pixel_coords"]
+        ):
             # Only keep valid polygons
-            if isinstance(tree_crown, Polygon) and tree_crown.is_valid and tree_crown.area > 0:
+            if (
+                isinstance(tree_crown, Polygon)
+                and tree_crown.is_valid
+                and tree_crown.area > 0
+            ):
                 filtered_crowns.append(tree_crown)
             elif isinstance(tree_crown, (MultiPolygon, GeometryCollection)):
                 # Iterate through each polygon in the MultiPolygon

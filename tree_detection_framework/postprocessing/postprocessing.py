@@ -303,10 +303,15 @@ def merge_and_postprocess_detections(
 
     return postprocessed_detections
 
-def suppress_tile_boundary_with_NMS(predictions: RegionDetectionsSet, threshold: float = 0.5, min_confidence: float = 0.3) -> RegionDetections:
+
+def suppress_tile_boundary_with_NMS(
+    predictions: RegionDetectionsSet,
+    threshold: float = 0.5,
+    min_confidence: float = 0.3,
+) -> RegionDetections:
     """
     Used as a post-processing step with the `GeometricDetector` class to suppress detections that are split across tiles.
-    
+
     Args:
         predictions (RegionDetectionsSet):
             Detections from multiple regions.
@@ -314,14 +319,24 @@ def suppress_tile_boundary_with_NMS(predictions: RegionDetectionsSet, threshold:
             The threshold for the NMS(intersection) method. Defaults to 0.5.
         min_confidence (float, optional):
             Prediction score threshold for detections to be included.
-            
+
     Returns:
         RegionDetections:
             NMS postprocessed set of detections, merged together.
     """
 
-    iou_nms = multi_region_NMS(predictions, intersection_method="IOU", threshold=threshold, min_confidence=min_confidence)
+    iou_nms = multi_region_NMS(
+        predictions,
+        intersection_method="IOU",
+        threshold=threshold,
+        min_confidence=min_confidence,
+    )
 
-    iou_ios_nms = single_region_NMS(iou_nms, intersection_method="IOS", threshold=threshold, min_confidence=min_confidence)
+    iou_ios_nms = single_region_NMS(
+        iou_nms,
+        intersection_method="IOS",
+        threshold=threshold,
+        min_confidence=min_confidence,
+    )
 
     return iou_ios_nms
