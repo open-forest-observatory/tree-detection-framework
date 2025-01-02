@@ -548,7 +548,6 @@ class GeometricDetector(Detector):
     def get_tree_crowns(
         self,
         image: np.ndarray,
-        bounds: BoundingBox,
         all_treetop_pixel_coords: List[Point],
         all_treetop_heights: List[float],
     ) -> Tuple[List[shapely.Polygon], List[float]]:
@@ -556,7 +555,6 @@ class GeometricDetector(Detector):
 
         Args:
             image (np.ndarray): A single channel CHM image
-            bounds (BoundingBox): Bounds of the tile in geospatial coordinates
             all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
             all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
 
@@ -662,14 +660,14 @@ class GeometricDetector(Detector):
         # List to store every image's detections
         batch_detections = []
         batch_detections_data = []
-        for image, bounds in zip(batch["image"], batch["bounds"]):
+        for _, image in enumerate(batch["image"]):
             image = image.squeeze()
             # Set NaN values to zero
             image = np.nan_to_num(image)
 
             treetop_pixel_coords, treetop_heights = self.get_treetops(image)
             final_tree_crowns, confidence_scores = self.get_tree_crowns(
-                image, bounds, treetop_pixel_coords, treetop_heights
+                image, treetop_pixel_coords, treetop_heights
             )
             batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
             batch_detections_data.append({"score": confidence_scores})
