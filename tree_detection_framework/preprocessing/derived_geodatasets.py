@@ -1,3 +1,5 @@
+from collections import defaultdict
+from pathlib import Path
 from typing import Any, Optional
 
 import fiona
@@ -7,8 +9,9 @@ import numpy as np
 import rasterio
 import shapely.geometry
 import torch
+from PIL import Image
 from shapely.affinity import affine_transform
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchgeo.datamodules import GeoDataModule
 from torchgeo.datasets import (
     IntersectionDataset,
@@ -18,6 +21,9 @@ from torchgeo.datasets import (
 )
 from torchgeo.datasets.utils import BoundingBox, array_to_tensor
 from torchgeo.samplers import GridGeoSampler, Units
+from torchvision import transforms
+
+from tree_detection_framework.constants import PATH_TYPE
 
 
 class CustomRasterDataset(RasterDataset):
@@ -33,44 +39,6 @@ class CustomRasterDataset(RasterDataset):
     filename_glob: str = "*.tif"  # To match all TIFF files
     is_image: bool = True
     separate_files: bool = False
-
-    def plot(self, sample):
-        """
-        Plots an image from the dataset.
-
-        Args:
-            sample (dict): A dictionary containing the tile to plot. The 'image' key should have a tensor of shape (C, H, W).
-
-        Returns:
-            matplotlib.figure.Figure: A figure containing the plotted image.
-        """
-        # Reorder and rescale the image
-        image = sample["image"].permute(1, 2, 0).numpy()
-
-        # Create the figure to plot on and return
-        fig, ax = plt.subplots()
-        # Plot differently based on the number of channels
-        n_channels = image.shape[2]
-
-        # Show with a colorbar and default matplotlib mapping for scalar data
-        if n_channels == 1:
-            cbar = ax.imshow(image)
-            plt.colorbar(cbar, ax=ax)
-        # Plot as RGB(A)
-        elif n_channels in (3, 4):
-            if image.dtype != np.uint8:
-                # See if this should be interpreted as data 0-255, even if it's float data
-                max_val = np.max(image)
-                # If the values are greater than 1, assume it's supposed to be unsigned int8
-                # and cast to that so it's properly shown
-                if max_val > 1:
-                    image = image.astype(np.uint8)
-            # Plot the image
-            ax.imshow(image)
-        else:
-            raise ValueError(f"Cannot plot image with {n_channels} channels")
-
-        return fig
 
 
 class CustomVectorDataset(VectorDataset):
@@ -175,6 +143,111 @@ class CustomVectorDataset(VectorDataset):
             sample = self.transforms(sample)
 
         return sample
+
+
+class CustomImageDataset(Dataset):
+    def __init__(
+        self,
+        folder_path: PATH_TYPE,
+        chip_size: int,
+        chip_stride: int,
+    ):
+        """
+        Dataset for creating a dataloader from a folder of individual images, with an option to create tiles.
+
+        Args:
+            folder_path (Path): Path to the folder containing image files.
+            chip_size (int): Dimension of each image chip (width, height) in pixels.
+            chip_stride (int): Stride to take while chipping the images (horizontal, vertical) in pixels.
+        """
+        self.folder_path = Path(folder_path)
+        self.chip_size = chip_size
+        self.chip_stride = chip_stride
+
+        # Get a list of all image paths
+        image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]
+        self.image_paths = sorted(
+            [
+                path
+                for path in self.folder_path.glob("*")
+                if path.suffix.lower() in image_extensions
+            ]
+        )
+
+        if not self.image_paths:
+            raise ValueError(f"No image files found in {self.folder_path}")
+
+        self.tile_metadata = self._get_metadata()
+
+    def _get_metadata(self):
+        metadata = []
+        for img_path in self.image_paths:
+            tile_idx = 0  # A unique tile index value within this image, resets for every new image
+            with Image.open(img_path) as img:
+                img_width, img_height = img.size
+
+                # Generate tile coordinates
+                for y in range(0, img_height, self.chip_stride):
+                    for x in range(0, img_width, self.chip_stride):
+                        # Add metadata for the current tile
+                        metadata.append((tile_idx, img_path, x, y))
+                        tile_idx += 1
+        return metadata
+
+    def __len__(self):
+        return len(self.tile_metadata)
+
+    def __getitem__(self, idx):
+        img_idx, img_path, x, y = self.tile_metadata[idx]
+        with Image.open(img_path) as img:
+            img = img.convert("RGB")
+
+            # Check if the tile extends beyond the image boundary
+            tile_width = min(self.chip_size, img.width - x)
+            tile_height = min(self.chip_size, img.height - y)
+
+            # If the tile fits within the image, return the cropped image
+            if tile_width == self.chip_size and tile_height == self.chip_size:
+                tile = img.crop((x, y, x + self.chip_size, y + self.chip_size))
+            else:
+                # Create a white square tile of shape 'chip_size'
+                tile = Image.new(
+                    "RGB", (self.chip_size, self.chip_size), (255, 255, 255)
+                )
+
+                # Crop the image section and paste onto the white image
+                img_section = img.crop((x, y, x + tile_width, y + tile_height))
+                tile.paste(img_section, (0, 0))
+
+            # Convert to tensor
+            if not isinstance(tile, torch.Tensor):
+                tile = transforms.ToTensor()(tile)
+
+        return {
+            "image": tile,
+            "metadata": {
+                "image_index": img_idx,
+                "source_image": str(img_path),
+                "bounds": BoundingBox(
+                    float(x),
+                    float(x + tile_width),
+                    float(y),
+                    float(y + tile_height),
+                    mint=0.0,
+                    maxt=9.223372036854776e18,
+                ),
+            },
+        }
+
+    @staticmethod
+    def collate_as_defaultdict(batch):
+        # Stack images from batch into a single tensor
+        images = torch.stack([item["image"] for item in batch])
+        # Collect metadata as a list
+        metadata = [item["metadata"] for item in batch]
+        return defaultdict(
+            lambda: None, {"image": images, "metadata": metadata, "crs": None}
+        )
 
 
 class CustomDataModule(GeoDataModule):
