@@ -46,11 +46,33 @@ may need to run this in a graphical session and respond to a keyring popup menu.
 ```
 poetry install
 ```
-Finally, the Detectron2 library is not compatible with `poetry` so must be installed directly with pip
+Finally, choose to either install the Detectron2 or SAM2 detection framework.
+
+**Detectron2:** 
+The Detectron2 library is not compatible with `poetry` so must be installed directly with pip
 ```
 # https://detectron2.readthedocs.io/en/latest/tutorials/install.html#build-detectron2-from-source
 pip install git+https://github.com/facebookresearch/detectron2.git
 ```
+
+**SAM2:** 
+Clone the SAM2 repository and install the necessary config files
+```
+git clone https://github.com/facebookresearch/sam2.git && cd sam2
+
+pip install -e .
+```
+And download the associated checkpoints
+```
+cd checkpoints && \
+./download_ckpts.sh && \
+cd ..
+```
+And move into this repo
+```
+mv checkpoints ../tree-detection-framework 
+```
+
 
 ## Use
 The module code is in the `tree_detection_framework` folder. Once installed using the `poetry`
