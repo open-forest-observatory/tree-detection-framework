@@ -768,13 +768,15 @@ class DeepForestDetector(LightningDetector):
         raise NotImplementedError()
 
 
-#follow README for download instructions
+# follow README for download instructions
 class SAMV2Detector(Detector):
 
-    def __init__(self,
-                 device=DEFAULT_DEVICE,
-                 sam2_checkpoint="checkpoints/sam2.1_hiera_large.pt",
-                 model_cfg= "configs/sam2.1/sam2.1_hiera_l.yaml"):
+    def __init__(
+        self,
+        device=DEFAULT_DEVICE,
+        sam2_checkpoint="checkpoints/sam2.1_hiera_large.pt",
+        model_cfg="configs/sam2.1/sam2.1_hiera_l.yaml",
+    ):
         self.device = device
 
         self.sam2 = build_sam2(
@@ -799,7 +801,9 @@ class SAMV2Detector(Detector):
 
                 original_image = original_image.permute(1, 2, 0).byte().numpy()
                 rgb_image = original_image[:, :, :1]
-                mask = self.mask_generator.generate(rgb_image) #model expects rgb 0-255 range (h, w, 3)
+                mask = self.mask_generator.generate(
+                    rgb_image
+                )  # model expects rgb 0-255 range (h, w, 3)
                 # FUTURE TODO: Support batched predictions
                 masks.append(mask)
 
@@ -821,7 +825,7 @@ class SAMV2Detector(Detector):
         """
         images = batch["image"]
 
-        #computational bottleneck
+        # computational bottleneck
         batch_preds = self.call_predict(images)
 
         # To store all predicted polygons
@@ -847,6 +851,7 @@ class SAMV2Detector(Detector):
             all_data_dicts.append({"score": scores})
 
         return all_geometries, all_data_dicts
+
 
 class Detectree2Detector(LightningDetector):
 
