@@ -29,7 +29,7 @@ from torch.utils.data import DataLoader
 from torchgeo.datasets.utils import BoundingBox
 from tqdm import tqdm
 
-from tree_detection_framework.constants import PATH_TYPE, DEFAULT_DEVICE
+from tree_detection_framework.constants import DEFAULT_DEVICE, PATH_TYPE
 from tree_detection_framework.detection.models import DeepForestModule
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
