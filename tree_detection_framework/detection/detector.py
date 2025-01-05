@@ -19,11 +19,7 @@ from sam2.build_sam import build_sam2
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-<<<<<<< HEAD
-from tree_detection_framework.constants import PATH_TYPE
-=======
 from tree_detection_framework.constants import PATH_TYPE, DEFAULT_DEVICE
->>>>>>> 4595e44 (updated pr comments)
 from tree_detection_framework.detection.models import DeepForestModule
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
