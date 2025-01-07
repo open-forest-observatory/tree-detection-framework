@@ -800,7 +800,7 @@ class SAMV2Detector(Detector):
                     raise ValueError("Original image has less than 3 channels")
 
                 original_image = original_image.permute(1, 2, 0).byte().numpy()
-                rgb_image = original_image[:, :, :1]
+                rgb_image = original_image[:, :, :3]
                 mask = self.mask_generator.generate(
                     rgb_image
                 )  # model expects rgb 0-255 range (h, w, 3)
