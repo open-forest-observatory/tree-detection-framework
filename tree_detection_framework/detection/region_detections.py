@@ -193,11 +193,6 @@ class RegionDetections:
             pixel_to_CRS_transform = rasterio.transform.from_gcps(ground_control_points)
 
         # Error checking
-        if (pixel_to_CRS_transform is not None) and (CRS is None):
-            raise ValueError(
-                "The geometric transform to map to a CRS was provided but the CRS was not specified"
-            )
-
         if (pixel_to_CRS_transform is None) and (CRS is not None) and input_in_pixels:
             raise ValueError(
                 "The input was in pixels and a CRS was specified but no geommetric transformation was provided to transform the pixel values to that CRS"
