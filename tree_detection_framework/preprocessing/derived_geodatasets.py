@@ -24,7 +24,10 @@ from torchgeo.samplers import GridGeoSampler, Units
 from torchvision import transforms
 
 from tree_detection_framework.constants import PATH_TYPE
-import pyproj
+from collections import namedtuple
+
+# Define a namedtuple to store bounds of tiles images from the `CustomImageDataset`
+bounding_box = namedtuple('bounding_box', ['minx', 'maxx', 'miny', 'maxy'])
 
 class CustomRasterDataset(RasterDataset):
     """
@@ -229,15 +232,13 @@ class CustomImageDataset(Dataset):
                 "image_index": img_idx,
                 "source_image": str(img_path),
             },
-            "bounds": BoundingBox(
+            "bounds": bounding_box(
                 float(x),
-                float(x + tile_width),
+                float(x + self.chip_size),
+                float(y + self.chip_size),
                 float(y),
-                float(y + tile_height),
-                mint=0.0,
-                maxt=9.223372036854776e18,
             ),
-            "crs": pyproj.CRS.from_epsg(26910),
+            "crs": None,
             
         }
 
