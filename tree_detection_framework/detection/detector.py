@@ -199,9 +199,10 @@ class Detector:
         CRS = batch["crs"][0]
         # Get the CRS EPSG value and convert it to a pyproj object
         # This is to avoid relying on WKT strings which are more likely to be invalid
-        CRS = pyproj.CRS(CRS.to_epsg())
-        if CRS.to_epsg() is None:
-            raise ValueError(f"Invalid CRS. Found CRS = {CRS.to_epsg()}")
+        if CRS is not None:
+            CRS = pyproj.CRS(CRS.to_epsg())
+            if CRS.to_epsg() is None:
+                raise ValueError(f"Invalid CRS. Found CRS = {CRS.to_epsg()}")
         return CRS
 
 
@@ -717,8 +718,12 @@ class DeepForestDetector(LightningDetector):
 
         self.lightningmodule.eval()
         images = batch["image"]
+        # DeepForest requires input image pixel values to be normalized to range 0-1
         with torch.no_grad():
-            outputs = self.lightningmodule(images[:, :3, :, :] / 255)  # .model ??
+            if images.min() >= 0 and images.max() <= 1:
+                outputs = self.lightningmodule(images[:, :3, :, :])
+            else:
+                outputs = self.lightningmodule(images[:, :3, :, :] / 255)
 
         all_geometries = []
         all_data_dicts = []
