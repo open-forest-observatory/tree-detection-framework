@@ -26,7 +26,8 @@ from torchvision import transforms
 from tree_detection_framework.constants import PATH_TYPE
 
 # Define a namedtuple to store bounds of tiles images from the `CustomImageDataset`
-bounding_box = namedtuple('bounding_box', ['minx', 'maxx', 'miny', 'maxy'])
+bounding_box = namedtuple("bounding_box", ["minx", "maxx", "miny", "maxy"])
+
 
 class CustomRasterDataset(RasterDataset):
     """
@@ -238,7 +239,6 @@ class CustomImageDataset(Dataset):
                 float(y),
             ),
             "crs": None,
-            
         }
 
     @staticmethod
@@ -250,7 +250,8 @@ class CustomImageDataset(Dataset):
         bounds = [item["bounds"] for item in batch]
         crs = [item["crs"] for item in batch]
         return defaultdict(
-            lambda: None, {"image": images, "metadata": metadata, "bounds": bounds, "crs": crs}
+            lambda: None,
+            {"image": images, "metadata": metadata, "bounds": bounds, "crs": crs},
         )
 
 

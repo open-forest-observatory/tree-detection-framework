@@ -114,7 +114,7 @@ def show_raster(
     """
     # Check if the file is georeferenced
     with rasterio.open(raster_file_path) as src:
-        if src.crs is None: 
+        if src.crs is None:
             crs_available = False
         else:
             crs_available = True
