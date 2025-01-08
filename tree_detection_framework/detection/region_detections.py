@@ -493,13 +493,6 @@ class RegionDetectionsSet:
         Returns:
             gpd.GeoDataFrame: Detections in the requested CRS or in pixel coordinates with a None .crs
         """
-        if not self.all_regions_have_CRS():
-            raise ValueError("Merging requires all sub-regions to have a valid CRS")
-
-        # If the CRS is not set, use that of the first sub-region
-        if CRS is None:
-            # This is ensured to be non-None by the check above
-            CRS = self.get_default_CRS()
 
         # Get the detections from each region detection object as geodataframes
         detection_geodataframes = [
@@ -585,15 +578,6 @@ class RegionDetectionsSet:
             gpd.GeoSeries: Either a one-length series of merged bounds if merge=True or a series
             of bounds per region.
         """
-        if not self.all_regions_have_CRS():
-            raise ValueError(
-                "Computing all bounds requires all sub-regions to have a valid CRS"
-            )
-
-        # If the CRS is not set, use that of the first sub-region
-        if CRS is None:
-            # This is ensured to be non-None by the check above
-            CRS = self.get_default_CRS()
 
         region_bounds = [rd.get_bounds(CRS=CRS) for rd in self.region_detections]
         # Create a geodataframe out of these region bounds
