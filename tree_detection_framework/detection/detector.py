@@ -1,5 +1,4 @@
 import logging
-import warnings
 from abc import abstractmethod
 from itertools import groupby
 from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
@@ -25,7 +24,6 @@ from shapely.geometry import (
     Polygon,
 )
 from torch.utils.data import DataLoader
-from torchgeo.datasets.utils import BoundingBox
 from tqdm import tqdm
 
 from tree_detection_framework.constants import PATH_TYPE
@@ -762,7 +760,6 @@ class DeepForestDetector(LightningDetector):
                 Any additional attributes that are predicted (such as class or confidence). Must
                 be formatted in a way that can be passed to gpd.GeoPandas data argument.
         """
-
         self.lightningmodule.eval()
         images = batch["image"]
         # DeepForest requires input image pixel values to be normalized to range 0-1

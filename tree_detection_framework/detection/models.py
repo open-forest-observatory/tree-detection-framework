@@ -232,3 +232,6 @@ class Detectree2Module:
         ) or model_zoo.get_checkpoint_url(base_model)
 
         return cfg
+
+
+# future TODO: add module configs for sam2, currently implemented for default configs
