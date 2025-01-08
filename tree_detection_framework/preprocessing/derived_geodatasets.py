@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from pathlib import Path
 from typing import Any, Optional
 
@@ -24,6 +24,9 @@ from torchgeo.samplers import GridGeoSampler, Units
 from torchvision import transforms
 
 from tree_detection_framework.constants import PATH_TYPE
+
+# Define a namedtuple to store bounds of tiles images from the `CustomImageDataset`
+bounding_box = namedtuple("bounding_box", ["minx", "maxx", "miny", "maxy"])
 
 
 class CustomRasterDataset(RasterDataset):
@@ -228,15 +231,14 @@ class CustomImageDataset(Dataset):
             "metadata": {
                 "image_index": img_idx,
                 "source_image": str(img_path),
-                "bounds": BoundingBox(
-                    float(x),
-                    float(x + tile_width),
-                    float(y),
-                    float(y + tile_height),
-                    mint=0.0,
-                    maxt=9.223372036854776e18,
-                ),
             },
+            "bounds": bounding_box(
+                float(x),
+                float(x + self.chip_size),
+                float(y + self.chip_size),
+                float(y),
+            ),
+            "crs": None,
         }
 
     @staticmethod
@@ -245,8 +247,11 @@ class CustomImageDataset(Dataset):
         images = torch.stack([item["image"] for item in batch])
         # Collect metadata as a list
         metadata = [item["metadata"] for item in batch]
+        bounds = [item["bounds"] for item in batch]
+        crs = [item["crs"] for item in batch]
         return defaultdict(
-            lambda: None, {"image": images, "metadata": metadata, "crs": None}
+            lambda: None,
+            {"image": images, "metadata": metadata, "bounds": bounds, "crs": crs},
         )
 
 

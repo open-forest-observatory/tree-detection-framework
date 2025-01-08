@@ -112,7 +112,19 @@ def show_raster(
         CRS (Optional[pyproj.CRS], optional):
             The CRS to reproject the data to if set. Defaults to None.
     """
-    # If the CRS is set, ensure the dat matches it
+    # Check if the file is georeferenced
+    with rasterio.open(raster_file_path) as src:
+        if src.crs is None:
+            crs_available = False
+        else:
+            crs_available = True
+
+    # Handle cases where no CRS is available
+    if not crs_available and CRS is not None:
+        print(f"Warning: No CRS found in the raster. Proceeding without reprojection.")
+        CRS = None
+
+    # If the CRS is set, ensure the data matches it
     if CRS is not None:
         # Create a temporary file to write to
         temp_output_filename = tempfile.NamedTemporaryFile(suffix=".tif")

@@ -1,6 +1,7 @@
 import logging
 from abc import abstractmethod
-from typing import Any, DefaultDict, Iterator, List, Tuple, Union
+from itertools import groupby
+from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
 import detectron2.data.transforms as T
 import geopandas as gpd
@@ -131,6 +132,54 @@ class Detector:
         region_detection_set = RegionDetectionsSet(predictions_list)
         return region_detection_set
 
+    def predict_raw_drone_images(
+        self, inference_dataloader: DataLoader, **kwargs
+    ) -> Tuple[List[RegionDetectionsSet], List[str]]:
+        """
+        Generate predictions for every image in the dataloader created using `CustomImageDataset` for raw drone images.
+        Calls self.predict_as_generator() and retains predictions as a list.
+
+        Args:
+            inference_dataloader (DataLoader):
+                Dataloader to generate predictions for
+
+        Returns:
+            region_detections_sets (List[RegionDetectionsSet]):
+                List of `RegionDetectionsSet` objects
+            keys (List[str]):
+                List of image filepaths corresponding to region_detections_sets
+        """
+        # Get the generator that will generate predictions. Note this only creates the generator,
+        # computation is defered until the samples are actually requested
+        predictions_generator = self.predict_as_generator(
+            inference_dataloader, **kwargs
+        )
+        # This step is where the computation actually occurs since all samples are requested to
+        # build the list
+        predictions_list = list(predictions_generator)
+
+        # Extract the source image names associated with each tile in the inference dataloader
+        image_filenames = [
+            metadata["source_image"]
+            for batch in inference_dataloader
+            for metadata in batch["metadata"]
+        ]
+
+        # Create a zip with each RegionDetections and its corresponding source image name
+        preds_and_images = zip(predictions_list, image_filenames)
+
+        # Obtain groups of RegionDetections after grouping by source image name
+        groups = groupby(preds_and_images, key=lambda x: x[1])
+
+        # Create a RegionDetectionsSet for each group
+        region_detections_sets = []
+        keys = []
+        for key, group in groups:
+            region_detections_sets.append(RegionDetectionsSet([i[0] for i in group]))
+            keys.append(key)  # source image names
+
+        return region_detections_sets, keys
+
     @abstractmethod
     def predict_batch(
         self, batch: dict
@@ -197,9 +246,8 @@ class Detector:
         CRS = batch["crs"][0]
         # Get the CRS EPSG value and convert it to a pyproj object
         # This is to avoid relying on WKT strings which are more likely to be invalid
-        CRS = pyproj.CRS(CRS.to_epsg())
-        if CRS.to_epsg() is None:
-            raise ValueError(f"Invalid CRS. Found CRS = {CRS.to_epsg()}")
+        if CRS is not None:
+            CRS = pyproj.CRS(CRS.to_epsg())
         return CRS
 
 
@@ -714,8 +762,13 @@ class DeepForestDetector(LightningDetector):
         """
         self.lightningmodule.eval()
         images = batch["image"]
+        # DeepForest requires input image pixel values to be normalized to range 0-1
         with torch.no_grad():
-            outputs = self.lightningmodule(images[:, :3, :, :] / 255)  # .model ??
+            # TODO: Make dataloaders more flexible so that the user can provide the correct data type/range
+            if images.min() >= 0 and images.max() <= 1:
+                outputs = self.lightningmodule(images[:, :3, :, :])
+            else:
+                outputs = self.lightningmodule(images[:, :3, :, :] / 255)
 
         all_geometries = []
         all_data_dicts = []
@@ -812,22 +865,35 @@ class Detectree2Detector(LightningDetector):
 
         with torch.no_grad():
             inputs = []
-            for original_image in batch:
-                original_image = original_image.permute(1, 2, 0).byte().numpy()
-                original_image = original_image[:, :, :3]
+            if batch.shape[1] == 3:  # RGB image
+                for original_image in batch:
+                    height, width = original_image.shape[1], original_image.shape[2]
 
-                height, width = original_image.shape[:2]
-                # Resize the image if required
-                image = self.aug.get_transform(original_image).apply_image(
-                    original_image
-                )
-                image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
-                image = image.to(self.cfg.MODEL.DEVICE)
+                    # Convert image pixel values to 0-255 range
+                    if original_image.min() >= 0 and original_image.max() <= 1:
+                        original_image = original_image * 255
 
-                # Create a dict with each image and its properties
-                input = {"image": image, "height": height, "width": width}
-                # Add the dictionary to batch image list
-                inputs.append(input)
+                    # Create a dict with each image and its properties
+                    input = {"image": original_image, "height": height, "width": width}
+
+                    # Add the dictionary to batch image list
+                    inputs.append(input)
+            else:
+                for original_image in batch:
+                    original_image = original_image.permute(1, 2, 0).byte().numpy()
+                    original_image = original_image[:, :, :3]
+
+                    height, width = original_image.shape[:2]
+                    # Resize the image if required
+                    image = self.aug.get_transform(original_image).apply_image(
+                        original_image
+                    )
+                    image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
+                    image = image.to(self.cfg.MODEL.DEVICE)
+                    # Create a dict with each image and its properties
+                    input = {"image": image, "height": height, "width": width}
+                    # Add the dictionary to batch image list
+                    inputs.append(input)
 
             batch_preds = self.model(inputs)
             return batch_preds

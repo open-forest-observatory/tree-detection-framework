@@ -193,11 +193,6 @@ class RegionDetections:
             pixel_to_CRS_transform = rasterio.transform.from_gcps(ground_control_points)
 
         # Error checking
-        if (pixel_to_CRS_transform is not None) and (CRS is None):
-            raise ValueError(
-                "The geometric transform to map to a CRS was provided but the CRS was not specified"
-            )
-
         if (pixel_to_CRS_transform is None) and (CRS is not None) and input_in_pixels:
             raise ValueError(
                 "The input was in pixels and a CRS was specified but no geommetric transformation was provided to transform the pixel values to that CRS"
@@ -498,13 +493,6 @@ class RegionDetectionsSet:
         Returns:
             gpd.GeoDataFrame: Detections in the requested CRS or in pixel coordinates with a None .crs
         """
-        if not self.all_regions_have_CRS():
-            raise ValueError("Merging requires all sub-regions to have a valid CRS")
-
-        # If the CRS is not set, use that of the first sub-region
-        if CRS is None:
-            # This is ensured to be non-None by the check above
-            CRS = self.get_default_CRS()
 
         # Get the detections from each region detection object as geodataframes
         detection_geodataframes = [
@@ -590,15 +578,6 @@ class RegionDetectionsSet:
             gpd.GeoSeries: Either a one-length series of merged bounds if merge=True or a series
             of bounds per region.
         """
-        if not self.all_regions_have_CRS():
-            raise ValueError(
-                "Computing all bounds requires all sub-regions to have a valid CRS"
-            )
-
-        # If the CRS is not set, use that of the first sub-region
-        if CRS is None:
-            # This is ensured to be non-None by the check above
-            CRS = self.get_default_CRS()
 
         region_bounds = [rd.get_bounds(CRS=CRS) for rd in self.region_detections]
         # Create a geodataframe out of these region bounds
