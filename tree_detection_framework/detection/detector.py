@@ -2,6 +2,7 @@ import logging
 import warnings
 from abc import abstractmethod
 from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
+from itertools import groupby
 
 import detectron2.data.transforms as T
 import geopandas as gpd
@@ -132,6 +133,51 @@ class Detector:
         # Otherwise convert it to a RegionDetectionsSet and return that
         region_detection_set = RegionDetectionsSet(predictions_list)
         return region_detection_set
+    
+    def predict_raw_drone_images(self, inference_dataloader: DataLoader, **kwargs) -> Tuple[List[RegionDetectionsSet], List[str]]:
+        """
+        Generate predictions for every image in the dataloader created using `CustomImageDataset` for raw drone images.
+        Calls self.predict_as_generator() and retains predictions as a list.
+
+        Args:
+            inference_dataloader (DataLoader):
+                Dataloader to generate predictions for
+
+        Returns:
+            region_detections_sets (List[RegionDetectionsSet]):
+                List of `RegionDetectionsSet` objects
+            keys (List[str]):
+                List of image filepaths corresponding to region_detections_sets
+        """
+        # Get the generator that will generate predictions. Note this only creates the generator,
+        # computation is defered until the samples are actually requested
+        predictions_generator = self.predict_as_generator(
+            inference_dataloader, **kwargs
+        )
+        # This step is where the computation actually occurs since all samples are requested to
+        # build the list
+        predictions_list = list(predictions_generator)
+
+        # Extract the source image names associated with each tile in the inference dataloader
+        image_filenames = [metadata['source_image'] 
+                           for batch in inference_dataloader 
+                           for metadata in batch['metadata']]
+        
+        # Create a zip with each RegionDetections and its corresponding source image name
+        preds_and_images = zip(predictions_list, image_filenames)
+
+        # Obtain groups of RegionDetections after grouping by source image name
+        groups = groupby(preds_and_images, key = lambda x: x[1])
+
+        # Create a RegionDetectionsSet for each group
+        region_detections_sets = []
+        keys = []
+        for key, group in groups:
+            region_detections_sets.append(RegionDetectionsSet([i[0] for i in group]))
+            keys.append(key)  # source image names
+
+        return region_detections_sets, keys
+
 
     @abstractmethod
     def predict_batch(
