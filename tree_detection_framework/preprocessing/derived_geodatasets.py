@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from pathlib import Path
 from typing import Any, Optional
 
@@ -24,7 +24,6 @@ from torchgeo.samplers import GridGeoSampler, Units
 from torchvision import transforms
 
 from tree_detection_framework.constants import PATH_TYPE
-from collections import namedtuple
 
 # Define a namedtuple to store bounds of tiles images from the `CustomImageDataset`
 bounding_box = namedtuple('bounding_box', ['minx', 'maxx', 'miny', 'maxy'])

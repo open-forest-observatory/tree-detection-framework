@@ -1,8 +1,8 @@
 import logging
 import warnings
 from abc import abstractmethod
-from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 from itertools import groupby
+from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
 import detectron2.data.transforms as T
 import geopandas as gpd
