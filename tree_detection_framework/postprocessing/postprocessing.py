@@ -1,12 +1,12 @@
 import logging
-from typing import Optional, List
+from typing import List, Optional
 
 import numpy as np
 import pyproj
 from polygone_nms import nms
+from shapely import box
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
-from shapely import box
 
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,

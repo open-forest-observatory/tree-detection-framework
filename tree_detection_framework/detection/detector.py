@@ -32,7 +32,10 @@ from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
 )
-from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule, bounding_box
+from tree_detection_framework.preprocessing.derived_geodatasets import (
+    CustomDataModule,
+    bounding_box,
+)
 from tree_detection_framework.utils.geometric import mask_to_shapely
 
 # Set up logging configuration
