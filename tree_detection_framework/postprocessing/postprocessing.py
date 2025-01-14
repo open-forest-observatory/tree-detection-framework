@@ -348,7 +348,9 @@ def suppress_tile_boundary_with_NMS(
     return iou_ios_nms
 
 
-def remove_out_of_bounds_detections(region_detection_sets: List[RegionDetectionsSet], true_bounds: List):
+def remove_out_of_bounds_detections(
+    region_detection_sets: List[RegionDetectionsSet], true_bounds: List
+):
     """
     Filters out detections that are outside the bounds of a defined region.
     Used as a post-processing step after `predict_raw_drone_images()`.
@@ -375,7 +377,9 @@ def remove_out_of_bounds_detections(region_detection_sets: List[RegionDetections
         list_of_filtered_regions = []
 
         # Subset true_bounds for the current region set
-        region_true_bounds_set = true_bounds[region_idx:region_idx + num_of_regions_in_a_set]
+        region_true_bounds_set = true_bounds[
+            region_idx : region_idx + num_of_regions_in_a_set
+        ]
 
         for idx in range(num_of_regions_in_a_set):
 
@@ -394,13 +398,17 @@ def remove_out_of_bounds_detections(region_detection_sets: List[RegionDetections
             region_set_polygon = box(minx, miny, maxx, maxy)
 
             # Remove detections that extend beyond the image bounds
-            indices_within_bounds = rd_gdf[rd_gdf['geometry'].apply(lambda poly: poly.within(region_set_polygon))].index
+            indices_within_bounds = rd_gdf[
+                rd_gdf["geometry"].apply(lambda poly: poly.within(region_set_polygon))
+            ].index
 
             # Subset the RegionDetections object keeping only the valid indices calculated before
             filtered_rd = rd.subset_detections(list(indices_within_bounds))
             list_of_filtered_regions.append(filtered_rd)
 
-        list_of_filtered_region_sets.append(RegionDetectionsSet(list_of_filtered_regions))
+        list_of_filtered_region_sets.append(
+            RegionDetectionsSet(list_of_filtered_regions)
+        )
 
         # Update region_idx to process the next set of true bounds
         region_idx += num_of_regions_in_a_set
