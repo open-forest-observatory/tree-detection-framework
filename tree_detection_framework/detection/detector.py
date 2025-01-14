@@ -32,7 +32,7 @@ from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
 )
-from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
+from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule, bounding_box
 from tree_detection_framework.utils.geometric import mask_to_shapely
 
 # Set up logging configuration
@@ -134,7 +134,7 @@ class Detector:
 
     def predict_raw_drone_images(
         self, inference_dataloader: DataLoader, **kwargs
-    ) -> Tuple[List[RegionDetectionsSet], List[str]]:
+    ) -> Tuple[List[RegionDetectionsSet], List[str], List[bounding_box]]:
         """
         Generate predictions for every image in the dataloader created using `CustomImageDataset` for raw drone images.
         Calls self.predict_as_generator() and retains predictions as a list.
@@ -148,6 +148,8 @@ class Detector:
                 List of `RegionDetectionsSet` objects
             keys (List[str]):
                 List of image filepaths corresponding to region_detections_sets
+            true_bounds (List[bounding_box]):
+                List of image bounding box values at RegionDetections level
         """
         # Get the generator that will generate predictions. Note this only creates the generator,
         # computation is defered until the samples are actually requested
