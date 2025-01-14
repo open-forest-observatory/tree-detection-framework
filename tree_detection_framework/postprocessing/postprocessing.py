@@ -350,7 +350,7 @@ def suppress_tile_boundary_with_NMS(
 
 def remove_out_of_bounds_detections(
     region_detection_sets: List[RegionDetectionsSet], true_bounds: List
-):
+) -> List[RegionDetectionsSet]:
     """
     Filters out detections that are outside the bounds of a defined region.
     Used as a post-processing step after `predict_raw_drone_images()`.
