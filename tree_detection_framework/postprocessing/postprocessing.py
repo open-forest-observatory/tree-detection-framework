@@ -1,11 +1,12 @@
 import logging
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
 import pyproj
 from polygone_nms import nms
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
+from shapely import box
 
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
@@ -345,3 +346,63 @@ def suppress_tile_boundary_with_NMS(
     )
 
     return iou_ios_nms
+
+
+def remove_out_of_bounds_detections(region_detection_sets: List[RegionDetectionsSet], true_bounds: List):
+    """
+    Filters out detections that are outside the bounds of a defined region.
+    Used as a post-processing step after `predict_raw_drone_images()`.
+
+    Args:
+        region_detection_sets (List[RegionDetectionSet]):
+            Each elemet is a RegionDetectionsSet derived from a specific drone image.
+            Length is the number of raw drone images given to  the dataloader.
+        true_bounds (List[bounding_box]):
+            Each element is a `bounding_box` object derived from the dataloader.
+            Length: number of regions in a set * number of RegionDetectionSet objects
+
+    Returns:
+        List of RegiondetectionSet objects with out-of-bounds predictions filtered out.
+    """
+    # Find the number of regions in every set. Assume every set has same number of regions.
+    num_of_regions_in_a_set = len(region_detection_sets[0].get_data_frame())
+    region_idx = 0  # To index elements in true_bounds
+    list_of_filtered_region_sets = []  # To save the final result
+
+    for rds in region_detection_sets:
+
+        # To save filtered regions in a particular set
+        list_of_filtered_regions = []
+
+        # Subset true_bounds for the current region set
+        region_true_bounds_set = true_bounds[region_idx:region_idx + num_of_regions_in_a_set]
+
+        for idx in range(num_of_regions_in_a_set):
+
+            # Get RegionsDetections object from the set
+            rd = rds.get_region_detections(idx)
+            rd_gdf = rd.get_data_frame()
+
+            # Calculate the overall bounding box for the current true bounds subset
+            minx = min(bounds.minx for bounds in region_true_bounds_set)
+            maxx = max(bounds.maxx for bounds in region_true_bounds_set)
+            miny = min(bounds.maxy for bounds in region_true_bounds_set)
+            maxy = max(bounds.miny for bounds in region_true_bounds_set)
+
+            # Create the min area enclosure polygon for the RegionSetectionSet
+            # This is essentially the dimensions of the image
+            region_set_polygon = box(minx, miny, maxx, maxy)
+
+            # Remove detections that extend beyond the image bounds
+            indices_within_bounds = rd_gdf[rd_gdf['geometry'].apply(lambda poly: poly.within(region_set_polygon))].index
+
+            # Subset the RegionDetections object keeping only the valid indices calculated before
+            filtered_rd = rd.subset_detections(list(indices_within_bounds))
+            list_of_filtered_regions.append(filtered_rd)
+
+        list_of_filtered_region_sets.append(RegionDetectionsSet(list_of_filtered_regions))
+
+        # Update region_idx to process the next set of true bounds
+        region_idx += num_of_regions_in_a_set
+
+    return list_of_filtered_region_sets
