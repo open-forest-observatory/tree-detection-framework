@@ -23,32 +23,69 @@ def get_shapely_transform_from_matrix(matrix_transform: np.ndarray):
     ]
     return shapely_transform
 
-def mask_to_shapely(mask):
+def mask_to_shapely(mask: np.ndarray) -> shapely.MultiPolygon:
+    """
+    Convert a binary mask to a Shapely MultiPolygon representing positive regions.
 
+    Args:
+        mask (np.ndarray): A (n, m) array where positive values are > 0.5 and negative values are < 0.5.
+
+    Returns:
+        shapely.MultiPolygon: A MultiPolygon representing the positive regions.
+    """
     if not np.any(mask):
-        return shapely.Polygon()
-    # Find contours
-    contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    # print(f"len: {len(contours)}")
-    # print(f"shape: {contours[0].shape}")
-    # print(contours[0])
-    # print(f"shape2: {np.squeeze(contours[0]).shape}")
+        return shapely.Polygon()  # Return an empty Polygon if the mask is empty.
+
+    # Find contours in the mask
+    contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
     polygons = []
     for contour in contours:
         contour = np.squeeze(contour)
-        if (contour.ndim != 2) or (contour.shape[0] < 4):
-            # print(contour.ndim)
-            # continue
-            polygons.append(shapely.Polygon())
-        else:
-            # print(contour.shape)
-            # print(polygon)
-            polygon = shapely.Polygon(contour)
-            if polygon.is_valid:
-                polygons.append(polygon)
-            else:
-                polygons.append(shapely.Polygon())
-    return shapely.MultiPolygon(polygons)
+        if (contour.ndim != 2) or (contour.shape[0] < 3):  # Skip invalid contours
+            continue
+
+        polygon = shapely.Polygon(contour)
+        
+        if not polygon.is_valid:
+            polygon = polygon.buffer(0)  # Fix invalid polygon
+
+        if polygon.is_valid:
+            polygons.append(polygon)
+            
+
+    # Combine all valid polygons into a single MultiPolygon using unary_union
+    multipolygon = shapely.unary_union(polygons)
+
+    return multipolygon
+
+
+# def mask_to_shapely(mask):
+
+#     if not np.any(mask):
+#         return shapely.Polygon()
+#     # Find contours
+#     contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#     # print(f"len: {len(contours)}")
+#     # print(f"shape: {contours[0].shape}")
+#     # print(contours[0])
+#     # print(f"shape2: {np.squeeze(contours[0]).shape}")
+#     polygons = []
+#     for contour in contours:
+#         contour = np.squeeze(contour)
+#         if (contour.ndim != 2) or (contour.shape[0] < 4):
+#             # print(contour.ndim)
+#             # continue
+#             polygons.append(shapely.Polygon())
+#         else:
+#             # print(contour.shape)
+#             # print(polygon)
+#             polygon = shapely.Polygon(contour)
+#             if polygon.is_valid:
+#                 polygons.append(polygon)
+#             else:
+#                 polygons.append(shapely.Polygon())
+#     return shapely.MultiPolygon(polygons)
 
 
 # def mask_to_shapely(mask: np.ndarray) -> shapely.MultiPolygon:
@@ -89,25 +126,4 @@ def mask_to_shapely(mask):
 #     # Union these regions to get a single multipolygon
 #     multipolygon = shapely.unary_union(chunk_polygons)
 
-#     return multipolygon
-
-# def mask_to_shapely(mask: np.ndarray) -> MultiPolygon:
-#     """Convert a binary mask to a Shapely MultiPolygon using OpenCV."""
-#     # Ensure mask is binary (0 or 255) for OpenCV
-#     binary_mask = (mask > 0.5).astype(np.uint8) * 255
-
-#     # Find contours with external contours and hierarchical structure
-#     contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-#     # Convert each contour to a Shapely Polygon
-#     polygons = []
-#     for contour in contours:
-#         # Extract the exterior coordinates
-#         exterior = contour[:, 0, :]
-#         polygon = Polygon(exterior)
-#         if polygon.is_valid:  # Avoid invalid polygons
-#             polygons.append(polygon)
-
-#     # Combine all polygons into a MultiPolygon
-#     multipolygon = MultiPolygon(polygons)
 #     return multipolygon
