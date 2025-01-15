@@ -366,13 +366,14 @@ def remove_out_of_bounds_detections(
     Returns:
         List of RegiondetectionSet objects with out-of-bounds predictions filtered out.
     """
-    # Find the number of regions in every set. Assume every set has same number of regions.
-    num_of_regions_in_a_set = len(region_detection_sets[0].get_data_frame())
+ 
     region_idx = 0  # To index elements in true_bounds
     list_of_filtered_region_sets = []  # To save the final result
 
     for rds in region_detection_sets:
-
+        
+        # Find the number of regions in every set
+        num_of_regions_in_a_set = len(rds.get_data_frame())
         # To save filtered regions in a particular set
         list_of_filtered_regions = []
 
@@ -381,17 +382,17 @@ def remove_out_of_bounds_detections(
             region_idx : region_idx + num_of_regions_in_a_set
         ]
 
+        # Calculate the overall bounding box for the current true bounds subset
+        minx = min(bounds.minx for bounds in region_true_bounds_set)
+        maxx = max(bounds.maxx for bounds in region_true_bounds_set)
+        miny = min(bounds.maxy for bounds in region_true_bounds_set)
+        maxy = max(bounds.miny for bounds in region_true_bounds_set)
+
         for idx in range(num_of_regions_in_a_set):
 
             # Get RegionsDetections object from the set
             rd = rds.get_region_detections(idx)
             rd_gdf = rd.get_data_frame()
-
-            # Calculate the overall bounding box for the current true bounds subset
-            minx = min(bounds.minx for bounds in region_true_bounds_set)
-            maxx = max(bounds.maxx for bounds in region_true_bounds_set)
-            miny = min(bounds.maxy for bounds in region_true_bounds_set)
-            maxy = max(bounds.miny for bounds in region_true_bounds_set)
 
             # Create the min area enclosure polygon for the RegionSetectionSet
             # This is essentially the dimensions of the image
