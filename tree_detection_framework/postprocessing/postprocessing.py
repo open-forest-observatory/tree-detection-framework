@@ -366,12 +366,12 @@ def remove_out_of_bounds_detections(
     Returns:
         List of RegiondetectionSet objects with out-of-bounds predictions filtered out.
     """
- 
+
     region_idx = 0  # To index elements in true_bounds
     list_of_filtered_region_sets = []  # To save the final result
 
     for rds in region_detection_sets:
-        
+
         # Find the number of regions in every set
         num_of_regions_in_a_set = len(rds.get_data_frame())
         # To save filtered regions in a particular set
