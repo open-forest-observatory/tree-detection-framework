@@ -387,7 +387,12 @@ def remove_out_of_bounds_detections(
             rd_gdf = rd.get_data_frame()
 
             # Create a polygon of size equal to the image dimensions
-            region_set_polygon = box(region_image_bounds.minx, region_image_bounds.maxy, region_image_bounds.maxx, region_image_bounds.miny)
+            region_set_polygon = box(
+                region_image_bounds.minx,
+                region_image_bounds.maxy,
+                region_image_bounds.maxx,
+                region_image_bounds.miny,
+            )
 
             # Remove detections that extend beyond the image bounds
             indices_within_bounds = rd_gdf[
