@@ -396,7 +396,9 @@ def remove_out_of_bounds_detections(
 
             # Remove detections that extend beyond the image bounds
             within_bounds_indices = rd_gdf.within(region_set_polygon)
-            within_bounds_indices_true = within_bounds_indices[within_bounds_indices].index
+            within_bounds_indices_true = within_bounds_indices[
+                within_bounds_indices
+            ].index
 
             # Subset the RegionDetections object keeping only the valid indices calculated before
             filtered_rd = rd.subset_detections(within_bounds_indices_true)
