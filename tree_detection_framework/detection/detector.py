@@ -170,10 +170,9 @@ class Detector:
             for metadata in batch["metadata"]
         ]
 
-        # Extract bounding box values of the image within each tile (i.e., excluding the white padded region)
-        # This is saved for a post-processing step
-        true_bounds = [
-            metadata["true_bounds"]
+        # Extract image dimensions. This is saved for a post-processing step.
+        image_bounds = [
+            metadata["image_bounds"]
             for batch in inference_dataloader
             for metadata in batch["metadata"]
         ]
@@ -191,7 +190,7 @@ class Detector:
             region_detections_sets.append(RegionDetectionsSet([i[0] for i in group]))
             keys.append(key)  # source image names
 
-        return region_detections_sets, keys, true_bounds
+        return region_detections_sets, keys, image_bounds
 
     @abstractmethod
     def predict_batch(

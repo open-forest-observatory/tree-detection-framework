@@ -226,28 +226,27 @@ class CustomImageDataset(Dataset):
             if not isinstance(tile, torch.Tensor):
                 tile = transforms.ToTensor()(tile)
 
-        return {
-            "image": tile,
-            "metadata": {
-                "image_index": img_idx,
-                "source_image": str(img_path),
-                # True bounds includes bounding box values for image data within a tile
-                "true_bounds": bounding_box(
+            return {
+                "image": tile,
+                "metadata": {
+                    "image_index": img_idx,
+                    "source_image": str(img_path),
+                    "image_bounds": bounding_box(
+                        0,
+                        float(img.width),
+                        float(img.height),
+                        0,
+                    ),
+                },
+                # Bounds includes bounding box values for the whole tile including white padded region if any
+                "bounds": bounding_box(
                     float(x),
-                    float(x + tile_width),
-                    float(y + tile_height),
+                    float(x + self.chip_size),
+                    float(y + self.chip_size),
                     float(y),
                 ),
-            },
-            # Bounds includes bounding box values for the whole tile including white padded region if any
-            "bounds": bounding_box(
-                float(x),
-                float(x + self.chip_size),
-                float(y + self.chip_size),
-                float(y),
-            ),
-            "crs": None,
-        }
+                "crs": None,
+            }
 
     @staticmethod
     def collate_as_defaultdict(batch):

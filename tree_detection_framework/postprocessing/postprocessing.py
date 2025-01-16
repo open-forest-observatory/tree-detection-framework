@@ -349,7 +349,7 @@ def suppress_tile_boundary_with_NMS(
 
 
 def remove_out_of_bounds_detections(
-    region_detection_sets: List[RegionDetectionsSet], true_bounds: List
+    region_detection_sets: List[RegionDetectionsSet], image_bounds: List
 ) -> List[RegionDetectionsSet]:
     """
     Filters out detections that are outside the bounds of a defined region.
@@ -359,7 +359,7 @@ def remove_out_of_bounds_detections(
         region_detection_sets (List[RegionDetectionSet]):
             Each elemet is a RegionDetectionsSet derived from a specific drone image.
             Length is the number of raw drone images given to  the dataloader.
-        true_bounds (List[bounding_box]):
+        image_bounds (List[bounding_box]):
             Each element is a `bounding_box` object derived from the dataloader.
             Length: number of regions in a set * number of RegionDetectionSet objects
 
@@ -368,7 +368,7 @@ def remove_out_of_bounds_detections(
     """
 
     region_idx = 0  # To index elements in true_bounds
-    list_of_filtered_region_sets = []  # To save the final result
+    list_of_filtered_region_sets = []
 
     for rds in region_detection_sets:
 
@@ -377,16 +377,8 @@ def remove_out_of_bounds_detections(
         # To save filtered regions in a particular set
         list_of_filtered_regions = []
 
-        # Subset true_bounds for the current region set
-        region_true_bounds_set = true_bounds[
-            region_idx : region_idx + num_of_regions_in_a_set
-        ]
-
-        # Calculate the overall bounding box for the current true bounds subset
-        minx = min(bounds.minx for bounds in region_true_bounds_set)
-        maxx = max(bounds.maxx for bounds in region_true_bounds_set)
-        miny = min(bounds.maxy for bounds in region_true_bounds_set)
-        maxy = max(bounds.miny for bounds in region_true_bounds_set)
+        # Get the region image bounds for the RegionDetectionSet
+        region_image_bounds = image_bounds[region_idx]
 
         for idx in range(num_of_regions_in_a_set):
 
@@ -394,9 +386,8 @@ def remove_out_of_bounds_detections(
             rd = rds.get_region_detections(idx)
             rd_gdf = rd.get_data_frame()
 
-            # Create the min area enclosure polygon for the RegionSetectionSet
-            # This is essentially the dimensions of the image
-            region_set_polygon = box(minx, miny, maxx, maxy)
+            # Create a polygon of size equal to the image dimensions
+            region_set_polygon = box(region_image_bounds.minx, region_image_bounds.maxy, region_image_bounds.maxx, region_image_bounds.miny)
 
             # Remove detections that extend beyond the image bounds
             indices_within_bounds = rd_gdf[
@@ -411,7 +402,7 @@ def remove_out_of_bounds_detections(
             RegionDetectionsSet(list_of_filtered_regions)
         )
 
-        # Update region_idx to process the next set of true bounds
+        # Update region_idx to point to the image dims of the next rds
         region_idx += num_of_regions_in_a_set
 
     return list_of_filtered_region_sets
