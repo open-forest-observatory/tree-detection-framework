@@ -32,7 +32,10 @@ from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
 )
-from tree_detection_framework.preprocessing.derived_geodatasets import CustomDataModule
+from tree_detection_framework.preprocessing.derived_geodatasets import (
+    CustomDataModule,
+    bounding_box,
+)
 from tree_detection_framework.utils.geometric import mask_to_shapely
 
 # Set up logging configuration
@@ -134,7 +137,7 @@ class Detector:
 
     def predict_raw_drone_images(
         self, inference_dataloader: DataLoader, **kwargs
-    ) -> Tuple[List[RegionDetectionsSet], List[str]]:
+    ) -> Tuple[List[RegionDetectionsSet], List[str], List[bounding_box]]:
         """
         Generate predictions for every image in the dataloader created using `CustomImageDataset` for raw drone images.
         Calls self.predict_as_generator() and retains predictions as a list.
@@ -148,6 +151,8 @@ class Detector:
                 List of `RegionDetectionsSet` objects
             keys (List[str]):
                 List of image filepaths corresponding to region_detections_sets
+            true_bounds (List[bounding_box]):
+                List of image bounding box values at RegionDetections level
         """
         # Get the generator that will generate predictions. Note this only creates the generator,
         # computation is defered until the samples are actually requested
@@ -165,6 +170,13 @@ class Detector:
             for metadata in batch["metadata"]
         ]
 
+        # Extract image dimensions. This is saved for a post-processing step.
+        image_bounds = [
+            metadata["image_bounds"]
+            for batch in inference_dataloader
+            for metadata in batch["metadata"]
+        ]
+
         # Create a zip with each RegionDetections and its corresponding source image name
         preds_and_images = zip(predictions_list, image_filenames)
 
@@ -178,7 +190,7 @@ class Detector:
             region_detections_sets.append(RegionDetectionsSet([i[0] for i in group]))
             keys.append(key)  # source image names
 
-        return region_detections_sets, keys
+        return region_detections_sets, keys, image_bounds
 
     @abstractmethod
     def predict_batch(
