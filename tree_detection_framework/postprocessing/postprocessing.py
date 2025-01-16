@@ -394,6 +394,8 @@ def remove_out_of_bounds_detections(
                 region_image_bounds.miny,
             )
 
+            # TODO: Instead of removing detections partially extending out of the boundary,
+            # try cropping it using gpd.clip()
             # Remove detections that extend beyond the image bounds
             within_bounds_indices = rd_gdf.within(region_set_polygon)
             within_bounds_indices_true = within_bounds_indices[
