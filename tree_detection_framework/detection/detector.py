@@ -588,6 +588,9 @@ class GeometricDetector(Detector):
         tile_gdf["circle"] = all_circles
         tile_gdf["multipolygon_mask"] = all_polygon_masks
 
+        # Fix invalid polygons by buffering 0
+        tile_gdf["multipolygon_mask"] = gpd.GeoSeries(tile_gdf["multipolygon_mask"]).buffer(0)
+
         # The final tree crown is computed as the intersection of voronoi polygon, circle, and mask
         tile_gdf["tree_crown"] = (
             gpd.GeoSeries(tile_gdf["geometry"])
@@ -629,8 +632,6 @@ class GeometricDetector(Detector):
 
         # Calculate pseudo-confidence scores for the detections
         confidence_scores = self.calculate_scores(tile_gdf, image.shape)
-        print(f"len of filtered_crowns {len(filtered_crowns)}")
-        print(f"len of confidence_scores {len(confidence_scores)}")
 
         return filtered_crowns, confidence_scores
 
