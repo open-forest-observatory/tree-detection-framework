@@ -1,9 +1,10 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import pyproj
 from polygone_nms import nms
+from shapely import box
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
 
@@ -345,3 +346,71 @@ def suppress_tile_boundary_with_NMS(
     )
 
     return iou_ios_nms
+
+
+def remove_out_of_bounds_detections(
+    region_detection_sets: List[RegionDetectionsSet], image_bounds: List
+) -> List[RegionDetectionsSet]:
+    """
+    Filters out detections that are outside the bounds of a defined region.
+    Used as a post-processing step after `predict_raw_drone_images()`.
+
+    Args:
+        region_detection_sets (List[RegionDetectionSet]):
+            Each elemet is a RegionDetectionsSet derived from a specific drone image.
+            Length is the number of raw drone images given to  the dataloader.
+        image_bounds (List[bounding_box]):
+            Each element is a `bounding_box` object derived from the dataloader.
+            Length: number of regions in a set * number of RegionDetectionSet objects
+
+    Returns:
+        List of RegiondetectionSet objects with out-of-bounds predictions filtered out.
+    """
+
+    region_idx = 0  # To index elements in true_bounds
+    list_of_filtered_region_sets = []
+
+    for rds in region_detection_sets:
+
+        # Find the number of regions in every set
+        num_of_regions_in_a_set = len(rds.get_data_frame())
+        # To save filtered regions in a particular set
+        list_of_filtered_regions = []
+
+        # Get the region image bounds for the RegionDetectionSet
+        region_image_bounds = image_bounds[region_idx]
+
+        for idx in range(num_of_regions_in_a_set):
+
+            # Get RegionsDetections object from the set
+            rd = rds.get_region_detections(idx)
+            rd_gdf = rd.get_data_frame()
+
+            # Create a polygon of size equal to the image dimensions
+            region_set_polygon = box(
+                region_image_bounds.minx,
+                region_image_bounds.maxy,
+                region_image_bounds.maxx,
+                region_image_bounds.miny,
+            )
+
+            # TODO: Instead of removing detections partially extending out of the boundary,
+            # try cropping it using gpd.clip()
+            # Remove detections that extend beyond the image bounds
+            within_bounds_indices = rd_gdf.within(region_set_polygon)
+            within_bounds_indices_true = within_bounds_indices[
+                within_bounds_indices
+            ].index
+
+            # Subset the RegionDetections object keeping only the valid indices calculated before
+            filtered_rd = rd.subset_detections(within_bounds_indices_true)
+            list_of_filtered_regions.append(filtered_rd)
+
+        list_of_filtered_region_sets.append(
+            RegionDetectionsSet(list_of_filtered_regions)
+        )
+
+        # Update region_idx to point to the image dims of the next rds
+        region_idx += num_of_regions_in_a_set
+
+    return list_of_filtered_region_sets
