@@ -1,8 +1,6 @@
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import shapely
-from contourpy import contour_generator
 
 
 def get_shapely_transform_from_matrix(matrix_transform: np.ndarray):
