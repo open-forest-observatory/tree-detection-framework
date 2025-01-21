@@ -62,7 +62,7 @@ def mask_to_shapely(mask: np.ndarray, simplify_tolerance: float = 0) -> shapely.
             # Append the polygon
             polygons.append(shape)
 
-    # Combine all valid polygons into a single MultiPolygon using unary_union
+    # Combine all polygons into a MultiPolygon
     multipolygon = shapely.MultiPolygon(polygons)
 
     return multipolygon
