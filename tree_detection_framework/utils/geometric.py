@@ -24,7 +24,10 @@ def get_shapely_transform_from_matrix(matrix_transform: np.ndarray):
     ]
     return shapely_transform
 
-def mask_to_shapely(mask: np.ndarray, simplify_tolerance: float = 0) -> shapely.MultiPolygon:
+
+def mask_to_shapely(
+    mask: np.ndarray, simplify_tolerance: float = 0
+) -> shapely.MultiPolygon:
     """
     Convert a binary mask to a Shapely MultiPolygon representing positive regions,
     with optional simplification.
@@ -40,7 +43,9 @@ def mask_to_shapely(mask: np.ndarray, simplify_tolerance: float = 0) -> shapely.
         return shapely.Polygon()  # Return an empty Polygon if the mask is empty.
 
     # Find contours in the mask
-    contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(
+        mask.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+    )
 
     polygons = []
     for contour in contours:
@@ -48,10 +53,10 @@ def mask_to_shapely(mask: np.ndarray, simplify_tolerance: float = 0) -> shapely.
         # Skip invalid contours
         if (contour.ndim != 2) or (contour.shape[0] < 3):
             continue
-        
+
         # Convert the contour to a shapely geometry
         shape = shapely.Polygon(contour)
-        
+
         # Simplify polygons if tolerance value provided
         if simplify_tolerance > 0:
             shape = shape.simplify(simplify_tolerance)

@@ -601,7 +601,9 @@ class GeometricDetector(Detector):
         tile_gdf["multipolygon_mask"] = all_polygon_masks
 
         # Fix invalid polygons by buffering 0
-        tile_gdf["multipolygon_mask"] = gpd.GeoSeries(tile_gdf["multipolygon_mask"]).buffer(0)
+        tile_gdf["multipolygon_mask"] = gpd.GeoSeries(
+            tile_gdf["multipolygon_mask"]
+        ).buffer(0)
 
         # The final tree crown is computed as the intersection of voronoi polygon, circle, and mask
         tile_gdf["tree_crown"] = (
