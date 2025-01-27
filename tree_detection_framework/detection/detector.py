@@ -600,6 +600,11 @@ class GeometricDetector(Detector):
         tile_gdf["circle"] = all_circles
         tile_gdf["multipolygon_mask"] = all_polygon_masks
 
+        # Fix invalid polygons by buffering 0
+        tile_gdf["multipolygon_mask"] = gpd.GeoSeries(
+            tile_gdf["multipolygon_mask"]
+        ).buffer(0)
+
         # The final tree crown is computed as the intersection of voronoi polygon, circle, and mask
         tile_gdf["tree_crown"] = (
             gpd.GeoSeries(tile_gdf["geometry"])
@@ -608,8 +613,10 @@ class GeometricDetector(Detector):
         )
 
         filtered_crowns = []
-        for tree_crown, treetop_point in zip(
-            tile_gdf["tree_crown"], tile_gdf["treetop_pixel_coords"]
+        indices_to_drop = []
+
+        for index, (tree_crown, treetop_point) in enumerate(
+            zip(tile_gdf["tree_crown"], tile_gdf["treetop_pixel_coords"])
         ):
             # Only keep valid polygons
             if (
@@ -630,9 +637,16 @@ class GeometricDetector(Detector):
                     # For other cases, add an empty polygon to avoid having a mismatch in number of rows in the gdf
                     if i == (len(tree_crown.geoms) - 1):
                         filtered_crowns.append(Polygon())
+            else:
+                # If tree_crown is not valid, mark the row for deletion
+                indices_to_drop.append(index)
+
+        # Drop the rows with invalid polygons
+        tile_gdf = tile_gdf.drop(indices_to_drop)
 
         # Calculate pseudo-confidence scores for the detections
         confidence_scores = self.calculate_scores(tile_gdf, image.shape)
+
         return filtered_crowns, confidence_scores
 
     def predict_batch(self, batch):
