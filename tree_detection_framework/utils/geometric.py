@@ -34,7 +34,7 @@ def mask_to_shapely(
     with optional simplification.
 
     Args:
-        mask (np.ndarray): A (n, m) array where positive values are > 0.5 and negative values are < 0.5.
+        mask (np.ndarray): A (n, m) A mask with boolean values.
         simplify_tolerance (float): Tolerance for simplifying polygons. A value of 0 means no simplification.
         backend (str): The backend to use for contour extraction. Choose from "cv2" and "contourpy". Defaults to cv2.
 
