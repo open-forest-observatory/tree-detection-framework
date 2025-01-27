@@ -25,9 +25,7 @@ def get_shapely_transform_from_matrix(matrix_transform: np.ndarray):
 
 
 def mask_to_shapely(
-    mask: np.ndarray,
-    simplify_tolerance: float = 0,
-    backend: str = "cv2"
+    mask: np.ndarray, simplify_tolerance: float = 0, backend: str = "cv2"
 ) -> shapely.MultiPolygon:
     """
     Convert a binary mask to a Shapely MultiPolygon representing positive regions,
@@ -76,9 +74,9 @@ def mask_to_shapely(
 
     elif backend == "contourpy":
         # ContourPy-based approach
-        filled = contour_generator(z=mask, fill_type="ChunkCombinedOffsetOffset").filled(
-            0.5, np.inf
-        )
+        filled = contour_generator(
+            z=mask, fill_type="ChunkCombinedOffsetOffset"
+        ).filled(0.5, np.inf)
         chunk_polygons = [
             shapely.from_ragged_array(
                 shapely.GeometryType.POLYGON, points, (offsets, outer_offsets)
@@ -87,12 +85,14 @@ def mask_to_shapely(
         ]
 
         multipolygon = shapely.unary_union(chunk_polygons)
-        
+
         # Simplify the resulting MultiPolygon if needed
         if simplify_tolerance > 0:
             multipolygon = multipolygon.simplify(simplify_tolerance)
-        
+
         return multipolygon
 
     else:
-        raise ValueError(f"Unsupported backend: {backend}. Choose 'cv2' or 'contourpy'.")
+        raise ValueError(
+            f"Unsupported backend: {backend}. Choose 'cv2' or 'contourpy'."
+        )
