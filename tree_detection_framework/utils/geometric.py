@@ -58,10 +58,6 @@ def mask_to_shapely(
             # Convert the contour to a shapely geometry
             shape = shapely.Polygon(contour)
 
-            # Simplify polygons if tolerance value provided
-            if simplify_tolerance > 0:
-                shape = shape.simplify(simplify_tolerance)
-
             if isinstance(shape, shapely.MultiPolygon):
                 # Append all individual polygons
                 polygons.extend(shape.geoms)
@@ -70,7 +66,12 @@ def mask_to_shapely(
                 polygons.append(shape)
 
         # Combine all polygons into a MultiPolygon
-        return shapely.MultiPolygon(polygons)
+        multipolygon = shapely.MultiPolygon(polygons)
+
+        if simplify_tolerance > 0:
+            multipolygon = multipolygon.simplify(simplify_tolerance)
+
+        return multipolygon
 
     elif backend == "contourpy":
         # ContourPy-based approach
