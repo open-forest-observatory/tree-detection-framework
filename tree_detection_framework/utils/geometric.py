@@ -25,7 +25,7 @@ def get_shapely_transform_from_matrix(matrix_transform: np.ndarray):
 
 
 def mask_to_shapely(
-    mask: np.ndarray, simplify_tolerance: float = 0, backend: str = "cv2"
+    mask: np.ndarray, simplify_tolerance: float = 0, backend: str = "contourpy"
 ) -> shapely.MultiPolygon:
     """
     Convert a binary mask to a Shapely MultiPolygon representing positive regions,
@@ -34,7 +34,7 @@ def mask_to_shapely(
     Args:
         mask (np.ndarray): A (n, m) A mask with boolean values.
         simplify_tolerance (float): Tolerance for simplifying polygons. A value of 0 means no simplification.
-        backend (str): The backend to use for contour extraction. Choose from "cv2" and "contourpy". Defaults to cv2.
+        backend (str): The backend to use for contour extraction. Choose from "cv2" and "contourpy". Defaults to contourpy.
 
     Returns:
         shapely.MultiPolygon: A MultiPolygon representing the positive regions.
