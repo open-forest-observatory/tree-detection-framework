@@ -348,7 +348,7 @@ class GeometricDetector(Detector):
         threshold_factor: float = 0.3,
         confidence_factor: str = "height",
         filter_shape: str = "circle",
-        backend: str = "cv2"
+        backend: str = "cv2",
     ):
         """Create a GeometricDetector object
 
