@@ -348,7 +348,7 @@ class GeometricDetector(Detector):
         threshold_factor: float = 0.3,
         confidence_factor: str = "height",
         filter_shape: str = "circle",
-        backend: str = "cv2",
+        contour_backend: str = "cv2",
     ):
         """Create a GeometricDetector object
 
@@ -364,7 +364,8 @@ class GeometricDetector(Detector):
                 Choose from "height", "area", "distance", "all". Defaults to "height".
             filter_shape (str, optional): Shape of the filter to use for local maxima detection.
                 Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
-            backend (str, optional): The backend to use for contour extraction to generate treecrowns. Choose from "cv2" and "contourpy".
+            contour_backend (str, optional): The backend to use for contour extraction to generate treecrowns.
+                Choose from "cv2" and "contourpy".
 
         """
         self.a = a
@@ -376,7 +377,7 @@ class GeometricDetector(Detector):
         self.threshold_factor = threshold_factor
         self.confidence_factor = confidence_factor
         self.filter_shape = filter_shape
-        self.backend = backend
+        self.backend = contour_backend
 
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
