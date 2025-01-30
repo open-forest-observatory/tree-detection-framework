@@ -348,6 +348,7 @@ class GeometricDetector(Detector):
         threshold_factor: float = 0.3,
         confidence_factor: str = "height",
         filter_shape: str = "circle",
+        backend: str = "cv2"
     ):
         """Create a GeometricDetector object
 
@@ -363,6 +364,7 @@ class GeometricDetector(Detector):
                 Choose from "height", "area", "distance", "all". Defaults to "height".
             filter_shape (str, optional): Shape of the filter to use for local maxima detection.
                 Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
+            backend (str, optional): The backend to use for contour extraction to generate treecrowns. Choose from "cv2" and "contourpy".
 
         """
         self.a = a
@@ -374,6 +376,7 @@ class GeometricDetector(Detector):
         self.threshold_factor = threshold_factor
         self.confidence_factor = confidence_factor
         self.filter_shape = filter_shape
+        self.backend = backend
 
     # TODO: See creating the height mask is more efficient by first cropping the tile CHM to the maximum possible bounds of the tree crown,
     # as opposed to applying the mask to the whole tile CHM for each tree
@@ -592,7 +595,7 @@ class GeometricDetector(Detector):
             # Thresholding the tile image
             binary_mask = image > threshold
             # Convert the mask to shapely polygons, returned as a MultiPolygon
-            shapely_polygon_mask = mask_to_shapely(binary_mask)
+            shapely_polygon_mask = mask_to_shapely(binary_mask, backend=self.backend)
             all_polygon_masks.append(shapely_polygon_mask)
 
         # Add the calculated radii, circles and polygon masks to the GeoDataFrame
