@@ -1,6 +1,6 @@
 from collections import defaultdict, namedtuple
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union, List
 
 import fiona
 import fiona.transform
@@ -151,7 +151,7 @@ class CustomVectorDataset(VectorDataset):
 class CustomImageDataset(Dataset):
     def __init__(
         self,
-        folder_path: PATH_TYPE,
+        folder_path: Union[PATH_TYPE, List[str]],
         chip_size: int,
         chip_stride: int,
     ):
@@ -159,26 +159,30 @@ class CustomImageDataset(Dataset):
         Dataset for creating a dataloader from a folder of individual images, with an option to create tiles.
 
         Args:
-            folder_path (Path): Path to the folder containing image files.
+            folder_path (Union[Path, List[str]]): Path to the folder containing image files, or list of paths to image files.
             chip_size (int): Dimension of each image chip (width, height) in pixels.
             chip_stride (int): Stride to take while chipping the images (horizontal, vertical) in pixels.
         """
-        self.folder_path = Path(folder_path)
         self.chip_size = chip_size
         self.chip_stride = chip_stride
 
-        # Get a list of all image paths
-        image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]
-        self.image_paths = sorted(
-            [
-                path
-                for path in self.folder_path.glob("*")
-                if path.suffix.lower() in image_extensions
-            ]
-        )
+        if not isinstance(folder_path, list):
+            self.folder_path = Path(folder_path)
 
-        if not self.image_paths:
-            raise ValueError(f"No image files found in {self.folder_path}")
+            # Get a list of all image paths
+            image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]
+            self.image_paths = sorted(
+                [
+                    path
+                    for path in self.folder_path.glob("*")
+                    if path.suffix.lower() in image_extensions
+                ]
+            )
+
+            if not self.image_paths:
+                raise ValueError(f"No image files found in {self.folder_path}")
+        else:
+            self.image_paths = folder_path
 
         self.tile_metadata = self._get_metadata()
 

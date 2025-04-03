@@ -2,7 +2,7 @@ import json
 import logging
 import random
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import matplotlib.pyplot as plt
 import pyproj
@@ -179,7 +179,7 @@ def create_dataloader(
 
 
 def create_image_dataloader(
-    folder_path: Path,
+    folder_path: Union[PATH_TYPE, List[str]],
     chip_size: int,
     chip_stride: Optional[int] = None,
     chip_overlap_percentage: Optional[float] = None,
@@ -189,8 +189,8 @@ def create_image_dataloader(
     Create a dataloader for a folder of normal images (e.g., JPGs), tiling them into smaller patches.
 
     Args:
-        folder_path (Path):
-            Path to the folder containing image files.
+        folder_path (Union[Path, List[str]]):
+            Path to the folder containing image files, or list of paths to image files.
         chip_size (int):
             Size of the tiles (width, height) in pixels.
         chip_stride (Optional[int], optional):
