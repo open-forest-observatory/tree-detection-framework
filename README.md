@@ -88,7 +88,7 @@ Finally, the `tree_detection_framework/entrypoints` folder has command line scri
 to complete tasks.
 
 ## Evaluation and benchmark with NEON
-Download the NEON dataset files
+Download the NEON dataset files and save the annotations and RGB folders under a new directory in the `data` folder.
 ```
 wget -O annotations.zip "https://zenodo.org/records/5914554/files/annotations.zip?download=1"
 unzip annotations.zip
