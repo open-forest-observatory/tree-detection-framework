@@ -17,18 +17,14 @@ from tree_detection_framework.preprocessing.preprocessing import create_image_da
 
 logging.basicConfig(level=logging.INFO)
 
-
-def get_neon_detections(
-    images_dir: PATH_TYPE, annotations_dir: PATH_TYPE, detectors: dict[str, Detector]
-) -> dict[str, dict[str, List[box]]]:
-    """Step 1: Get predictions using the detcetors on the NEON dataset.
+def extract_neon_groundtruth(images_dir: PATH_TYPE, annotations_dir: PATH_TYPE) -> dict[str, dict[str, List[box]]]:
+    """
+    Extract ground truth bounding boxes from NEON XML annotations.
     Args:
         images_dir (PATH_TYPE): Directory containing image tiles.
         annotations_dir (PATH_TYPE): Directory containing XML annotation files.
-        detectors (dict[str, Detector]): Dictionary mapping detector names to Detector instances.
-        Set keys from: ["deepforest", "detectree2", "sam2"]
     Returns:
-        dict: Dictionary mapping image paths to a dictionary with detector names and the corresponding output boxes.
+        dict: A dictionary mapping image paths to a dictionary with "gt" key containing ground truth boxes.
     """
     tiles_to_predict = list(Path(images_dir).glob("*.tif"))
     mappings = {}
@@ -57,6 +53,22 @@ def get_neon_detections(
 
         # Add the ground truth boxes to the mappings
         mappings[str(path)] = {"gt": gt_boxes}
+    return mappings
+
+def get_neon_detections(
+    images_dir: PATH_TYPE, annotations_dir: PATH_TYPE, detectors: dict[str, Detector]
+) -> dict[str, dict[str, List[box]]]:
+    """Step 1: Get predictions using the detcetors on the NEON dataset.
+    Args:
+        images_dir (PATH_TYPE): Directory containing image tiles.
+        annotations_dir (PATH_TYPE): Directory containing XML annotation files.
+        detectors (dict[str, Detector]): Dictionary mapping detector names to Detector instances.
+        Set keys from: ["deepforest", "detectree2", "sam2"]
+    Returns:
+        dict: Dictionary mapping image paths to a dictionary with detector names and the corresponding output boxes.
+    """
+    # A dictionary mapping image paths to a dictionary with "gt" key containing ground truth boxes
+    mappings = extract_neon_groundtruth(images_dir, annotations_dir)
 
     # Create dataloader setting image size as 420x420. NEON dataset has a standard size of 400x400.
     dataloader = create_image_dataloader(
