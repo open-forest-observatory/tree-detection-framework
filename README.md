@@ -86,3 +86,15 @@ up-to-date examples in the `examples` folder. We also have work-in-progress or o
 `sandbox`, which still may provide some insight but is not guaranteed to be current or generalizable.
 Finally, the `tree_detection_framework/entrypoints` folder has command line scripts that can be run
 to complete tasks.
+
+## Evaluation and benchmark with NEON
+Download the NEON dataset files
+```
+wget -O annotations.zip "https://zenodo.org/records/5914554/files/annotations.zip?download=1"
+unzip annotations.zip
+wget -O evaluation.zip "https://zenodo.org/records/5914554/files/evaluation.zip?download=1"
+unzip -j evaluation.zip "evaluation/RGB/*" -d RGB
+rm annotations.zip
+rm evaluation.zip
+```
+Follow the steps in `tree-detection-framework/sandbox/evaluation/neon_benchmark.ipynb`
