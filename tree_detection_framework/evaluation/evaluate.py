@@ -1,7 +1,9 @@
-import numpy as np
-from shapely.geometry import Polygon
-from scipy.optimize import linear_sum_assignment
 from typing import List
+
+import numpy as np
+from scipy.optimize import linear_sum_assignment
+from shapely.geometry import Polygon
+
 
 def calculate_polygon_iou(polyA: Polygon, polyB: Polygon) -> float:
     """Compute Intersection over Union (IoU) between two polygons.

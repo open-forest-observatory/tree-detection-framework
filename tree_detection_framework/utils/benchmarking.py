@@ -1,17 +1,19 @@
-from glob import glob
-import numpy as np
-import logging 
+import logging
 import xml.etree.ElementTree as ET
-from shapely.geometry import box
-from tree_detection_framework.constants import PATH_TYPE
-from tree_detection_framework.detection.detector import Detector
-from tree_detection_framework.preprocessing.preprocessing import create_image_dataloader
-from tree_detection_framework.evaluation.evaluate import (
-    compute_matched_ious,
-    compute_precision_recall
-)
+from glob import glob
 from pathlib import Path
 from typing import List
+
+import numpy as np
+from shapely.geometry import box
+
+from tree_detection_framework.constants import PATH_TYPE
+from tree_detection_framework.detection.detector import Detector
+from tree_detection_framework.evaluation.evaluate import (
+    compute_matched_ious,
+    compute_precision_recall,
+)
+from tree_detection_framework.preprocessing.preprocessing import create_image_dataloader
 
 logging.basicConfig(level=logging.INFO)
 

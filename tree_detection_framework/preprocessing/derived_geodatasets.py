@@ -1,6 +1,6 @@
 from collections import defaultdict, namedtuple
 from pathlib import Path
-from typing import Any, Optional, Union, List
+from typing import Any, List, Optional, Union
 
 import fiona
 import fiona.transform
