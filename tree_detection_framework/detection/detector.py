@@ -215,7 +215,7 @@ class Detector:
 
     @staticmethod
     def get_image_bounds_as_shapely(
-        batch: DefaultDict[str, Any]
+        batch: DefaultDict[str, Any],
     ) -> List[shapely.geometry.Polygon]:
         """Get pixel image bounds as shapely objects from a batch.
         Args:
@@ -234,7 +234,7 @@ class Detector:
 
     @staticmethod
     def get_geospatial_bounds_as_shapely(
-        batch: DefaultDict[str, Any]
+        batch: DefaultDict[str, Any],
     ) -> List[shapely.geometry.Polygon]:
         """Get geospatial region bounds as shapely objects from a batch.
         Args:
@@ -971,6 +971,8 @@ class Detectree2Detector(LightningDetector):
             scores = instances.scores.numpy()
             # Get predicted classes
             labels = instances.pred_classes.numpy()
-            all_data_dicts.append({"score": scores, "labels": labels, "bbox": bounding_boxes})
+            all_data_dicts.append(
+                {"score": scores, "labels": labels, "bbox": bounding_boxes}
+            )
 
         return all_geometries, all_data_dicts

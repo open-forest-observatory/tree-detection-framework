@@ -17,7 +17,10 @@ def calculate_polygon_iou(polyA: Polygon, polyB: Polygon) -> float:
     union = polyA.union(polyB).area
     return intersection / union if union > 0 else 0
 
-def compute_matched_ious(ground_truth_boxes: List[Polygon], predicted_boxes: List[Polygon]) -> List:
+
+def compute_matched_ious(
+    ground_truth_boxes: List[Polygon], predicted_boxes: List[Polygon]
+) -> List:
     """Compute IoUs for matched pairs of ground truth and predicted boxes.
     This uses the Hungarian algorithm to find the optimal assignment.
     Args:
@@ -31,7 +34,7 @@ def compute_matched_ious(ground_truth_boxes: List[Polygon], predicted_boxes: Lis
 
     num_gt = len(ground_truth_boxes)
     num_pred = len(predicted_boxes)
-    
+
     # Create IoU cost matrix (negative because Hungarian minimizes cost)
     cost_matrix = np.zeros((num_gt, num_pred))
     for i, gt in enumerate(ground_truth_boxes):
@@ -45,7 +48,10 @@ def compute_matched_ious(ground_truth_boxes: List[Polygon], predicted_boxes: Lis
     matched_ious = [-cost_matrix[i, j] for i, j in zip(gt_indices, pred_indices)]
     return matched_ious
 
-def compute_precision_recall(ious: List, num_gt: int, num_pd: int, threshold: float=0.4) -> tuple:
+
+def compute_precision_recall(
+    ious: List, num_gt: int, num_pd: int, threshold: float = 0.4
+) -> tuple:
     """Compute precision and recall based on IoUs.
     Args:
         ious (list): List of IoUs for matched pairs.
