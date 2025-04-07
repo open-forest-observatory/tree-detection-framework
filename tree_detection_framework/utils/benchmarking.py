@@ -14,6 +14,7 @@ from tree_detection_framework.evaluation.evaluate import (
     compute_precision_recall,
 )
 from tree_detection_framework.preprocessing.preprocessing import create_image_dataloader
+from tree_detection_framework.postprocessing.postprocessing import single_region_NMS
 
 logging.basicConfig(level=logging.INFO)
 
@@ -56,13 +57,15 @@ def extract_neon_groundtruth(images_dir: PATH_TYPE, annotations_dir: PATH_TYPE) 
     return mappings
 
 def get_neon_detections(
-    images_dir: PATH_TYPE, annotations_dir: PATH_TYPE, detectors: dict[str, Detector]
+    images_dir: PATH_TYPE, annotations_dir: PATH_TYPE, detectors: dict[str, Detector], nms_threshold: float = None, min_confidence: float = 0.5
 ) -> dict[str, dict[str, List[box]]]:
     """Step 1: Get predictions using the detcetors on the NEON dataset.
     Args:
         images_dir (PATH_TYPE): Directory containing image tiles.
         annotations_dir (PATH_TYPE): Directory containing XML annotation files.
         detectors (dict[str, Detector]): Dictionary mapping detector names to Detector instances.
+        nms_threshold (float, optional): Non-Maximum Suppression threshold. Default is None (no NMS applied on predictions).
+        min_confidence (float, optional): Minimum confidence threshold for predictions. Default is 0.5.
         Set keys from: ["deepforest", "detectree2", "sam2"]
     Returns:
         dict: Dictionary mapping image paths to a dictionary with detector names and the corresponding output boxes.
@@ -89,7 +92,11 @@ def get_neon_detections(
         # {"image_path_1": {"gt": gt_boxes, "detector_name_1": [boxes], ...},
         #  "image_path_2": {"gt": gt_boxes, "detector_name_1": [boxes], ...}, ...}
         for filename, rds in zip(filenames, region_detection_sets):
-            gdf = rds.get_data_frame()[0]
+            if nms_threshold is not None:
+                rds = single_region_NMS(rds.get_region_detections(0), threshold=nms_threshold, min_confidence=min_confidence)
+            gdf = rds.get_data_frame()
+
+            # Add the detections to the mappings dictionary
             if name == "deepforest":
                 mappings[filename][name] = list(gdf.geometry)
             elif name == "detectree2":
