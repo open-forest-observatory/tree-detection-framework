@@ -1,21 +1,9 @@
 from typing import List
 
 import numpy as np
+import geopandas as gpd
 from scipy.optimize import linear_sum_assignment
 from shapely.geometry import Polygon
-
-
-def calculate_polygon_iou(polyA: Polygon, polyB: Polygon) -> float:
-    """Compute Intersection over Union (IoU) between two polygons.
-    Args:
-        polyA (Polygon): First polygon
-        polyB (Polygon): Second polygon
-    Returns:
-        float: IoU value between 0 and 1
-    """
-    intersection = polyA.intersection(polyB).area
-    union = polyA.union(polyB).area
-    return intersection / union if union > 0 else 0
 
 
 def compute_matched_ious(
@@ -32,14 +20,22 @@ def compute_matched_ious(
     if not ground_truth_boxes or not predicted_boxes:
         return 0.0  # Return 0 if either list is empty
 
-    num_gt = len(ground_truth_boxes)
-    num_pred = len(predicted_boxes)
+    # Create GeoDataFrames for ground truth and predicted boxes
+    gt_gdf = gpd.GeoDataFrame(geometry=ground_truth_boxes)
+    gt_gdf["area_gt"] = gt_gdf.geometry.area
+    gt_gdf["id_gt"] = gt_gdf.index
 
-    # Create IoU cost matrix (negative because Hungarian minimizes cost)
-    cost_matrix = np.zeros((num_gt, num_pred))
-    for i, gt in enumerate(ground_truth_boxes):
-        for j, pred in enumerate(predicted_boxes):
-            cost_matrix[i, j] = -calculate_polygon_iou(gt, pred)
+    pred_gdf = gpd.GeoDataFrame(geometry=predicted_boxes)
+    pred_gdf["area_pred"] = pred_gdf.geometry.area
+    pred_gdf["id_pred"] = pred_gdf.index
+
+    # Get the intersection between the two sets of polygons
+    intersection = gpd.overlay(gt_gdf, pred_gdf, how='intersection')
+    intersection['iou'] = intersection.area / (intersection['area_gt'] + (intersection['area_pred'] - intersection.area))
+
+    # Create a cost matrix to store IoUs
+    cost_matrix = np.zeros((len(gt_gdf), len(pred_gdf)))
+    cost_matrix[intersection['id_gt'], intersection['id_pred']] = -intersection['iou']
 
     # Solve optimal assignment using the Hungarian algorithm
     gt_indices, pred_indices = linear_sum_assignment(cost_matrix)
