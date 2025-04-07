@@ -30,12 +30,14 @@ def compute_matched_ious(
     pred_gdf["id_pred"] = pred_gdf.index
 
     # Get the intersection between the two sets of polygons
-    intersection = gpd.overlay(gt_gdf, pred_gdf, how='intersection')
-    intersection['iou'] = intersection.area / (intersection['area_gt'] + (intersection['area_pred'] - intersection.area))
+    intersection = gpd.overlay(gt_gdf, pred_gdf, how="intersection")
+    intersection["iou"] = intersection.area / (
+        intersection["area_gt"] + (intersection["area_pred"] - intersection.area)
+    )
 
     # Create a cost matrix to store IoUs
     cost_matrix = np.zeros((len(gt_gdf), len(pred_gdf)))
-    cost_matrix[intersection['id_gt'], intersection['id_pred']] = -intersection['iou']
+    cost_matrix[intersection["id_gt"], intersection["id_pred"]] = -intersection["iou"]
 
     # Solve optimal assignment using the Hungarian algorithm
     gt_indices, pred_indices = linear_sum_assignment(cost_matrix)

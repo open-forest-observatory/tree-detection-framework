@@ -18,7 +18,10 @@ from tree_detection_framework.preprocessing.preprocessing import create_image_da
 
 logging.basicConfig(level=logging.INFO)
 
-def extract_neon_groundtruth(images_dir: PATH_TYPE, annotations_dir: PATH_TYPE) -> dict[str, dict[str, List[box]]]:
+
+def extract_neon_groundtruth(
+    images_dir: PATH_TYPE, annotations_dir: PATH_TYPE
+) -> dict[str, dict[str, List[box]]]:
     """
     Extract ground truth bounding boxes from NEON XML annotations.
     Args:
@@ -56,8 +59,13 @@ def extract_neon_groundtruth(images_dir: PATH_TYPE, annotations_dir: PATH_TYPE) 
         mappings[str(path)] = {"gt": gt_boxes}
     return mappings
 
+
 def get_neon_detections(
-    images_dir: PATH_TYPE, annotations_dir: PATH_TYPE, detectors: dict[str, Detector], nms_threshold: float = None, min_confidence: float = 0.5
+    images_dir: PATH_TYPE,
+    annotations_dir: PATH_TYPE,
+    detectors: dict[str, Detector],
+    nms_threshold: float = None,
+    min_confidence: float = 0.5,
 ) -> dict[str, dict[str, List[box]]]:
     """Step 1: Get predictions using the detcetors on the NEON dataset.
     Args:
@@ -93,7 +101,11 @@ def get_neon_detections(
         #  "image_path_2": {"gt": gt_boxes, "detector_name_1": [boxes], ...}, ...}
         for filename, rds in zip(filenames, region_detection_sets):
             if nms_threshold is not None:
-                rds = single_region_NMS(rds.get_region_detections(0), threshold=nms_threshold, min_confidence=min_confidence)
+                rds = single_region_NMS(
+                    rds.get_region_detections(0),
+                    threshold=nms_threshold,
+                    min_confidence=min_confidence,
+                )
             gdf = rds.get_data_frame()
 
             # Add the detections to the mappings dictionary
