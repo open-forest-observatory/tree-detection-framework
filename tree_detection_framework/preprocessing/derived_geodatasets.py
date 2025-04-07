@@ -179,7 +179,7 @@ class CustomImageDataset(Dataset):
                 ]
             )
 
-            if not self.image_paths:
+            if len(self.image_paths) == 0:
                 raise ValueError(f"No image files found in {self.folder_path}")
         else:
             self.image_paths = folder_path

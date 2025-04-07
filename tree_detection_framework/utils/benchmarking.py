@@ -129,4 +129,4 @@ def evaluate_detections(detections_dict: dict[str, dict[str, List[box]]]):
         P = np.mean(all_predictions_P)
         R = np.mean(all_predictions_R)
         F1 = (2 * P * R) / (P + R)
-        print(f"'{detector}': Precision={P:.3f}, Recall={R:.3f}, F1-Score={F1:.3f}")
+        print(f"'{detector}': Precision={P}, Recall={R}, F1-Score={F1}")

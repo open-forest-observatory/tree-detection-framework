@@ -64,4 +64,4 @@ def compute_precision_recall(
     true_positives = (np.array(ious) > threshold).astype(np.uint8)
     recall = np.sum(true_positives) / num_gt
     precision = np.sum(true_positives) / num_pd
-    return round(precision, 3), round(recall, 3)
+    return precision, recall
