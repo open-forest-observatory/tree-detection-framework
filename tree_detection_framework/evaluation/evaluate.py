@@ -1,7 +1,7 @@
 from typing import List
 
-import numpy as np
 import geopandas as gpd
+import numpy as np
 from scipy.optimize import linear_sum_assignment
 from shapely.geometry import Polygon
 

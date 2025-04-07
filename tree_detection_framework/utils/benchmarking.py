@@ -13,8 +13,8 @@ from tree_detection_framework.evaluation.evaluate import (
     compute_matched_ious,
     compute_precision_recall,
 )
-from tree_detection_framework.preprocessing.preprocessing import create_image_dataloader
 from tree_detection_framework.postprocessing.postprocessing import single_region_NMS
+from tree_detection_framework.preprocessing.preprocessing import create_image_dataloader
 
 logging.basicConfig(level=logging.INFO)
 
