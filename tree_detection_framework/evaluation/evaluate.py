@@ -58,6 +58,7 @@ def compute_precision_recall(
         tuple: Precision and recall values.
     """
     true_positives = (np.array(ious) > threshold).astype(np.uint8)
-    recall = np.sum(true_positives) / num_gt
-    precision = np.sum(true_positives) / num_pd
+    tp = np.sum(true_positives)
+    recall = tp / num_gt if num_gt > 0 else 0.0
+    precision = tp / num_pd if num_pd > 0 else 0.0
     return precision, recall
