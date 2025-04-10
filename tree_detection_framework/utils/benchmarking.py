@@ -67,7 +67,11 @@ def get_detectree2_gt(dataloader) -> dict[str, dict[str, List[box]]]:
     for i in dataloader:
         img_path = i['metadata'][0]['source_image']
         gt_gdf = gpd.read_file(i['metadata'][0]['annotations'])
-        mappings[img_path] = {'gt': list(gt_gdf.geometry)}
+
+        # Convert each geometry to its axis-aligned bounding box polygon
+        bounding_boxes = [box(*geom.bounds) for geom in gt_gdf.geometry]
+        
+        mappings[img_path] = {'gt': bounding_boxes}
     return mappings
 
 def get_neon_dataloader(image_paths: List[str]) -> DataLoader:
