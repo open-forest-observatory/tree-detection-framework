@@ -2,7 +2,7 @@ import logging
 import xml.etree.ElementTree as ET
 from glob import glob
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import numpy as np
 import geopandas as gpd
@@ -84,22 +84,38 @@ def get_neon_dataloader(image_paths: List[str]) -> DataLoader:
     )
     return dataloader
 
-def get_detectree2_dataloader(images_dir: PATH_TYPE, annotations_dir: PATH_TYPE) -> DataLoader:
-    """Create a dataloader for the Detectree2 dataset."""
-    images_dir = Path(images_dir)
-    img_paths = list(images_dir.glob("*"))
+def get_detectree2_dataloader(
+    images_dir: Union[PATH_TYPE, List[PATH_TYPE]],
+    annotations_dir: Union[PATH_TYPE, List[PATH_TYPE]]
+) -> 'DataLoader':
+    """Create a Detectree2 dataloader from one or more image/annotation directories."""
+    
+    # Extract the list of paths to image and annotation directories
+    images_dirs = [Path(p) for p in (images_dir if isinstance(images_dir, list) else [images_dir])]
+    annotations_dirs = [Path(p) for p in (annotations_dir if isinstance(annotations_dir, list) else [annotations_dir])]
 
-    ann_dir = Path(annotations_dir)
-    ann_paths = list(ann_dir.glob("*"))
+    # Collect all image and annotation paths
+    img_paths = []
+    for img_dir in images_dirs:
+        img_paths.extend(list(img_dir.glob("*")))
 
-    # Create dataloader setting image size as 1020x1020. NEON dataset has a standard size of 1000x1000.
-    dataloader = create_image_dataloader(images_dir=img_paths, chip_size=1020, chip_stride=1020, labels_dir=ann_paths)
+    ann_paths = []
+    for ann_dir in annotations_dirs:
+        ann_paths.extend(list(ann_dir.glob("*")))
+
+    # Create dataloader using all images
+    dataloader = create_image_dataloader(
+        images_dir=img_paths,
+        chip_size=1020,
+        chip_stride=1020,
+        labels_dir=ann_paths
+    )
     return dataloader
 
 def get_benchmark_detections(
     dataset_name: str,
-    images_dir: PATH_TYPE,
-    annotations_dir: PATH_TYPE,
+    images_dir: Union[PATH_TYPE, List[PATH_TYPE]],
+    annotations_dir: Union[PATH_TYPE, List[PATH_TYPE]],
     detectors: dict[str, Detector],
     nms_threshold: float = None,
     min_confidence: float = 0.5,
@@ -108,8 +124,8 @@ def get_benchmark_detections(
     Load ground truth, create dataloader, and run detectors on the images from the benchmark dataset.
     Args:
         dataset_name (str): Name of the dataset ("neon" or "detectree2").
-        images_dir (PATH_TYPE): Directory containing image tiles.
-        annotations_dir (PATH_TYPE): Directory containing annotation files.
+        images_dir (PATH_TYPE, List[PATH_TYPE]): Directory or list of directories to image files.
+        annotations_dir (PATH_TYPE, List[PATH_TYPE]): Directory or list of directories to annotation files.
         detectors (dict): Dictionary of detector instances to be evaluated.
         nms_threshold (float): Non-maximum suppression threshold.
         min_confidence (float): Minimum confidence threshold for detections.
