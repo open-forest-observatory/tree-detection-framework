@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
+import geopandas as gpd
+from torch.utils.data import DataLoader
 from shapely.geometry import box
 
 from tree_detection_framework.constants import PATH_TYPE
@@ -19,7 +21,7 @@ from tree_detection_framework.preprocessing.preprocessing import create_image_da
 logging.basicConfig(level=logging.INFO)
 
 
-def extract_neon_groundtruth(
+def get_neon_gt(
     images_dir: PATH_TYPE, annotations_dir: PATH_TYPE
 ) -> dict[str, dict[str, List[box]]]:
     """
@@ -59,35 +61,67 @@ def extract_neon_groundtruth(
         mappings[str(path)] = {"gt": gt_boxes}
     return mappings
 
+def get_detectree2_gt(dataloader) -> dict[str, dict[str, List[box]]]:
+    """Extract ground truth bounding boxes from Detectree2 annotations."""
+    mappings = {}
+    for i in dataloader:
+        img_path = i['metadata'][0]['source_image']
+        gt_gdf = gpd.read_file(i['metadata'][0]['annotations'])
+        mappings[img_path] = {'gt': list(gt_gdf.geometry)}
+    return mappings
 
-def get_neon_detections(
+def get_neon_dataloader(image_paths: List[str]) -> DataLoader:
+    """Create a dataloader for the NEON dataset."""
+    # Create dataloader setting image size as 420x420. NEON dataset has a standard size of 400x400.
+    dataloader = create_image_dataloader(
+        image_paths,
+        chip_size=420,
+        chip_stride=420,
+    )
+    return dataloader
+
+def get_detectree2_dataloader(images_dir: PATH_TYPE, annotations_dir: PATH_TYPE) -> DataLoader:
+    """Create a dataloader for the Detectree2 dataset."""
+    images_dir = Path(images_dir)
+    img_paths = list(images_dir.glob("*"))
+
+    ann_dir = Path(annotations_dir)
+    ann_paths = list(ann_dir.glob("*"))
+
+    # Create dataloader setting image size as 1020x1020. NEON dataset has a standard size of 1000x1000.
+    dataloader = create_image_dataloader(images_dir=img_paths, chip_size=1020, chip_stride=1020, labels_dir=ann_paths)
+    return dataloader
+
+def get_benchmark_detections(
+    dataset_name: str,
     images_dir: PATH_TYPE,
     annotations_dir: PATH_TYPE,
     detectors: dict[str, Detector],
     nms_threshold: float = None,
     min_confidence: float = 0.5,
 ) -> dict[str, dict[str, List[box]]]:
-    """Step 1: Get predictions using the detcetors on the NEON dataset.
-    Args:
-        images_dir (PATH_TYPE): Directory containing image tiles.
-        annotations_dir (PATH_TYPE): Directory containing XML annotation files.
-        detectors (dict[str, Detector]): Dictionary mapping detector names to Detector instances.
-        nms_threshold (float, optional): Non-Maximum Suppression threshold. Default is None (no NMS applied on predictions).
-        min_confidence (float, optional): Minimum confidence threshold for predictions. Default is 0.5.
-        Set keys from: ["deepforest", "detectree2", "sam2"]
-    Returns:
-        dict: Dictionary mapping image paths to a dictionary with detector names and the corresponding output boxes.
     """
-    # A dictionary mapping image paths to a dictionary with "gt" key containing ground truth boxes
-    mappings = extract_neon_groundtruth(images_dir, annotations_dir)
+    Load ground truth, create dataloader, and run detectors on the images from the benchmark dataset.
+    Args:
+        dataset_name (str): Name of the dataset ("neon" or "detectree2").
+        images_dir (PATH_TYPE): Directory containing image tiles.
+        annotations_dir (PATH_TYPE): Directory containing annotation files.
+        detectors (dict): Dictionary of detector instances to be evaluated.
+        nms_threshold (float): Non-maximum suppression threshold.
+        min_confidence (float): Minimum confidence threshold for detections.
+    Returns:
+        dict: A dictionary mapping image paths to a dictionary with detector names and the corresponding output boxes.
+    """
+    if dataset_name == "neon":
+        mappings = get_neon_gt(images_dir, annotations_dir)
+        dataloader = get_neon_dataloader(list(mappings.keys()))
 
-    # Create dataloader setting image size as 420x420. NEON dataset has a standard size of 400x400.
-    dataloader = create_image_dataloader(
-        list(mappings.keys()),
-        chip_size=420,
-        chip_stride=420,
-        batch_size=1,
-    )
+    elif dataset_name == "detectree2":
+        dataloader = get_detectree2_dataloader(images_dir, annotations_dir)
+        mappings = get_detectree2_gt(dataloader)
+
+    else:
+        raise ValueError(f"Unknown dataset: {dataset_name}")
 
     for name, detector in detectors.items():
         # Get predictions from every detector
@@ -120,7 +154,6 @@ def get_neon_detections(
                 raise ValueError(f"Unknown detector: {name}")
 
     return mappings
-
 
 def evaluate_detections(detections_dict: dict[str, dict[str, List[box]]]):
     """Step 2: Compute precision and recall for each detector.

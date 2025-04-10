@@ -201,9 +201,8 @@ class CustomImageDataset(Dataset):
                     (label for label in self.labels_paths if Path(label).name == expected_label_name),
                     None,
                 )
-
-            if label_path is None:
-                raise ValueError(f"Label file not found for image: {img_path}")
+                if label_path is None:
+                    raise ValueError(f"Label file not found for image: {img_path}")
 
             tile_idx = 0  # A unique tile index value within this image, resets for every new image
             with Image.open(img_path) as img:
