@@ -4,9 +4,6 @@ from typing import Any, Dict, List, Optional
 import lightning
 import torch
 import torchvision
-from detectron2 import model_zoo
-from detectron2.config import get_cfg
-from detectron2.engine import DefaultPredictor
 from torch import Tensor, optim
 from torchvision.models.detection.retinanet import (
     AnchorGenerator,
@@ -15,6 +12,12 @@ from torchvision.models.detection.retinanet import (
 )
 
 from tree_detection_framework.utils.detection import use_release_df
+try:
+    from detectron2 import model_zoo
+    from detectron2.config import get_cfg
+    DETECTRON2_AVAILABLE = True
+except ImportError:
+    DETECTRON2_AVAILABLE = False
 
 
 class RetinaNetModel:
@@ -147,6 +150,10 @@ class DeepForestModule(lightning.LightningModule):
 
 class Detectree2Module:
     def __init__(self, param_dict: Optional[Dict[str, Any]] = None):
+        if DETECTRON2_AVAILABLE is False:
+            raise ImportError(
+                "Detectree2Module is not installed. Please install it to use this module."
+            )
         super().__init__()
         # If param_dict is not provided, ensure it is an empty dictionary
         self.param_dict = param_dict or {}

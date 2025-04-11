@@ -1,12 +1,19 @@
 import torch
-from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
-from sam2.build_sam import build_sam2
 from shapely.geometry import box
 from pathlib import Path
 
 from tree_detection_framework.constants import DEFAULT_DEVICE, CHECKPOINTS_FOLDER
 from tree_detection_framework.detection.detector import Detector
 from tree_detection_framework.utils.geometric import mask_to_shapely
+try:
+    from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
+    from sam2.build_sam import build_sam2
+    SAM2_AVAILABLE = True
+except ImportError:
+    SAM2_AVAILABLE = False
+    raise ImportError(
+        "SAM2 is not installed. Please install it using the instructions in the README."
+    )
 
 
 # follow README for download instructions
