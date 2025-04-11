@@ -4,10 +4,10 @@ from glob import glob
 from pathlib import Path
 from typing import List, Union
 
-import numpy as np
 import geopandas as gpd
-from torch.utils.data import DataLoader
+import numpy as np
 from shapely.geometry import box
+from torch.utils.data import DataLoader
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.detector import Detector

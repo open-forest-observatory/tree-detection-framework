@@ -34,6 +34,7 @@ from tree_detection_framework.preprocessing.derived_geodatasets import (
     bounding_box,
 )
 from tree_detection_framework.utils.geometric import mask_to_shapely
+
 try:
     import detectron2.data.transforms as T
     from detectron2.checkpoint import DetectionCheckpointer

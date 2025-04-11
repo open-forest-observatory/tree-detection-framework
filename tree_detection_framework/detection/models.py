@@ -12,6 +12,7 @@ from torchvision.models.detection.retinanet import (
 )
 
 from tree_detection_framework.utils.detection import use_release_df
+
 try:
     from detectron2 import model_zoo
     from detectron2.config import get_cfg
