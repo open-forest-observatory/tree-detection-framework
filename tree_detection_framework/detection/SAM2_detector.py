@@ -1,8 +1,10 @@
 import torch
 from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
 from sam2.build_sam import build_sam2
+from shapely.geometry import box
+from pathlib import Path
 
-from tree_detection_framework.constants import DEFAULT_DEVICE
+from tree_detection_framework.constants import DEFAULT_DEVICE, CHECKPOINTS_FOLDER
 from tree_detection_framework.detection.detector import Detector
 from tree_detection_framework.utils.geometric import mask_to_shapely
 
@@ -13,7 +15,7 @@ class SAMV2Detector(Detector):
     def __init__(
         self,
         device=DEFAULT_DEVICE,
-        sam2_checkpoint="checkpoints/sam2.1_hiera_large.pt",
+        sam2_checkpoint=Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt"),
         model_cfg="configs/sam2.1/sam2.1_hiera_l.yaml",
     ):
         self.device = device
@@ -38,7 +40,12 @@ class SAMV2Detector(Detector):
                 if original_image.shape[0] < 3:
                     raise ValueError("Original image has less than 3 channels")
 
-                original_image = original_image.permute(1, 2, 0).byte().numpy()
+                original_image = original_image.permute(1, 2, 0)
+                # If the pixels are in [0, 255] range, convert to [0, 1] range
+                if original_image.max() > 1:
+                    original_image = original_image.byte().numpy()
+                else:
+                    original_image = original_image.numpy()
                 rgb_image = original_image[:, :, :3]
                 mask = self.mask_generator.generate(
                     rgb_image
@@ -85,8 +92,11 @@ class SAMV2Detector(Detector):
 
             all_geometries.append(shapely_objects)
 
+            # Compute axis-aligned minimum area bounding box as Polygon objects
+            bounding_boxes = [box(*polygon.bounds) for polygon in shapely_objects]
+
             # Get prediction scores
             scores = [dic["stability_score"] for dic in pred]
-            all_data_dicts.append({"score": scores})
+            all_data_dicts.append({"score": scores, "bbox": bounding_boxes})
 
         return all_geometries, all_data_dicts
