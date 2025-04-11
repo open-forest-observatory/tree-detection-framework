@@ -40,6 +40,7 @@ try:
     from detectron2.checkpoint import DetectionCheckpointer
     from detectron2.data import MetadataCatalog
     from detectron2.modeling import build_model
+
     DETECTRON2_AVAILABLE = True
 except ImportError:
     DETECTRON2_AVAILABLE = False

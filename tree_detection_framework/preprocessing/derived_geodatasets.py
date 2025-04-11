@@ -198,7 +198,11 @@ class CustomImageDataset(Dataset):
                 # Match the label file by replacing the image extension with `.geojson`
                 expected_label_name = img_path.stem + ".geojson"
                 label_path = next(
-                    (label for label in self.labels_paths if Path(label).name == expected_label_name),
+                    (
+                        label
+                        for label in self.labels_paths
+                        if Path(label).name == expected_label_name
+                    ),
                     None,
                 )
                 if label_path is None:
@@ -246,7 +250,7 @@ class CustomImageDataset(Dataset):
             # Convert to tensor
             if not isinstance(tile, torch.Tensor):
                 tile = transforms.ToTensor()(tile)
-            
+
             metadata = {
                 "image_index": img_idx,
                 "source_image": str(img_path),

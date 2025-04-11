@@ -16,6 +16,7 @@ from tree_detection_framework.utils.detection import use_release_df
 try:
     from detectron2 import model_zoo
     from detectron2.config import get_cfg
+
     DETECTRON2_AVAILABLE = True
 except ImportError:
     DETECTRON2_AVAILABLE = False

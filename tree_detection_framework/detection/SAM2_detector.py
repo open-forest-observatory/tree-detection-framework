@@ -10,6 +10,7 @@ from tree_detection_framework.utils.geometric import mask_to_shapely
 try:
     from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
     from sam2.build_sam import build_sam2
+
     SAM2_AVAILABLE = True
 except ImportError:
     SAM2_AVAILABLE = False

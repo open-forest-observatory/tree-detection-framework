@@ -61,18 +61,20 @@ def get_neon_gt(
         mappings[str(path)] = {"gt": gt_boxes}
     return mappings
 
+
 def get_detectree2_gt(dataloader) -> dict[str, dict[str, List[box]]]:
     """Extract ground truth bounding boxes from Detectree2 annotations."""
     mappings = {}
     for i in dataloader:
-        img_path = i['metadata'][0]['source_image']
-        gt_gdf = gpd.read_file(i['metadata'][0]['annotations'])
+        img_path = i["metadata"][0]["source_image"]
+        gt_gdf = gpd.read_file(i["metadata"][0]["annotations"])
 
         # Convert each geometry to its axis-aligned bounding box polygon
         bounding_boxes = [box(*geom.bounds) for geom in gt_gdf.geometry]
-        
-        mappings[img_path] = {'gt': bounding_boxes}
+
+        mappings[img_path] = {"gt": bounding_boxes}
     return mappings
+
 
 def get_neon_dataloader(image_paths: List[str]) -> DataLoader:
     """Create a dataloader for the NEON dataset."""
@@ -84,15 +86,23 @@ def get_neon_dataloader(image_paths: List[str]) -> DataLoader:
     )
     return dataloader
 
+
 def get_detectree2_dataloader(
     images_dir: Union[PATH_TYPE, List[PATH_TYPE]],
-    annotations_dir: Union[PATH_TYPE, List[PATH_TYPE]]
-) -> 'DataLoader':
+    annotations_dir: Union[PATH_TYPE, List[PATH_TYPE]],
+) -> "DataLoader":
     """Create a Detectree2 dataloader from one or more image/annotation directories."""
-    
+
     # Extract the list of paths to image and annotation directories
-    images_dirs = [Path(p) for p in (images_dir if isinstance(images_dir, list) else [images_dir])]
-    annotations_dirs = [Path(p) for p in (annotations_dir if isinstance(annotations_dir, list) else [annotations_dir])]
+    images_dirs = [
+        Path(p) for p in (images_dir if isinstance(images_dir, list) else [images_dir])
+    ]
+    annotations_dirs = [
+        Path(p)
+        for p in (
+            annotations_dir if isinstance(annotations_dir, list) else [annotations_dir]
+        )
+    ]
 
     # Collect all image and annotation paths
     img_paths = []
@@ -105,12 +115,10 @@ def get_detectree2_dataloader(
 
     # Create dataloader using all images
     dataloader = create_image_dataloader(
-        images_dir=img_paths,
-        chip_size=1020,
-        chip_stride=1020,
-        labels_dir=ann_paths
+        images_dir=img_paths, chip_size=1020, chip_stride=1020, labels_dir=ann_paths
     )
     return dataloader
+
 
 def get_benchmark_detections(
     dataset_name: str,
@@ -171,6 +179,7 @@ def get_benchmark_detections(
                 raise ValueError(f"Unknown detector: {name}")
 
     return mappings
+
 
 def evaluate_detections(detections_dict: dict[str, dict[str, List[box]]]):
     """Step 2: Compute precision and recall for each detector.
