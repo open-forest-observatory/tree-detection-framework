@@ -185,8 +185,8 @@ class CustomImageDataset(Dataset):
                 raise ValueError(f"No image files found in {self.images_dir}")
         else:
             self.image_paths = images_dir
-            self.labels_paths = labels_dir
 
+        self.labels_paths = labels_dir
         self.tile_metadata = self._get_metadata()
 
     def _get_metadata(self):
