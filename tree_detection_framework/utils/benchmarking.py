@@ -165,11 +165,8 @@ def get_benchmark_detections(
             # Add the detections to the mappings dictionary
             if name == "deepforest":
                 mappings[filename][name] = list(gdf.geometry)
-            elif name == "detectree2":
+            elif name in ["sam2", "detectree2"]:
                 mappings[filename][name] = list(gdf["bbox"])
-            elif name == "sam2":
-                # TODO
-                pass
             else:
                 raise ValueError(f"Unknown detector: {name}")
 
