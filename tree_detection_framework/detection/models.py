@@ -154,7 +154,7 @@ class Detectree2Module:
     def __init__(self, param_dict: Optional[Dict[str, Any]] = None):
         if DETECTRON2_AVAILABLE is False:
             raise ImportError(
-                "Detectree2Module is not installed. Please install it to use this module."
+                "detectron2 is not installed. Please install it to use this module."
             )
         super().__init__()
         # If param_dict is not provided, ensure it is an empty dictionary
