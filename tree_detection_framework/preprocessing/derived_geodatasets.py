@@ -197,14 +197,8 @@ class CustomImageDataset(Dataset):
             if self.labels_paths:
                 # Match the label file by replacing the image extension with `.geojson`
                 expected_label_name = img_path.stem + ".geojson"
-                label_path = next(
-                    (
-                        label
-                        for label in self.labels_paths
-                        if Path(label).name == expected_label_name
-                    ),
-                    None,
-                )
+                matching_labels = filter(lambda label: Path(label).name  == expected_label_name, self.labels_paths)
+                label_path = next(matching_labels, None)
                 if label_path is None:
                     raise ValueError(f"Label file not found for image: {img_path}")
 
