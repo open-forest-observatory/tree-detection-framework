@@ -1,6 +1,6 @@
 from collections import defaultdict, namedtuple
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional, Union
 
 import fiona
 import fiona.transform
@@ -151,40 +151,60 @@ class CustomVectorDataset(VectorDataset):
 class CustomImageDataset(Dataset):
     def __init__(
         self,
-        folder_path: PATH_TYPE,
+        images_dir: Union[PATH_TYPE, List[str]],
         chip_size: int,
         chip_stride: int,
+        labels_dir: Optional[List[str]] = None,
     ):
         """
         Dataset for creating a dataloader from a folder of individual images, with an option to create tiles.
 
         Args:
-            folder_path (Path): Path to the folder containing image files.
+            images_dir (Union[Path, List[str]]): Path to the folder containing image files, or list of paths to image files.
             chip_size (int): Dimension of each image chip (width, height) in pixels.
             chip_stride (int): Stride to take while chipping the images (horizontal, vertical) in pixels.
+            labels_dir (Optional[List[str]]): List of paths to annotation .geojson files corresponding to the images.
+                Should have same file name as the image.
         """
-        self.folder_path = Path(folder_path)
         self.chip_size = chip_size
         self.chip_stride = chip_stride
 
-        # Get a list of all image paths
-        image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]
-        self.image_paths = sorted(
-            [
-                path
-                for path in self.folder_path.glob("*")
-                if path.suffix.lower() in image_extensions
-            ]
-        )
+        if not isinstance(images_dir, list):
+            self.images_dir = Path(images_dir)
+            # Get a list of all image paths
+            image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]
+            self.image_paths = sorted(
+                [
+                    path
+                    for path in self.images_dir.glob("*")
+                    if path.suffix.lower() in image_extensions
+                ]
+            )
 
-        if not self.image_paths:
-            raise ValueError(f"No image files found in {self.folder_path}")
+            if len(self.image_paths) == 0:
+                raise ValueError(f"No image files found in {self.images_dir}")
+        else:
+            self.image_paths = images_dir
 
+        self.labels_paths = labels_dir
         self.tile_metadata = self._get_metadata()
 
     def _get_metadata(self):
         metadata = []
         for img_path in self.image_paths:
+            # Ensure the label path corresponds to the same file name as the image
+            label_path = None
+            if self.labels_paths:
+                # Match the label file by replacing the image extension with `.geojson`
+                expected_label_name = img_path.stem + ".geojson"
+                matching_labels = filter(
+                    lambda label: Path(label).name == expected_label_name,
+                    self.labels_paths,
+                )
+                label_path = next(matching_labels, None)
+                if label_path is None:
+                    raise ValueError(f"Label file not found for image: {img_path}")
+
             tile_idx = 0  # A unique tile index value within this image, resets for every new image
             with Image.open(img_path) as img:
                 img_width, img_height = img.size
@@ -193,7 +213,7 @@ class CustomImageDataset(Dataset):
                 for y in range(0, img_height, self.chip_stride):
                     for x in range(0, img_width, self.chip_stride):
                         # Add metadata for the current tile
-                        metadata.append((tile_idx, img_path, x, y))
+                        metadata.append((tile_idx, img_path, label_path, x, y))
                         tile_idx += 1
         return metadata
 
@@ -201,7 +221,9 @@ class CustomImageDataset(Dataset):
         return len(self.tile_metadata)
 
     def __getitem__(self, idx):
-        img_idx, img_path, x, y = self.tile_metadata[idx]
+
+        img_idx, img_path, label_path, x, y = self.tile_metadata[idx]
+
         with Image.open(img_path) as img:
             img = img.convert("RGB")
 
@@ -226,18 +248,22 @@ class CustomImageDataset(Dataset):
             if not isinstance(tile, torch.Tensor):
                 tile = transforms.ToTensor()(tile)
 
+            metadata = {
+                "image_index": img_idx,
+                "source_image": str(img_path),
+                "image_bounds": bounding_box(
+                    0,
+                    float(img.width),
+                    float(img.height),
+                    0,
+                ),
+            }
+            if self.labels_paths is not None:
+                metadata["annotations"] = str(label_path)
+
             return {
                 "image": tile,
-                "metadata": {
-                    "image_index": img_idx,
-                    "source_image": str(img_path),
-                    "image_bounds": bounding_box(
-                        0,
-                        float(img.width),
-                        float(img.height),
-                        0,
-                    ),
-                },
+                "metadata": metadata,
                 # Bounds includes bounding box values for the whole tile including white padded region if any
                 "bounds": bounding_box(
                     float(x),

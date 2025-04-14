@@ -2,7 +2,7 @@ import json
 import logging
 import random
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import matplotlib.pyplot as plt
 import pyproj
@@ -179,24 +179,28 @@ def create_dataloader(
 
 
 def create_image_dataloader(
-    folder_path: Path,
+    images_dir: Union[PATH_TYPE, List[str]],
     chip_size: int,
     chip_stride: Optional[int] = None,
     chip_overlap_percentage: Optional[float] = None,
+    labels_dir: Optional[List[str]] = None,
     batch_size: int = 1,
 ) -> DataLoader:
     """
     Create a dataloader for a folder of normal images (e.g., JPGs), tiling them into smaller patches.
 
     Args:
-        folder_path (Path):
-            Path to the folder containing image files.
+        images_dir (Union[Path, List[str]]):
+            Path to the folder containing image files, or list of paths to image files.
         chip_size (int):
             Size of the tiles (width, height) in pixels.
         chip_stride (Optional[int], optional):
             Stride of the tiling (horizontal, vertical) in pixels.
         chip_overlap_percentage (Optional[float], optional):
             Percent overlap of the chip from 0-100. If used, `chip_stride` should not be set.
+        labels_dir (Optional[List[str]], optional):
+            List of paths to tree crown label files corresponding to the images.
+            This will be used as ground truth during evaluation
         batch_size (int, optional):
             Number of tiles in a batch. Defaults to 1.
 
@@ -218,9 +222,10 @@ def create_image_dataloader(
         )
 
     dataset = CustomImageDataset(
-        folder_path=folder_path,
+        images_dir=images_dir,
         chip_size=chip_size,
         chip_stride=chip_stride,
+        labels_dir=labels_dir,
     )
     dataloader = DataLoader(
         dataset,

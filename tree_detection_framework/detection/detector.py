@@ -3,16 +3,12 @@ from abc import abstractmethod
 from itertools import groupby
 from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
-import detectron2.data.transforms as T
 import geopandas as gpd
 import lightning
 import numpy as np
 import pyproj
 import shapely
 import torch
-from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.data import MetadataCatalog
-from detectron2.modeling import build_model
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from scipy.ndimage import maximum_filter
@@ -22,6 +18,7 @@ from shapely.geometry import (
     MultiPolygon,
     Point,
     Polygon,
+    box,
 )
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -37,6 +34,17 @@ from tree_detection_framework.preprocessing.derived_geodatasets import (
     bounding_box,
 )
 from tree_detection_framework.utils.geometric import mask_to_shapely
+
+try:
+    import detectron2.data.transforms as T
+    from detectron2.checkpoint import DetectionCheckpointer
+    from detectron2.data import MetadataCatalog
+    from detectron2.modeling import build_model
+
+    DETECTRON2_AVAILABLE = True
+except ImportError:
+    DETECTRON2_AVAILABLE = False
+    logging.warning("detectron2 not found. Detectree2Detector will be disabled.")
 
 # Set up logging configuration
 logging.basicConfig(
@@ -214,7 +222,7 @@ class Detector:
 
     @staticmethod
     def get_image_bounds_as_shapely(
-        batch: DefaultDict[str, Any]
+        batch: DefaultDict[str, Any],
     ) -> List[shapely.geometry.Polygon]:
         """Get pixel image bounds as shapely objects from a batch.
         Args:
@@ -233,7 +241,7 @@ class Detector:
 
     @staticmethod
     def get_geospatial_bounds_as_shapely(
-        batch: DefaultDict[str, Any]
+        batch: DefaultDict[str, Any],
     ) -> List[shapely.geometry.Polygon]:
         """Get geospatial region bounds as shapely objects from a batch.
         Args:
@@ -852,6 +860,10 @@ class Detectree2Detector(LightningDetector):
     def __init__(self, module):
         # TODO: Add lightning module implementation
         # Note: For now, `module` only references to `cfg`
+        if DETECTRON2_AVAILABLE is False:
+            raise ImportError(
+                "Detectree2Detector requires detectron2. Please install it to use this detector."
+            )
         self.module = module
         self.setup_predictor()
 
@@ -963,10 +975,15 @@ class Detectree2Detector(LightningDetector):
             shapely_objects = [mask_to_shapely(pred_mask) for pred_mask in pred_masks]
             all_geometries.append(shapely_objects)
 
+            # Compute axis-aligned minimum area bounding box as Polygon objects
+            bounding_boxes = [box(*polygon.bounds) for polygon in shapely_objects]
+
             # Get prediction scores
             scores = instances.scores.numpy()
             # Get predicted classes
             labels = instances.pred_classes.numpy()
-            all_data_dicts.append({"score": scores, "labels": labels})
+            all_data_dicts.append(
+                {"score": scores, "labels": labels, "bbox": bounding_boxes}
+            )
 
         return all_geometries, all_data_dicts

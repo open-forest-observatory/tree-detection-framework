@@ -13,6 +13,7 @@ BOUNDARY_TYPE = Union[
 ARRAY_TYPE = numpy.typing.ArrayLike
 
 DATA_FOLDER = Path(Path(__file__).parent, "..", "data").resolve()
+CHECKPOINTS_FOLDER = Path(Path(__file__).parent, "..", "checkpoints").resolve()
 
 DEFAULT_DEVICE = (
     torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
