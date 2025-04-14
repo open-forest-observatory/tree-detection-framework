@@ -97,4 +97,10 @@ unzip -j evaluation.zip "evaluation/RGB/*" -d RGB
 rm annotations.zip
 rm evaluation.zip
 ```
-Follow the steps in `tree-detection-framework/sandbox/evaluation/neon_benchmark.ipynb`
+Follow the steps in `tree-detection-framework/sandbox/evaluation/neon_benchmark.ipynb` for detectors `DeepForest` & `Detectree2`, and `tree-detection-framework/sandbox/evaluation/sam2_neon_benchmark.ipynb` to use `SAM2`.
+
+## Evaluation and benchmark with Detectree2 datasets
+1. Download the site-specific .tif (for orthomosaic) and .gpkg (for ground truth polygons) files from https://zenodo.org/records/8136161.
+2. Follow steps in https://github.com/PatBall1/detectree2/blob/master/notebooks/colab/tilingJB.ipynb to do the the tiling.
+3. Add the tiled dataset to a new directory in the `data` folder.
+4. For benchmark and evaluation see steps in `tree-detection-framework/sandbox/evaluation/dtree2_benchmark.ipynb` and `tree-detection-framework/sandbox/evaluation/sam2_dtree2_benchmark.ipynb` 
