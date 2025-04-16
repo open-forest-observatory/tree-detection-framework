@@ -33,6 +33,8 @@ class SAMV2Detector(Detector):
         self.sam2 = build_sam2(
             model_cfg, sam2_checkpoint, device=self.device, apply_postprocessing=False
         )
+        # Create the mask generator with the optimal set of parameters found by 
+        # Michelle Chen & Jane Wu based on qualitative experiments
         self.mask_generator = SAM2AutomaticMaskGenerator(
             model=self.sam2,
             points_per_side=64,
