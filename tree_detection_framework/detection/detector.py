@@ -973,17 +973,26 @@ class Detectree2Detector(LightningDetector):
             pred_masks = instances.pred_masks.numpy()
             # Convert each mask to a shapely multipolygon
             shapely_objects = [mask_to_shapely(pred_mask) for pred_mask in pred_masks]
-            all_geometries.append(shapely_objects)
 
-            # Compute axis-aligned minimum area bounding box as Polygon objects
-            bounding_boxes = [box(*polygon.bounds) for polygon in shapely_objects]
+            # Get the model-predicted boxes, which may be larger than the axis-aligned bounding box
+            # from the mask.
+            pred_boxes = instances.pred_boxes.tensor.numpy()
 
             # Get prediction scores
             scores = instances.scores.numpy()
             # Get predicted classes
             labels = instances.pred_classes.numpy()
+
+            all_geometries.append(shapely_objects)
             all_data_dicts.append(
-                {"score": scores, "labels": labels, "bbox": bounding_boxes}
+                {
+                    "score": scores,
+                    "labels": labels,
+                    "bbox_xmin": pred_boxes[:, 0],
+                    "bbox_ymin": pred_boxes[:, 1],
+                    "bbox_xmax": pred_boxes[:, 2],
+                    "bbox_ymax": pred_boxes[:, 3],
+                }
             )
 
         return all_geometries, all_data_dicts
