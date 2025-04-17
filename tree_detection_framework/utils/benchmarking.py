@@ -78,7 +78,7 @@ def get_detectree2_gt(dataloader) -> dict[str, dict[str, List[box]]]:
 
 def get_neon_dataloader(image_paths: List[str]) -> DataLoader:
     """Create a dataloader for the NEON dataset."""
-    # Create dataloader setting image size as 420x420. NEON dataset has a standard size of 400x400.
+    # Create dataloader setting image size as 400x400, the standard size of the NEON dataset.
     dataloader = create_image_dataloader(
         image_paths,
         chip_size=400,
