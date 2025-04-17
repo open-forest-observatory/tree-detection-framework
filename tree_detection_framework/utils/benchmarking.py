@@ -81,8 +81,8 @@ def get_neon_dataloader(image_paths: List[str]) -> DataLoader:
     # Create dataloader setting image size as 420x420. NEON dataset has a standard size of 400x400.
     dataloader = create_image_dataloader(
         image_paths,
-        chip_size=420,
-        chip_stride=420,
+        chip_size=400,
+        chip_stride=400,
     )
     return dataloader
 
