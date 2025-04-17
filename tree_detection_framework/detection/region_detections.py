@@ -366,7 +366,6 @@ class RegionDetections:
 
         return updated_geometry_rd
 
-
     def get_bounds(
         self, CRS: Optional[pyproj.CRS] = None, as_pixels: Optional[bool] = False
     ) -> gpd.GeoSeries:
@@ -634,7 +633,10 @@ class RegionDetectionsSet:
             RegionDetectionsSet: An updated RDS with the geometry specified by the data in `geometry_column`
         """
         # Convert each detection
-        converted_detections = [rd.update_geometry_column(geometry_column=geometry_column) for rd in self.region_detections]
+        converted_detections = [
+            rd.update_geometry_column(geometry_column=geometry_column)
+            for rd in self.region_detections
+        ]
         # Return the new RDS
         updated_geometry_rds = RegionDetectionsSet(converted_detections)
         return updated_geometry_rds
