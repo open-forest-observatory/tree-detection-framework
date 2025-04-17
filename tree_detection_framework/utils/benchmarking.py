@@ -78,11 +78,11 @@ def get_detectree2_gt(dataloader) -> dict[str, dict[str, List[box]]]:
 
 def get_neon_dataloader(image_paths: List[str]) -> DataLoader:
     """Create a dataloader for the NEON dataset."""
-    # Create dataloader setting image size as 420x420. NEON dataset has a standard size of 400x400.
+    # Create dataloader setting image size as 400x400, the standard size of the NEON dataset.
     dataloader = create_image_dataloader(
         image_paths,
-        chip_size=420,
-        chip_stride=420,
+        chip_size=400,
+        chip_stride=400,
     )
     return dataloader
 
@@ -115,7 +115,7 @@ def get_detectree2_dataloader(
 
     # Create dataloader using all images
     dataloader = create_image_dataloader(
-        images_dir=img_paths, chip_size=1020, chip_stride=1020, labels_dir=ann_paths
+        images_dir=img_paths, chip_size=1000, chip_stride=1000, labels_dir=ann_paths
     )
     return dataloader
 
@@ -127,6 +127,7 @@ def get_benchmark_detections(
     detectors: dict[str, Detector],
     nms_threshold: float = None,
     min_confidence: float = 0.5,
+    nms_on_polygons: bool = False,
 ) -> dict[str, dict[str, List[box]]]:
     """
     Load ground truth, create dataloader, and run detectors on the images from the benchmark dataset.
@@ -137,6 +138,7 @@ def get_benchmark_detections(
         detectors (dict): Dictionary of detector instances to be evaluated.
         nms_threshold (float): Non-maximum suppression threshold.
         min_confidence (float): Minimum confidence threshold for detections.
+        nms_on_polygons (bool): Should NMS be run on polygons before converting them to bounding boxes. Defaults to False.
     Returns:
         dict: A dictionary mapping image paths to a dictionary with detector names and the corresponding output boxes.
     """
@@ -163,6 +165,12 @@ def get_benchmark_detections(
         #  "image_path_2": {"gt": gt_boxes, "detector_name_1": [boxes], ...}, ...}
         for filename, rds in zip(filenames, region_detection_sets):
             if nms_threshold is not None:
+
+                # If we don't want to do polygon NMS and if the detection was originally a polygon,
+                # instead use the data in the "bbox" column which specifies an axis-aligned bounding box.
+                if not nms_on_polygons and name in ["detectree2", "sam2"]:
+                    rds = rds.update_geometry_column("bbox")
+
                 rds = single_region_NMS(
                     rds.get_region_detections(0),
                     threshold=nms_threshold,
