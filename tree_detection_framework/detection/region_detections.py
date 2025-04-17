@@ -334,7 +334,9 @@ class RegionDetections:
         nonempty_rows = detections_df[~detections_df.geometry.is_empty]
         # Get the bounds and convert to shapely boxes
         bounds = nonempty_rows.bounds
-        boxes = shapely.box(xmin=bounds.minx, ymin=bounds.miny, xmax=bounds.maxx, ymax=bounds.maxy)
+        boxes = shapely.box(
+            xmin=bounds.minx, ymin=bounds.miny, xmax=bounds.maxx, ymax=bounds.maxy
+        )
         # Update the geometry
         # TODO make sure that thisn't updating the geometry of the orignal one
         nonempty_rows.geometry = boxes
@@ -342,7 +344,6 @@ class RegionDetections:
         bbox_rd = copy.deepcopy(self)
         bbox_rd.detections = nonempty_rows
         return bbox_rd
-
 
     def get_bounds(
         self, CRS: Optional[pyproj.CRS] = None, as_pixels: Optional[bool] = False
