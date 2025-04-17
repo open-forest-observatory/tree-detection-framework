@@ -127,6 +127,7 @@ def get_benchmark_detections(
     detectors: dict[str, Detector],
     nms_threshold: float = None,
     min_confidence: float = 0.5,
+    nms_on_polygons: bool = False,
 ) -> dict[str, dict[str, List[box]]]:
     """
     Load ground truth, create dataloader, and run detectors on the images from the benchmark dataset.
@@ -137,6 +138,7 @@ def get_benchmark_detections(
         detectors (dict): Dictionary of detector instances to be evaluated.
         nms_threshold (float): Non-maximum suppression threshold.
         min_confidence (float): Minimum confidence threshold for detections.
+        nms_on_polygons (bool): Should NMS be run on polygons before converting them to bounding boxes. Defaults to False.
     Returns:
         dict: A dictionary mapping image paths to a dictionary with detector names and the corresponding output boxes.
     """
@@ -164,9 +166,9 @@ def get_benchmark_detections(
         for filename, rds in zip(filenames, region_detection_sets):
             if nms_threshold is not None:
 
-                # If the detection was originally a polygon, instead the data in the "bbox" column
-                # which specifies an axis-aligned bounding box.
-                if name in ["detectree2", "sam2"]:
+                # If we don't want to do polygon NMS and if the detection was originally a polygon,
+                # instead use the data in the "bbox" column which specifies an axis-aligned bounding box.
+                if not nms_on_polygons and name in ["detectree2", "sam2"]:
                     rds = rds.update_geometry_column("bbox")
 
                 rds = single_region_NMS(
