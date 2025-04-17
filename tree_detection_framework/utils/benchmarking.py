@@ -115,7 +115,7 @@ def get_detectree2_dataloader(
 
     # Create dataloader using all images
     dataloader = create_image_dataloader(
-        images_dir=img_paths, chip_size=1020, chip_stride=1020, labels_dir=ann_paths
+        images_dir=img_paths, chip_size=1000, chip_stride=1000, labels_dir=ann_paths
     )
     return dataloader
 
@@ -163,6 +163,12 @@ def get_benchmark_detections(
         #  "image_path_2": {"gt": gt_boxes, "detector_name_1": [boxes], ...}, ...}
         for filename, rds in zip(filenames, region_detection_sets):
             if nms_threshold is not None:
+
+                # If the detection was originally a polygon, instead the data in the "bbox" column
+                # which specifies an axis-aligned bounding box.
+                if name in ["detectree2", "sam2"]:
+                    rds = rds.update_geometry_column("bbox")
+
                 rds = single_region_NMS(
                     rds.get_region_detections(0),
                     threshold=nms_threshold,

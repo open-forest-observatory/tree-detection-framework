@@ -345,6 +345,28 @@ class RegionDetections:
         bbox_rd.detections = nonempty_rows
         return bbox_rd
 
+    def update_geometry_column(self, geometry_column: str) -> "RegionDetections":
+        """Update the geometry to another column in the dataframe that contains shapely data
+
+        Args:
+            geometry_column (str): The name of a column containing shapely data
+
+        Returns:
+            RegionDetections: An updated RD with the geometry specified by the data in `geometry_column`
+        """
+        # Create a copy of the detections
+        detections_df = self.get_data_frame().copy()
+        # Set the geometry column to the specified one
+        detections_df.geometry = detections_df[geometry_column]
+
+        # Create a copy of the RD
+        updated_geometry_rd = copy.deepcopy(self)
+        # Update the detections and return
+        updated_geometry_rd.detections = detections_df
+
+        return updated_geometry_rd
+
+
     def get_bounds(
         self, CRS: Optional[pyproj.CRS] = None, as_pixels: Optional[bool] = False
     ) -> gpd.GeoSeries:
@@ -600,6 +622,22 @@ class RegionDetectionsSet:
         # Return the new RDS
         bboxes_rds = RegionDetectionsSet(converted_detections)
         return bboxes_rds
+
+    def update_geometry_column(self, geometry_column: str) -> "RegionDetectionsSet":
+        """
+        Update the geometry to another column in the dataframe that contains shapely data for each RD
+
+        Args:
+            geometry_column (str): The name of a column containing shapely data
+
+        Returns:
+            RegionDetectionsSet: An updated RDS with the geometry specified by the data in `geometry_column`
+        """
+        # Convert each detection
+        converted_detections = [rd.update_geometry_column(geometry_column=geometry_column) for rd in self.region_detections]
+        # Return the new RDS
+        updated_geometry_rds = RegionDetectionsSet(converted_detections)
+        return updated_geometry_rds
 
     def get_bounds(
         self, CRS: Optional[pyproj.CRS] = None, union_bounds: bool = True
