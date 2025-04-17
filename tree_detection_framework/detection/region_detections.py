@@ -319,6 +319,31 @@ class RegionDetections:
             detections_in_new_CRS = self.detections.copy().to_crs(CRS)
             return detections_in_new_CRS
 
+    def convert_to_bboxes(self) -> "RegionDetections":
+        """
+        Return a copy of the RD with the geometry of all detections replaced by the minimum
+        axis-aligned bounding rectangle. Also, rows with an empty geometry are removed.
+
+        Returns:
+            RegionDetections: An identical RD with all non-empty geometries represented as bounding boxes.
+        """
+        # Get the detections
+        detections_df = self.get_data_frame()
+        # Get non-empty rows in the dataframe, since conversion to bounding box only works for
+        # non-empty polygons
+        nonempty_rows = detections_df[~detections_df.geometry.is_empty]
+        # Get the bounds and convert to shapely boxes
+        bounds = nonempty_rows.bounds
+        boxes = shapely.box(xmin=bounds.minx, ymin=bounds.miny, xmax=bounds.maxx, ymax=bounds.maxy)
+        # Update the geometry
+        # TODO make sure that thisn't updating the geometry of the orignal one
+        nonempty_rows.geometry = boxes
+        # Create a new RegionDetections object and update the detections on it
+        bbox_rd = copy.deepcopy(self)
+        bbox_rd.detections = nonempty_rows
+        return bbox_rd
+
+
     def get_bounds(
         self, CRS: Optional[pyproj.CRS] = None, as_pixels: Optional[bool] = False
     ) -> gpd.GeoSeries:
@@ -560,6 +585,20 @@ class RegionDetectionsSet:
             rd.get_data_frame(CRS=CRS) for rd in self.region_detections
         ]
         return list_of_region_data_frames
+
+    def convert_to_bboxes(self) -> "RegionDetectionsSet":
+        """Convert all the RegionDetections to bounding box representations
+
+        Returns:
+            RegionDetectionsSet:
+                A new RDS where each RD has all empty geometries dropped and all remaning ones
+                represented by an axis-aligned rectangle.
+        """
+        # Convert each detection
+        converted_detections = [rd.convert_to_bboxes() for rd in self.region_detections]
+        # Return the new RDS
+        bboxes_rds = RegionDetectionsSet(converted_detections)
+        return bboxes_rds
 
     def get_bounds(
         self, CRS: Optional[pyproj.CRS] = None, union_bounds: bool = True
