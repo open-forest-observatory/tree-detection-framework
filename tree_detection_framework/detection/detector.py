@@ -920,10 +920,8 @@ class Detectree2Detector(LightningDetector):
                     original_image = original_image[:, :, :3]
                     height, width = original_image.shape[:2]
 
-            # Apply the augmentation transform to the original image      
-            image = self.aug.get_transform(original_image).apply_image(
-                original_image
-            )
+            # Apply the augmentation transform to the original image
+            image = self.aug.get_transform(original_image).apply_image(original_image)
             image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
             image = image.to(self.cfg.MODEL.DEVICE)
             # Create a dict with each image and its properties
