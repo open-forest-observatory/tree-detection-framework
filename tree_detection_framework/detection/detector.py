@@ -910,32 +910,26 @@ class Detectree2Detector(LightningDetector):
             if batch.shape[1] == 3:  # RGB image
                 for original_image in batch:
                     height, width = original_image.shape[1], original_image.shape[2]
-
                     # Convert image pixel values to 0-255 range
                     if original_image.min() >= 0 and original_image.max() <= 1:
                         original_image = original_image * 255
-
-                    # Create a dict with each image and its properties
-                    input = {"image": original_image, "height": height, "width": width}
-
-                    # Add the dictionary to batch image list
-                    inputs.append(input)
+                    original_image = original_image.permute(1, 2, 0).byte().numpy()
             else:
                 for original_image in batch:
                     original_image = original_image.permute(1, 2, 0).byte().numpy()
                     original_image = original_image[:, :, :3]
-
                     height, width = original_image.shape[:2]
-                    # Resize the image if required
-                    image = self.aug.get_transform(original_image).apply_image(
-                        original_image
-                    )
-                    image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
-                    image = image.to(self.cfg.MODEL.DEVICE)
-                    # Create a dict with each image and its properties
-                    input = {"image": image, "height": height, "width": width}
-                    # Add the dictionary to batch image list
-                    inputs.append(input)
+
+            # Apply the augmentation transform to the original image      
+            image = self.aug.get_transform(original_image).apply_image(
+                original_image
+            )
+            image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
+            image = image.to(self.cfg.MODEL.DEVICE)
+            # Create a dict with each image and its properties
+            input = {"image": image, "height": height, "width": width}
+            # Add the dictionary to batch image list
+            inputs.append(input)
 
             batch_preds = self.model(inputs)
             return batch_preds
