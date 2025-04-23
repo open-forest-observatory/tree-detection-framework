@@ -920,7 +920,9 @@ class Detectree2Detector(LightningDetector):
                 # Get the original height and width since it may be transformed
                 height, width = original_image.shape[:2]
                 # Apply the augmentation transform to the original image
-                image = self.aug.get_transform(original_image).apply_image(original_image)
+                image = self.aug.get_transform(original_image).apply_image(
+                    original_image
+                )
                 # Cast back to tensort, channel-first, and move to device
                 image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
                 image = image.to(self.cfg.MODEL.DEVICE)
