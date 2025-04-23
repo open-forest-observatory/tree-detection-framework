@@ -179,7 +179,7 @@ def get_benchmark_detections(
             gdf = rds.get_data_frame()
 
             # Add the detections to the mappings dictionary
-            if name == "deepforest":
+            if name in ["deepforest", "deepforest_vanila"]:
                 mappings[filename][name] = list(gdf.geometry)
             elif name in ["sam2", "detectree2"]:
                 mappings[filename][name] = list(gdf["bbox"])

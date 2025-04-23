@@ -2,6 +2,7 @@ import logging
 from abc import abstractmethod
 from itertools import groupby
 from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
+from deepforest import main as df_main
 
 import geopandas as gpd
 import lightning
@@ -743,6 +744,22 @@ class LightningDetector(Detector):
         """
         # Should be implemented here
         raise NotImplementedError()
+
+class DeepForestVanilaDetector(Detector):
+    def __init__(self):
+            self.model = df_main.deepforest()
+            # Load a pretrained tree detection model from Hugging Face
+            self.model.load_model(model_name="weecology/deepforest-tree", revision="main")
+
+    def predict_batch(self, batch):
+        # only works for a batch size of one with raw_image_loader
+        image_path = batch["metadata"][0]["source_image"]
+
+        result = self.model.predict_image(path=image_path, return_plot=False)
+
+        scores = result["score"].tolist()
+        geometries = result.geometry.tolist()
+        return [geometries], [{"score": scores}]
 
 
 class DeepForestDetector(LightningDetector):
