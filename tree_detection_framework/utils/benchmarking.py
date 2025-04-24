@@ -62,12 +62,17 @@ def get_neon_gt(
     return mappings
 
 
-def get_detectree2_gt(dataloader) -> dict[str, dict[str, List[box]]]:
+def get_detectree2_gt(dataloader, tile_size=1000) -> dict[str, dict[str, List[box]]]:
     """Extract ground truth bounding boxes from Detectree2 annotations."""
     mappings = {}
     for i in dataloader:
         img_path = i["metadata"][0]["source_image"]
         gt_gdf = gpd.read_file(i["metadata"][0]["annotations"])
+        # Perform a vertical flip of the annotations to match the expected format. This is due to
+        # differences between the i,j and x,y indexing conventions.
+        gt_gdf.geometry = gt_gdf.transform(
+            lambda x: np.concatenate((x[:, 0:1], tile_size - x[:, 1:2]), axis=1)
+        )
 
         # Convert each geometry to its axis-aligned bounding box polygon
         bounding_boxes = [box(*geom.bounds) for geom in gt_gdf.geometry]
