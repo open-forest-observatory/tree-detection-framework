@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 import lightning
 import torch
 import torchvision
+from deepforest import main as deepforest_main
 from torch import Tensor, optim
 from torchvision.models.detection.retinanet import (
     AnchorGenerator,
@@ -60,17 +61,50 @@ class RetinaNetModel:
 
 
 class DeepForestModule(lightning.LightningModule):
-    def __init__(self, param_dict: Dict[str, Any]):
+    def __init__(
+        self,
+        use_hugging_face_weights: bool = True,
+        param_dict: Optional[Dict[str, Any]] = {},
+    ):
+        """_summary_
+
+        Args:
+            use_hugging_face_weights (bool, optional):
+                Should the model and weights be donwloaded from the Hugging Face repository. If
+                True, setting param_dict will result in an error. Defaults to True.
+            param_dict (Optional[Dict[str, Any]], optional):
+                Configuration parameters to provide finer control over the model. Cannot be used
+                with use_hugging_face_weights=True. Defaults to {}.
+
+        Raises:
+            ValueError: If both use_hugging_face_weights and param_dict are set
+        """
         super().__init__()
         self.param_dict = param_dict
 
-        if param_dict["backbone"] == "retinanet":
-            retinanet = RetinaNetModel(param_dict)
-        else:
-            raise ValueError("Only 'retinanet' backbone is currently supported.")
+        # Determine how to obtain the weights
+        if use_hugging_face_weights:
+            # Error if the user tried to use both options
+            if len(param_dict) > 0:
+                raise ValueError(
+                    "Setting the `param_dict` and `use_hugging_face_weights`=True are mutually exclusive. Please choose one option."
+                )
+            # Create the architecture
+            model = deepforest_main.deepforest()
+            # Load a pretrained tree detection model from Hugging Face
+            model.load_model(model_name="weecology/deepforest-tree", revision="main")
+            # The definition of the model here contains additional metrics that do not match what we
+            # need. Take only the prediction model portion.
+            self.model = model.model
 
-        self.model = retinanet.create_model()
-        self.use_release()
+        else:
+            if param_dict["backbone"] == "retinanet":
+                retinanet = RetinaNetModel(param_dict)
+            else:
+                raise ValueError("Only 'retinanet' backbone is currently supported.")
+
+            self.model = retinanet.create_model()
+            self.use_release()
 
     def use_release(self, check_release=True):
         """Use the latest DeepForest model release from github and load model.
