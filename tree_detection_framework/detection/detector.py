@@ -917,6 +917,10 @@ class Detectree2Detector(LightningDetector):
                     original_image = original_image[:3, :, :]
                 # Permute so it's channel-last and transform to numpy
                 original_image = original_image.permute(1, 2, 0).numpy()
+                # It appears that the detectree2 model was trained on BGR data but our dataloader
+                # provides RGB. Flip the channel order to compensate.
+                # TODO these types of preprocessing steps should be standardized.
+                original_image = np.flip(original_image, axis=2)
                 # Get the original height and width since it may be transformed
                 height, width = original_image.shape[:2]
                 # Apply the augmentation transform to the original image
