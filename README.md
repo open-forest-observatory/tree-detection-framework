@@ -20,7 +20,7 @@ There are a variety of projects for tree detection that you may find useful. Thi
 - Supports model fine-tuning with optional support for species/type classification
 - Implemented in this framework.
 
-### DetectTree2
+### Detectree2
 - [Github](https://github.com/PatBall1/detectree2)
 - Implements various preprocessing, postprocessing, visualization, and evaluation tasks.
 - Used for RGB data with polygon boundaries.
@@ -54,7 +54,13 @@ The Detectron2 library is not compatible with `poetry` so must be installed dire
 # https://detectron2.readthedocs.io/en/latest/tutorials/install.html#build-detectron2-from-source
 pip install git+https://github.com/facebookresearch/detectron2.git
 ```
-
+Download the detectree2 checkpoint weights.
+```
+cd checkpoints
+mkdir detectree2
+cd detectree2
+wget https://zenodo.org/records/10522461/files/230103_randresize_full.pth
+```
 **SAM2:** 
 Clone the SAM2 repository and install the necessary config files
 ```
@@ -100,7 +106,9 @@ rm evaluation.zip
 Follow the steps in `tree-detection-framework/sandbox/evaluation/neon_benchmark.ipynb` for detectors `DeepForest` & `Detectree2`, and `tree-detection-framework/sandbox/evaluation/sam2_neon_benchmark.ipynb` to use `SAM2`.
 
 ## Evaluation and benchmark with Detectree2 datasets
-1. Download the site-specific .tif (for orthomosaic) and .gpkg (for ground truth polygons) files from https://zenodo.org/records/8136161.
-2. Follow steps in https://github.com/PatBall1/detectree2/blob/master/notebooks/colab/tilingJB.ipynb to do the the tiling.
-3. Add the tiled dataset to a new directory in the `data` folder.
+1. Download the dataset. There are two ways to get the dataset:
+    Download the site-specific .tif (for orthomosaic) and .gpkg (for ground truth polygons) files from https://zenodo.org/records/8136161. Then, follow steps in https://github.com/PatBall1/detectree2/blob/master/notebooks/colab/tilingJB.ipynb to do the the tiling.
+    (OR)
+    Download our pre-tiled dataset from https://ucdavis.box.com/s/thjmaane9d38opw1bhnyxrsrtt90j37m 
+3. Add the tiled dataset folder to the `data` folder in this repo.
 4. For benchmark and evaluation see steps in `tree-detection-framework/sandbox/evaluation/dtree2_benchmark.ipynb` and `tree-detection-framework/sandbox/evaluation/sam2_dtree2_benchmark.ipynb` 
