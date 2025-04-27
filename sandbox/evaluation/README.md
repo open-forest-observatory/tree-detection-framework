@@ -1,4 +1,7 @@
-# TODO
-* How to download the data for Detectree2 (pre-tiled)
-* How to download the model for detectree2
-* A link to the paper or workshop and the comment that this is a "reimplementation of experiments presented in this paper". Potentially with an explanation of changes. (ex. channel order, polygon NMS, mysterious issues with SAM2)
+#  Zero-Shot Tree Detection and Segmentation from Aerial Forest Imagery Experiments
+These notebooks provide a reimplementation of experiments presented in this [paper](https://ml-for-rs.github.io/iclr2025/camera_ready/papers/3.pdf) presented at the ([ML4RS25](https://ml-for-rs.github.io/iclr2025/)) workshop. These experiments differ from the initial experiments in several notable ways, leading to different results.
+- A subtlety in the original implementation of Detectree2 meant that in the original experiments, inference on the NEON datasets occured with a flipped channel ordering, issue [here](https://github.com/PatBall1/detectree2/issues/197). Fixing this issue lead to better performance.
+- The original experiments first converted the polygon predictions to axis-aligned bounding boxes prior to running non-max suppression. In the current experiments, this was changed to running NMS on the polygon representation prior to converting to boxes. This change keeps more detections, leading to higher precision and lower recall than the original experiments.
+- Aside from the polygon vs. box NMS consideration, SAM2 results differ for reasons that are not understood.
+
+The data for these experiments can be downloaded following the instructions for the [NEON](https://github.com/open-forest-observatory/tree-detection-framework?tab=readme-ov-file#evaluation-and-benchmark-with-neon) and [Detectree2](https://github.com/open-forest-observatory/tree-detection-framework?tab=readme-ov-file#evaluation-and-benchmark-with-detectree2-datasets) datasets. You will need to create two seperate environments, one with the Detectree2 dependencies installed and the other with SAM2 dependencies installed following the instructions [here](https://github.com/open-forest-observatory/tree-detection-framework?tab=readme-ov-file#install). Then run the notebooks using the appropriate environment for the prediction model being used. 
