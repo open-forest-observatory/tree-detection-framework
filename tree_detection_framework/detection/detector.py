@@ -53,6 +53,9 @@ logging.basicConfig(
 
 
 class Detector:
+    def __init__(self, postprocessors=None):
+        self.postprocessors = postprocessors or []
+
     @abstractmethod
     def setup(self):
         """Any setup tasks that should be performed once when the Detector is instantiated"""
@@ -141,6 +144,11 @@ class Detector:
 
         # Otherwise convert it to a RegionDetectionsSet and return that
         region_detection_set = RegionDetectionsSet(predictions_list)
+
+        # Apply postprocessing steps
+        for func, params in self.postprocessors:
+            region_detection_set = func(region_detection_set, **params)
+
         return region_detection_set
 
     def predict_raw_drone_images(
@@ -357,6 +365,7 @@ class GeometricDetector(Detector):
         confidence_factor: str = "height",
         filter_shape: str = "circle",
         contour_backend: str = "cv2",
+        postprocessors = None,
     ):
         """Create a GeometricDetector object
 
@@ -376,6 +385,7 @@ class GeometricDetector(Detector):
                 Choose from "cv2" and "contourpy".
 
         """
+        super().__init__(postprocessors=postprocessors)
         self.a = a
         self.b = b
         self.c = c
@@ -747,7 +757,8 @@ class LightningDetector(Detector):
 
 class DeepForestDetector(LightningDetector):
 
-    def __init__(self, module: DeepForestModule):
+    def __init__(self, module: DeepForestModule, postprocessors=None):
+        super().__init__(postprocessors=postprocessors)
         # Setup steps for LightningModule
         self.setup_model(module)
 
@@ -857,7 +868,8 @@ class DeepForestDetector(LightningDetector):
 
 class Detectree2Detector(LightningDetector):
 
-    def __init__(self, module):
+    def __init__(self, module, postprocessors=None):
+        super().__init__(postprocessors=postprocessors)
         # TODO: Add lightning module implementation
         # Note: For now, `module` only references to `cfg`
         if DETECTRON2_AVAILABLE is False:
