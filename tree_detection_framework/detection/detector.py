@@ -365,7 +365,7 @@ class GeometricDetector(Detector):
         confidence_factor: str = "height",
         filter_shape: str = "circle",
         contour_backend: str = "cv2",
-        postprocessors = None,
+        postprocessors=None,
     ):
         """Create a GeometricDetector object
 

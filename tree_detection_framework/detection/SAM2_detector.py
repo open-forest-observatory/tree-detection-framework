@@ -30,7 +30,7 @@ class SAMV2Detector(Detector):
         postprocessors=None,
     ):
         super().__init__(postprocessors=postprocessors)
-        
+
         self.device = device
 
         self.sam2 = build_sam2(
