@@ -27,7 +27,10 @@ class SAMV2Detector(Detector):
         device=DEFAULT_DEVICE,
         sam2_checkpoint=Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt"),
         model_cfg="configs/sam2.1/sam2.1_hiera_l.yaml",
+        postprocessors=None,
     ):
+        super().__init__(postprocessors=postprocessors)
+        
         self.device = device
 
         self.sam2 = build_sam2(
