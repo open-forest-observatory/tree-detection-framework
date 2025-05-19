@@ -60,10 +60,10 @@ class Detector:
             postprocessors (list, optional):
                 List of postprocessing functions applied sequentially to the predictions.
                 Each element must be a callable that takes a single RegionDetections{Set} as input and returns a modified
-                RegionDetections{Set}. This can be a lambda or a named function. 
+                RegionDetections{Set}. This can be a lambda or a named function.
                 If `detector.predict()` is called, first postprocessing step must take a RegionDetectionsSet as input.
-                If `detector.predict_as_generator()` is called, all postprocessing steps must take a RegionDetections as input. 
-                
+                If `detector.predict_as_generator()` is called, all postprocessing steps must take a RegionDetections as input.
+
                 Example:
                 postprocessors = [
                     lambda r: suppress_tile_boundary_with_NMS(
@@ -83,7 +83,10 @@ class Detector:
         raise NotImplementedError()
 
     def predict_as_generator(
-        self, inference_dataloader: DataLoader, postprocess_region_detections: bool = False, **kwargs
+        self,
+        inference_dataloader: DataLoader,
+        postprocess_region_detections: bool = False,
+        **kwargs,
     ) -> Iterator[RegionDetections]:
         """
         A generator that yields a RegionDetections object for each image in the dataloader. Note
