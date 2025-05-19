@@ -146,8 +146,8 @@ class Detector:
         region_detection_set = RegionDetectionsSet(predictions_list)
 
         # Apply postprocessing steps
-        for func, params in self.postprocessors:
-            region_detection_set = func(region_detection_set, **params)
+        for func in self.postprocessors:
+            region_detection_set = func(region_detection_set)
 
         return region_detection_set
 
