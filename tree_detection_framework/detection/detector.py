@@ -54,6 +54,22 @@ logging.basicConfig(
 
 class Detector:
     def __init__(self, postprocessors=None):
+        """
+        Base class for all detectors.
+        Args:
+            postprocessors (list, optional):
+            List of postprocessing functions applied sequentially to the RegionDetectionsSet. Each element
+            is a lambda function. First postprocessing step must take a RegionDetectionSet as input.
+            Example:
+            postprocessors = [
+                lambda r: suppress_tile_boundary_with_NMS(
+                    r, iou_threshold=0.5, ios_threshold=0.5, min_confidence=0.3
+                ),
+                lambda r: single_region_NMS(
+                    r, confidence_column="score", threshold=0.6, min_confidence=0.3
+                ),
+            ]
+        """
         self.postprocessors = postprocessors or []
 
     @abstractmethod
@@ -383,6 +399,8 @@ class GeometricDetector(Detector):
                 Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
             contour_backend (str, optional): The backend to use for contour extraction to generate treecrowns.
                 Choose from "cv2" and "contourpy".
+            postprocessors (list, optional):
+                See docstring for Detector class. Defaults to None.
 
         """
         super().__init__(postprocessors=postprocessors)
@@ -758,6 +776,11 @@ class LightningDetector(Detector):
 class DeepForestDetector(LightningDetector):
 
     def __init__(self, module: DeepForestModule, postprocessors=None):
+        """Create a DeepForestDetector object
+        Args:
+            module (DeepForestModule): LightningModule for DeepForest
+            postprocessors (list, optional): See docstring for Detector class. Defaults to None.
+        """
         super().__init__(postprocessors=postprocessors)
         # Setup steps for LightningModule
         self.setup_model(module)
@@ -869,6 +892,12 @@ class DeepForestDetector(LightningDetector):
 class Detectree2Detector(LightningDetector):
 
     def __init__(self, module, postprocessors=None):
+        """
+        Create a Detectree2Detector object
+        Args:
+            module (Detectree2Module): Module for Detectree2
+            postprocessors (list, optional): See docstring for Detector class. Defaults to None.
+        """
         super().__init__(postprocessors=postprocessors)
         # TODO: Add lightning module implementation
         # Note: For now, `module` only references to `cfg`
