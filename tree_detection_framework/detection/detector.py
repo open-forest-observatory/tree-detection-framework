@@ -53,6 +53,29 @@ logging.basicConfig(
 
 
 class Detector:
+    def __init__(self, postprocessors=None):
+        """
+        Base class for all detectors.
+        Args:
+            postprocessors (list, optional):
+                List of postprocessing functions applied sequentially to the predictions.
+                Each element must be a callable that takes a single RegionDetections{Set} as input and returns a modified
+                RegionDetections{Set}. This can be a lambda or a named function.
+                If `detector.predict()` is called, first postprocessing step must take a RegionDetectionsSet as input.
+                If `detector.predict_as_generator()` is called, all postprocessing steps must take a RegionDetections as input.
+
+                Example:
+                postprocessors = [
+                    lambda r: suppress_tile_boundary_with_NMS(
+                        r, iou_threshold=0.5, ios_threshold=0.5, min_confidence=0.3
+                    ),
+                    lambda r: single_region_NMS(
+                        r, confidence_column="score", threshold=0.6, min_confidence=0.3
+                    ),
+                ]
+        """
+        self.postprocessors = postprocessors or []
+
     @abstractmethod
     def setup(self):
         """Any setup tasks that should be performed once when the Detector is instantiated"""
@@ -60,7 +83,10 @@ class Detector:
         raise NotImplementedError()
 
     def predict_as_generator(
-        self, inference_dataloader: DataLoader, **kwargs
+        self,
+        inference_dataloader: DataLoader,
+        postprocess_region_detections: bool = False,
+        **kwargs,
     ) -> Iterator[RegionDetections]:
         """
         A generator that yields a RegionDetections object for each image in the dataloader. Note
@@ -68,6 +94,7 @@ class Detector:
 
         Args:
             inference_dataloader (DataLoader): Dataloader to generate predictions for
+            postprocess_region_detections (bool, optional): Set as True if `postprocessors` is intended for RegionDetections.
         """
         # Iterate over each batch in the dataloader
         for batch in tqdm(
@@ -106,6 +133,12 @@ class Detector:
                     pixel_prediction_bounds=image_bounds,
                     geospatial_prediction_bounds=geospatial_bounds,
                 )
+
+                if postprocess_region_detections:
+                    # Apply postprocessing steps to the RegionDetections
+                    for func in self.postprocessors:
+                        region_detections = func(region_detections)
+
                 # Yield this object
                 yield region_detections
 
@@ -141,6 +174,11 @@ class Detector:
 
         # Otherwise convert it to a RegionDetectionsSet and return that
         region_detection_set = RegionDetectionsSet(predictions_list)
+
+        # Apply postprocessing steps to the RegionDetectionsSet
+        for func in self.postprocessors:
+            region_detection_set = func(region_detection_set)
+
         return region_detection_set
 
     def predict_raw_drone_images(
@@ -357,6 +395,7 @@ class GeometricDetector(Detector):
         confidence_factor: str = "height",
         filter_shape: str = "circle",
         contour_backend: str = "cv2",
+        postprocessors=None,
     ):
         """Create a GeometricDetector object
 
@@ -374,8 +413,11 @@ class GeometricDetector(Detector):
                 Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
             contour_backend (str, optional): The backend to use for contour extraction to generate treecrowns.
                 Choose from "cv2" and "contourpy".
+            postprocessors (list, optional):
+                See docstring for Detector class. Defaults to None.
 
         """
+        super().__init__(postprocessors=postprocessors)
         self.a = a
         self.b = b
         self.c = c
@@ -747,7 +789,13 @@ class LightningDetector(Detector):
 
 class DeepForestDetector(LightningDetector):
 
-    def __init__(self, module: DeepForestModule):
+    def __init__(self, module: DeepForestModule, postprocessors=None):
+        """Create a DeepForestDetector object
+        Args:
+            module (DeepForestModule): LightningModule for DeepForest
+            postprocessors (list, optional): See docstring for Detector class. Defaults to None.
+        """
+        super().__init__(postprocessors=postprocessors)
         # Setup steps for LightningModule
         self.setup_model(module)
 
@@ -857,7 +905,14 @@ class DeepForestDetector(LightningDetector):
 
 class Detectree2Detector(LightningDetector):
 
-    def __init__(self, module):
+    def __init__(self, module, postprocessors=None):
+        """
+        Create a Detectree2Detector object
+        Args:
+            module (Detectree2Module): Module for Detectree2
+            postprocessors (list, optional): See docstring for Detector class. Defaults to None.
+        """
+        super().__init__(postprocessors=postprocessors)
         # TODO: Add lightning module implementation
         # Note: For now, `module` only references to `cfg`
         if DETECTRON2_AVAILABLE is False:

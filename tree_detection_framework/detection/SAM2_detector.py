@@ -27,7 +27,18 @@ class SAMV2Detector(Detector):
         device=DEFAULT_DEVICE,
         sam2_checkpoint=Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt"),
         model_cfg="configs/sam2.1/sam2.1_hiera_l.yaml",
+        postprocessors=None,
     ):
+        """
+        Create a SAM2 detector.
+        Args:
+            device (torch.device): Device to run the model on.
+            sam2_checkpoint (Path): Path to the SAM2 checkpoint.
+            model_cfg (str): Path to the SAM2 model config.
+            postprocessors (list, optional): See docstring for Detector class. Defaults to None.
+        """
+        super().__init__(postprocessors=postprocessors)
+
         self.device = device
 
         self.sam2 = build_sam2(
