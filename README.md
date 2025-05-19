@@ -26,7 +26,7 @@ There are a variety of projects for tree detection that you may find useful. Thi
 - Used for RGB data with polygon boundaries.
 - Provides a Mask R-CNN model train on a manually labeled tree crowns from four sites.
 - Trained using data from tropical forests.
-- Planned support within this framework
+-  Implemented in this framework.
 
 ## Install
 Some of the dependencies are managed by a tool called [Poetry](https://python-poetry.org/). I've found
