@@ -58,17 +58,21 @@ class Detector:
         Base class for all detectors.
         Args:
             postprocessors (list, optional):
-            List of postprocessing functions applied sequentially to the RegionDetectionsSet. Each element
-            is a lambda function. First postprocessing step must take a RegionDetectionSet as input.
-            Example:
-            postprocessors = [
-                lambda r: suppress_tile_boundary_with_NMS(
-                    r, iou_threshold=0.5, ios_threshold=0.5, min_confidence=0.3
-                ),
-                lambda r: single_region_NMS(
-                    r, confidence_column="score", threshold=0.6, min_confidence=0.3
-                ),
-            ]
+                List of postprocessing functions applied sequentially to the predictions.
+                Each element must be a callable that takes a single RegionDetections{Set} as input and returns a modified
+                RegionDetections{Set}. This can be a lambda or a named function. 
+                If `detector.predict()` is called, first postprocessing step must take a RegionDetectionsSet as input.
+                If `detector.predict_as_generator()` is called, all postprocessing steps must take a RegionDetections as input. 
+                
+                Example:
+                postprocessors = [
+                    lambda r: suppress_tile_boundary_with_NMS(
+                        r, iou_threshold=0.5, ios_threshold=0.5, min_confidence=0.3
+                    ),
+                    lambda r: single_region_NMS(
+                        r, confidence_column="score", threshold=0.6, min_confidence=0.3
+                    ),
+                ]
         """
         self.postprocessors = postprocessors or []
 
@@ -79,7 +83,7 @@ class Detector:
         raise NotImplementedError()
 
     def predict_as_generator(
-        self, inference_dataloader: DataLoader, **kwargs
+        self, inference_dataloader: DataLoader, postprocess_region_detections: bool = False, **kwargs
     ) -> Iterator[RegionDetections]:
         """
         A generator that yields a RegionDetections object for each image in the dataloader. Note
@@ -87,6 +91,7 @@ class Detector:
 
         Args:
             inference_dataloader (DataLoader): Dataloader to generate predictions for
+            postprocess_region_detections (bool, optional): Set as True if `postprocessors` is intended for RegionDetections.
         """
         # Iterate over each batch in the dataloader
         for batch in tqdm(
@@ -125,6 +130,12 @@ class Detector:
                     pixel_prediction_bounds=image_bounds,
                     geospatial_prediction_bounds=geospatial_bounds,
                 )
+
+                if postprocess_region_detections:
+                    # Apply postprocessing steps to the RegionDetections
+                    for func in self.postprocessors:
+                        region_detections = func(region_detections)
+
                 # Yield this object
                 yield region_detections
 
@@ -161,7 +172,7 @@ class Detector:
         # Otherwise convert it to a RegionDetectionsSet and return that
         region_detection_set = RegionDetectionsSet(predictions_list)
 
-        # Apply postprocessing steps
+        # Apply postprocessing steps to the RegionDetectionsSet
         for func in self.postprocessors:
             region_detection_set = func(region_detection_set)
 
