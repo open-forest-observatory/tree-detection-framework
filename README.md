@@ -1,14 +1,16 @@
 # tree-detection-framework
 This project has three main goals:
-* Enable tree detection on realistic-scale raster data with minimal boilerplate
+* Enable tree detection on realistic-scale, geospatial raster data with minimal boilerplate, using existing (external) tree detection/segmentation models
 * Facilitate direct comparison of multiple algorithms
 * Rely on modern libraries and software best practice for a robust, performant, and modular tool
+
+This project does not, itself, provide tree detection/segmentation algorithms (with the exception of a geometric algorithm). Instead, it provides a standardized interface for performing training, inference, and evaluation using existing tree detection models and algorithms. The project currently supports the external computer vision models DeepForest, Dectree2, and SAM2, as well as a geometric canopy height model segmentor implemented within TDF. Support for other external models can be added by implementing a new `Detector` class.
 
 We use the `torchgeo` package to perform data loading and standardization using standard geospatial input formats. This library allows us to generate chips on the fly of a given size, stride, and spatial resolution. Training and inference is done with modular detectors that can be based on existing models and algorithms. We have preliminary support for using `PyTorch Lightning` to minimize boilerplate around model training and prediction. Region-level nonmax-suppression (NMS) is done using the `PolyGoneNMS` library which is efficient for large images. Visualization and saving of the predictions is done using `geopandas`, a common library for geospatial data.
 
 This project is under active development by the [Open Forest Observatory](https://openforestobservatory.org/). We welcome contributions and suggestions for improvement.
 
-## Other resources
+## Tree detection models supported
 There are a variety of projects for tree detection that you may find useful. This list is incomplete, so feel free to suggest additions.
 
 ### DeepForest
@@ -18,7 +20,6 @@ There are a variety of projects for tree detection that you may find useful. Thi
 - Provides a RetinaNet model trained on a large number of semi-supervised tree crown annotations and a smaller set of manual annotations.
 - Training data is from the US only but represents diverse regions the model has been applied on data from outside the US successfully.
 - Supports model fine-tuning with optional support for species/type classification
-- Implemented in this framework.
 
 ### Detectree2
 - [Github](https://github.com/PatBall1/detectree2)
@@ -26,7 +27,19 @@ There are a variety of projects for tree detection that you may find useful. Thi
 - Used for RGB data with polygon boundaries.
 - Provides a Mask R-CNN model train on a manually labeled tree crowns from four sites.
 - Trained using data from tropical forests.
--  Implemented in this framework.
+
+### Segment Anything Model 2 (SAM2)
+- [Github](https://github.com/facebookresearch/sam2)
+- Implements various preprocessing, postprocessing, visualization, and evaluation tasks.
+- Used for RGB data with polygon boundaries.
+- Utilizes the Segment Anything Model (SAM 2.1 Hiera Large) checkpoint with tuned parameters for mask generation optimized for tree crown delineation.
+- Does not rely on supervised training for tree-specific data but generalizes well due to SAM's zero-shot nature.
+
+### Geometric Detector
+- [Paper](https://www.tandfonline.com/doi/full/10.1080/07038992.2016.1196582#abstract)
+- Implementation of algorithm for tree segmentation based on Silva et al. (2016)
+- Used for Canopy Height Model (CHM) input and produces tree crown polygons.
+- This is a learning-free tree detection algorithm.
 
 ## Install
 Some of the dependencies are managed by a tool called [Poetry](https://python-poetry.org/). I've found
