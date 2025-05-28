@@ -44,13 +44,13 @@ There are a variety of projects for tree detection that you may find useful. Thi
 ## Software Architecture
 The `tree-detection-framework` is organized into modular components to ensure extensibility and easy integration of different detection models. The main components are:
 
-1. **`preprocessing.py`**
+1. **`preprocessing.py`**<br>
    The `create_dataloader()` method accepts single/multiple orthomosaic inputs. `create_image_datalaoder()` accepts a folder containing raw drone imagery. It tiles the input images based on user-specified parameters such as tile size, stride, resolution, and returns a PyTorch-compatible dataloader for inference.
-2. **`Detector` Base Class**
+2. **`Detector` Base Class**<br>
    All detectors in the framework (e.g., DeepForest, Detectree2) inherit from the `Detector` base class. It defines the interface for generating predictions and geospatially referencing image tiles. This design allows all detectors to plug into the same pipeline with minimal code changes.
-3. **`RegionDetectionsSet` and `RegionDetections`**
+3. **`RegionDetectionsSet` and `RegionDetections`**<br>
    These classes standardize model outputs. A `RegionDetectionsSet` is a collection of `RegionDetections`, where each `RegionDetections` object represents the detections in a single image tile. This abstraction allows postprocessing components to operate uniformly across different detectors. These outputs can be saved out as `.gpkg` or `.geojson` files.
-4. **`postprocessing.py`**
+4. **`postprocessing.py`**<br>
    Impelments a set of postprocessing functions for cleaning the detections by Non-Maximum Suppression(NMS), polygon hole suppression, tile boundary suppression, and removing out of bounds detections. Most of these methods operate on standardized output types (`RegionDetections` / `RegionDetectionsSet`).
 
 ## Install
