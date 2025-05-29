@@ -32,7 +32,7 @@ TDF currently supports the following tree detection/segmentation algorithms.
 - Does not rely on supervised training for tree-specific data but generalizes well due to SAM's zero-shot nature; however, non-tree objects are also detected and included in predictions.
 
 ### Geometric Detector
-- Implementation of [variable window filter](https://www.ingentaconnect.com/content/asprs/pers/2004/00000070/00000005/art00003) algorithm for tree top detection, combined with the algorithm of [Silva et al. (2016)](https://www.tandfonline.com/doi/full/10.1080/07038992.2016.1196582#abstract) for crown segmentation.
+- Implementation of the variable window filter algorithm of [Popescu and Wynne (2004)](https://www.ingentaconnect.com/content/asprs/pers/2004/00000070/00000005/art00003) for tree top detection, combined with the algorithm of [Silva et al. (2016)](https://www.tandfonline.com/doi/full/10.1080/07038992.2016.1196582#abstract)for crown segmentation.
 - Uses canopy height model (CHM) input data. Predicts tree crowns with polygon boundaries.
 - This is a learning-free tree detection algorithm. It is the one algorithm that is implemented within TDF as opposed to relying on an existing external model/algorithm.
 
