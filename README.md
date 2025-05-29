@@ -11,43 +11,49 @@ We use the `torchgeo` package to perform data loading and standardization using 
 This project is under active development by the [Open Forest Observatory](https://openforestobservatory.org/). We welcome contributions and suggestions for improvement.
 
 ## Tree detection models supported
-There are a variety of projects for tree detection that you may find useful. This list is incomplete, so feel free to suggest additions.
+TDF currently supports the following tree detection/segmentation algorithms.
 
 ### DeepForest
 - [Github](https://github.com/weecology/DeepForest)
-- Implements various preprocessing, postprocessing, visualization, and evaluation tasks.
-- Used for RGB data with rectangular bounding box predictions.
+- Uses RGB input data. Predicts tree crowns with rectangular bounding boxes.
 - Provides a RetinaNet model trained on a large number of semi-supervised tree crown annotations and a smaller set of manual annotations.
-- Training data is from the US only but represents diverse regions the model has been applied on data from outside the US successfully.
-- Supports model fine-tuning with optional support for species/type classification
+- Trained using data from the US only but representing diverse regions. The model has been applied on data from outside the US successfully.
 
 ### Detectree2
 - [Github](https://github.com/PatBall1/detectree2)
-- Implements various preprocessing, postprocessing, visualization, and evaluation tasks.
-- Used for RGB data with polygon boundaries.
-- Provides a Mask R-CNN model train on a manually labeled tree crowns from four sites.
+- Uses RGB input data. Predicts tree crowns with polygon boundaries.
+- Provides a Mask R-CNN model trained on manually labeled tree crowns from four sites.
 - Trained using data from tropical forests.
 
 ### Segment Anything Model 2 (SAM2)
 - [Github](https://github.com/facebookresearch/sam2)
-- Implements various preprocessing, postprocessing, visualization, and evaluation tasks.
-- Used for RGB data with polygon boundaries.
+- Uses RGB input data. Predicts objects with polygon boundaries.
 - Utilizes the Segment Anything Model (SAM 2.1 Hiera Large) checkpoint with tuned parameters for mask generation optimized for tree crown delineation.
-- Does not rely on supervised training for tree-specific data but generalizes well due to SAM's zero-shot nature.
+- Does not rely on supervised training for tree-specific data but generalizes well due to SAM's zero-shot nature; however, non-tree objects are also detected and included in predictions.
 
 ### Geometric Detector
-- [Paper](https://www.tandfonline.com/doi/full/10.1080/07038992.2016.1196582#abstract)
-- Implementation of algorithm for tree segmentation based on Silva et al. (2016)
-- Used for Canopy Height Model (CHM) input to produce tree crown polygons.
-- This is a learning-free tree detection algorithm.
+- Implementation of the variable window filter algorithm of [Popescu and Wynne
+  (2004)](https://www.ingentaconnect.com/content/asprs/pers/2004/00000070/00000005/art00003) for
+  tree top detection, combined with the algorithm of [Silva et al.
+  (2016)](https://www.tandfonline.com/doi/full/10.1080/07038992.2016.1196582#abstract) for crown
+  segmentation.
+- Uses canopy height model (CHM) input data. Predicts tree crowns with polygon boundaries.
+- This is a learning-free tree detection algorithm. It is the one algorithm that is implemented within TDF as opposed to relying on an existing external model/algorithm.
 
-## Software Architecture
-The `tree-detection-framework` is organized into modular components to ensure extensibility and easy integration of different detection models. The main components are:
+## Software architecture
+The `tree-detection-framework` is organized into modular components to facilitate extension including integration of additional detection models. The main components are:
 
 1. **`preprocessing.py`**<br>
-   The `create_dataloader()` method accepts single/multiple orthomosaic inputs. `create_image_datalaoder()` accepts a folder containing raw drone imagery. It tiles the input images based on user-specified parameters such as tile size, stride, resolution, and returns a PyTorch-compatible dataloader for inference.
+   The `create_dataloader()` method accepts single/multiple orthomosaic inputs. Alternatively,
+   `create_image_datalaoder()` accepts a folder containing raw drone imagery. The methods tile the
+   input images based on user-specified parameters such as tile size, stride, and resolution and
+   return a PyTorch-compatible dataloader for inference.
 2. **`Detector` Base Class**<br>
-   All detectors in the framework (e.g., DeepForest, Detectree2) inherit from the `Detector` base class. It defines the core logic for generating predictions and geospatially referencing image tiles. This design allows all detectors to plug into the same pipeline with minimal code changes.
+   All detectors in the framework (e.g., DeepForestDetector, Detectree2Detector) inherit from the
+   `Detector` base class. The base class defines the core logic for generating predictions and
+   geospatially referencing image tiles, while model-specific detectors translate the inputs to the
+   format expected by the respective model. This design allows all detectors to plug into the same
+   pipeline with minimal code changes.
 3. **`RegionDetectionsSet` and `RegionDetections`**<br>
    These classes standardize model outputs. A `RegionDetectionsSet` is a collection of `RegionDetections`, where each `RegionDetections` object represents the detections in a single image tile. This abstraction allows postprocessing components to operate uniformly across different detectors. These outputs can be saved out as `.gpkg` or `.geojson` files.
 4. **`postprocessing.py`**<br>
