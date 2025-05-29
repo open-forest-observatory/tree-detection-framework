@@ -40,8 +40,8 @@ TDF currently supports the following tree detection/segmentation algorithms.
 - Uses canopy height model (CHM) input data. Predicts tree crowns with polygon boundaries.
 - This is a learning-free tree detection algorithm. It is the one algorithm that is implemented within TDF as opposed to relying on an existing external model/algorithm.
 
-## Software Architecture
-The `tree-detection-framework` is organized into modular components to facilitate extension and integration of different detection models. The main components are:
+## Software architecture
+The `tree-detection-framework` is organized into modular components to facilitate extension including integration of additional detection models. The main components are:
 
 1. **`preprocessing.py`**<br>
    The `create_dataloader()` method accepts single/multiple orthomosaic inputs. Alternatively,
