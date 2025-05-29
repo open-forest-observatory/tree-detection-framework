@@ -1,32 +1,63 @@
 # tree-detection-framework
 This project has three main goals:
-* Enable tree detection on realistic-scale raster data with minimal boilerplate
+* Enable tree detection on realistic-scale, geospatial raster data with minimal boilerplate, using existing (external) tree detection/segmentation models
 * Facilitate direct comparison of multiple algorithms
 * Rely on modern libraries and software best practice for a robust, performant, and modular tool
+
+This project does not, itself, provide tree detection/segmentation algorithms (with the exception of a geometric algorithm). Instead, it provides a standardized interface for performing training, inference, and evaluation using existing tree detection models and algorithms. The project currently supports the external computer vision models DeepForest, Dectree2, and SAM2, as well as a geometric canopy height model segmentor implemented within TDF. Support for other external models can be added by implementing a new `Detector` class.
 
 We use the `torchgeo` package to perform data loading and standardization using standard geospatial input formats. This library allows us to generate chips on the fly of a given size, stride, and spatial resolution. Training and inference is done with modular detectors that can be based on existing models and algorithms. We have preliminary support for using `PyTorch Lightning` to minimize boilerplate around model training and prediction. Region-level nonmax-suppression (NMS) is done using the `PolyGoneNMS` library which is efficient for large images. Visualization and saving of the predictions is done using `geopandas`, a common library for geospatial data.
 
 This project is under active development by the [Open Forest Observatory](https://openforestobservatory.org/). We welcome contributions and suggestions for improvement.
 
-## Other resources
-There are a variety of projects for tree detection that you may find useful. This list is incomplete, so feel free to suggest additions.
+## Tree detection models supported
+TDF currently supports the following tree detection/segmentation algorithms.
 
 ### DeepForest
 - [Github](https://github.com/weecology/DeepForest)
-- Implements various preprocessing, postprocessing, visualization, and evaluation tasks.
-- Used for RGB data with rectangular bounding box predictions.
+- Uses RGB input data. Predicts tree crowns with rectangular bounding boxes.
 - Provides a RetinaNet model trained on a large number of semi-supervised tree crown annotations and a smaller set of manual annotations.
-- Training data is from the US only but represents diverse regions the model has been applied on data from outside the US successfully.
-- Supports model fine-tuning with optional support for species/type classification
-- Implemented in this framework.
+- Trained using data from the US only but representing diverse regions. The model has been applied on data from outside the US successfully.
 
 ### Detectree2
 - [Github](https://github.com/PatBall1/detectree2)
-- Implements various preprocessing, postprocessing, visualization, and evaluation tasks.
-- Used for RGB data with polygon boundaries.
-- Provides a Mask R-CNN model train on a manually labeled tree crowns from four sites.
+- Uses RGB input data. Predicts tree crowns with polygon boundaries.
+- Provides a Mask R-CNN model trained on manually labeled tree crowns from four sites.
 - Trained using data from tropical forests.
--  Implemented in this framework.
+
+### Segment Anything Model 2 (SAM2)
+- [Github](https://github.com/facebookresearch/sam2)
+- Uses RGB input data. Predicts objects with polygon boundaries.
+- Utilizes the Segment Anything Model (SAM 2.1 Hiera Large) checkpoint with tuned parameters for mask generation optimized for tree crown delineation.
+- Does not rely on supervised training for tree-specific data but generalizes well due to SAM's zero-shot nature; however, non-tree objects are also detected and included in predictions.
+
+### Geometric Detector
+- Implementation of the variable window filter algorithm of [Popescu and Wynne
+  (2004)](https://www.ingentaconnect.com/content/asprs/pers/2004/00000070/00000005/art00003) for
+  tree top detection, combined with the algorithm of [Silva et al.
+  (2016)](https://www.tandfonline.com/doi/full/10.1080/07038992.2016.1196582#abstract) for crown
+  segmentation.
+- Uses canopy height model (CHM) input data. Predicts tree crowns with polygon boundaries.
+- This is a learning-free tree detection algorithm. It is the one algorithm that is implemented within TDF as opposed to relying on an existing external model/algorithm.
+
+## Software architecture
+The `tree-detection-framework` is organized into modular components to facilitate extension including integration of additional detection models. The main components are:
+
+1. **`preprocessing.py`**<br>
+   The `create_dataloader()` method accepts single/multiple orthomosaic inputs. Alternatively,
+   `create_image_datalaoder()` accepts a folder containing raw drone imagery. The methods tile the
+   input images based on user-specified parameters such as tile size, stride, and resolution and
+   return a PyTorch-compatible dataloader for inference.
+2. **`Detector` Base Class**<br>
+   All detectors in the framework (e.g., DeepForestDetector, Detectree2Detector) inherit from the
+   `Detector` base class. The base class defines the core logic for generating predictions and
+   geospatially referencing image tiles, while model-specific detectors translate the inputs to the
+   format expected by the respective model. This design allows all detectors to plug into the same
+   pipeline with minimal code changes.
+3. **`RegionDetectionsSet` and `RegionDetections`**<br>
+   These classes standardize model outputs. A `RegionDetectionsSet` is a collection of `RegionDetections`, where each `RegionDetections` object represents the detections in a single image tile. This abstraction allows postprocessing components to operate uniformly across different detectors. These outputs can be saved out as `.gpkg` or `.geojson` files.
+4. **`postprocessing.py`**<br>
+   Impelments a set of postprocessing functions for cleaning the detections by Non-Maximum Suppression(NMS), polygon hole suppression, tile boundary suppression, and removing out of bounds detections. Most of these methods operate on standardized output types (`RegionDetections` / `RegionDetectionsSet`).
 
 ## Install
 Some of the dependencies are managed by a tool called [Poetry](https://python-poetry.org/). I've found
