@@ -603,17 +603,23 @@ class GeometricDetector(Detector):
             confidence_scores (List[float]): Pseudo-confidence scores for the detections
         """
 
-        # Get Voronoi Diagram from the calculated treetop points
-        voronoi_diagram = shapely.voronoi_polygons(MultiPoint(all_treetop_pixel_coords))
-
         # Store the individual polygons from Voronoi diagram in the same sequence as the treetop points
-        ordered_polygons = []
-        for treetop_point in all_treetop_pixel_coords:
-            for polygon in voronoi_diagram.geoms:
-                # Check if the treetop is inside the polygon
-                if polygon.contains(treetop_point):
-                    ordered_polygons.append(polygon)
-                    break
+        if len(all_treetop_pixel_coords) == 1:
+            # This is a special case where the voronoi tesselation would return an "EMPTY" geometry
+            # instead, the corresponding geometry is set to the bounding rectangle of the tile
+            ordered_polygons = [box(0, 0, image.shape[1], image.shape[0])]
+        else:
+            # Get Voronoi Diagram from the calculated treetop points
+            voronoi_diagram = shapely.voronoi_polygons(MultiPoint(all_treetop_pixel_coords))
+
+            ordered_polygons = []
+            for treetop_point in all_treetop_pixel_coords:
+                for polygon in voronoi_diagram.geoms:
+                    # Check if the treetop is inside the polygon
+                    if polygon.contains(treetop_point):
+                        ordered_polygons.append(polygon)
+                        break
+
 
         # Create a GeoDataFrame to store information associated with the image
         tile_gdf = gpd.GeoDataFrame(
