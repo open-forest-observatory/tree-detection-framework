@@ -737,11 +737,15 @@ class GeometricDetector(Detector):
                 final_tree_crowns, confidence_scores = self.get_tree_crowns(
                     image, treetop_pixel_coords, treetop_heights
                 )
-                batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
+                batch_detections.append(
+                    final_tree_crowns
+                )  # List[List[shapely.geometry]]
                 batch_detections_data.append({"score": confidence_scores})
             else:
                 # Otherwise, the geometry is just the location of the tree top as a point
-                batch_detections.append(treetop_pixel_coords)  # List[List[shapely.geometry]]
+                batch_detections.append(
+                    treetop_pixel_coords
+                )  # List[List[shapely.geometry]]
                 # And the score is the height
                 # TODO support could be added for the distance-from-edge metric
                 batch_detections_data.append({"score": treetop_heights})
