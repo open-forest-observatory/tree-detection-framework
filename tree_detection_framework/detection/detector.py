@@ -393,6 +393,7 @@ class GeometricDetector(Detector):
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
         confidence_factor: str = "height",
+        compute_tree_crown: bool = True,
         filter_shape: str = "circle",
         contour_backend: str = "cv2",
         postprocessors=None,
@@ -409,6 +410,8 @@ class GeometricDetector(Detector):
             threshold_factor (float, optional): Factor to determine the threshold for the binary mask. Defaults to 0.3.
             confidence_factor (str, optional): Feature to use to compute the confidence scores for the predictions.
                 Choose from "height", "area", "distance", "all". Defaults to "height".
+            compute_tree_crown (bool, optional):
+                Should the tree crown be computed or just return the tree top. Defaults to True.
             filter_shape (str, optional): Shape of the filter to use for local maxima detection.
                 Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
             contour_backend (str, optional): The backend to use for contour extraction to generate treecrowns.
@@ -426,6 +429,7 @@ class GeometricDetector(Detector):
         self.radius_factor = radius_factor
         self.threshold_factor = threshold_factor
         self.confidence_factor = confidence_factor
+        self.compute_tree_crown = compute_tree_crown
         self.filter_shape = filter_shape
         self.backend = contour_backend
 
@@ -725,12 +729,22 @@ class GeometricDetector(Detector):
             # Set NaN values to zero
             image = np.nan_to_num(image)
 
+            # Get the treetop locations from the CHM
             treetop_pixel_coords, treetop_heights = self.get_treetops(image)
-            final_tree_crowns, confidence_scores = self.get_tree_crowns(
-                image, treetop_pixel_coords, treetop_heights
-            )
-            batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
-            batch_detections_data.append({"score": confidence_scores})
+
+            if self.compute_tree_crown:
+                # If requested, compute the polygon tree crown
+                final_tree_crowns, confidence_scores = self.get_tree_crowns(
+                    image, treetop_pixel_coords, treetop_heights
+                )
+                batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
+                batch_detections_data.append({"score": confidence_scores})
+            else:
+                # Otherwise, the geometry is just the location of the tree top as a point
+                batch_detections.append(treetop_pixel_coords)  # List[List[shapely.geometry]]
+                # And the score is the height
+                # TODO support could be added for the distance-from-edge metric
+                batch_detections_data.append({"score": treetop_heights})
         return batch_detections, batch_detections_data
 
 
