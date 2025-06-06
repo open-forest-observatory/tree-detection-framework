@@ -13,6 +13,7 @@ import shapely
 from shapely.affinity import affine_transform
 
 from tree_detection_framework.constants import PATH_TYPE
+from tree_detection_framework.utils.geospatial import to_crs_multiple_geometry_columns
 from tree_detection_framework.utils.raster import show_raster
 
 
@@ -116,6 +117,7 @@ class RegionDetections:
         geospatial_prediction_bounds: Optional[
             shapely.Polygon | shapely.MultiPolygon
         ] = None,
+        geometry_columns: Optional[List[str]] = None,
     ):
         """Create a region detections object
 
@@ -152,7 +154,14 @@ class RegionDetections:
                 prediction region. If pixel_to_CRS_transform is None, and both pixel_- and
                 geospatial_prediction_bounds are not None, then the two bounds will be used to
                 compute the transform. Defaults to None.
+            geometry_columns (Optional[List[str]], optional):
+                Which columns to treat as geometric columns that should be transformed to different
+                reference frames. If unset, all geometry-typed columns will be transformed. Defaults
+                to None.
         """
+        # Record which columns contain geometry attributes
+        self.geometry_columns = geometry_columns
+
         # Build a geopandas dataframe containing the geometries, additional attributes, and CRS
         self.detections = gpd.GeoDataFrame(
             data=data, geometry=detection_geometries, crs=CRS
@@ -315,8 +324,14 @@ class RegionDetections:
                 return self.detections.copy()
 
             # Transform the data to the requested CRS. Note that if no CRS is provided initially,
-            # this will error out
-            detections_in_new_CRS = self.detections.copy().to_crs(CRS)
+            # this will error out. This is applied to all geometry-typed columns unless explicitly
+            # stated by self.geometry_columns
+            detections_in_new_CRS = to_crs_multiple_geometry_columns(
+                self.detections,
+                crs=CRS,
+                columns_to_transform=self.geometry_columns,
+                inplace=False,
+            )
             return detections_in_new_CRS
 
     def convert_to_bboxes(self) -> "RegionDetections":
