@@ -345,6 +345,14 @@ class RegionDetections:
         bbox_rd.detections = nonempty_rows
         return bbox_rd
 
+    def buffer(self, buffer_dist: float) -> "RegionDetections":
+        # Get the detections
+        buffered_rd = copy.deepcopy(self)
+
+        buffered_rd.detections.geometry = buffered_rd.detections.buffer(buffer_dist)
+
+        return buffered_rd
+
     def update_geometry_column(self, geometry_column: str) -> "RegionDetections":
         """Update the geometry to another column in the dataframe that contains shapely data
 
@@ -550,7 +558,10 @@ class RegionDetectionsSet:
         # Note that dataframes in the original list are updated
         # TODO consider a more sophisticated ID
         for ID, gdf in enumerate(detection_geodataframes):
-            gdf[region_ID_key] = ID
+            try:
+                gdf[region_ID_key] = ID
+            except:
+                breakpoint()
 
         # Concatenate the geodataframes together
         concatenated_geodataframes = pd.concat(detection_geodataframes)
@@ -621,6 +632,12 @@ class RegionDetectionsSet:
         # Return the new RDS
         bboxes_rds = RegionDetectionsSet(converted_detections)
         return bboxes_rds
+
+    def buffer(self, buffer_dist: float) -> "RegionDetectionsSet":
+        buffered_detections = [rd.buffer(buffer_dist) for rd in self.region_detections]
+        # Return the new RDS
+        buffered_rds = RegionDetectionsSet(buffered_detections)
+        return buffered_rds
 
     def update_geometry_column(self, geometry_column: str) -> "RegionDetectionsSet":
         """
