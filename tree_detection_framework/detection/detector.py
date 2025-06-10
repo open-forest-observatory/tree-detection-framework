@@ -767,7 +767,6 @@ class GeometricTreeTopDetector(Detector):
         c: float = 2.52503,
         res: float = 0.2,
         min_ht: int = 5,
-        confidence_factor: str = "height",
         filter_shape: str = "circle",
         postprocessors=None,
     ):
@@ -778,8 +777,6 @@ class GeometricTreeTopDetector(Detector):
             c (float, optional): Constant term in the radius calculation. Defaults to 2.52503.
             res (float, optional): Resolution of the CHM image. Defaults to 0.2.
             min_ht (int, optional): Minimum height for a pixel to be considered as a tree. Defaults to 5.
-            confidence_factor (str, optional): Feature to use to compute the confidence scores for the predictions.
-                Choose from "height", "area", "distance", "all". Defaults to "height".
             filter_shape (str, optional): Shape of the filter to use for local maxima detection.
                 Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
             postprocessors (list, optional):
@@ -791,66 +788,7 @@ class GeometricTreeTopDetector(Detector):
         self.c = c
         self.res = res
         self.min_ht = min_ht
-        self.confidence_factor = confidence_factor
         self.filter_shape = filter_shape
-
-    def calculate_scores(
-        self, tile_gdf: gpd.GeoDataFrame, image_shape: tuple
-    ) -> List[float]:
-        """Calculate pseudo-confidence scores for the detections based on the following features of the tree crown:
-
-            1. Height - Taller trees are generally more easier to detect, making their confidence higher
-            2. Area - Larger tree crowns are easier to detect, hence less likely to be false positives
-            3. Distance - Trees near the edge of a tile might have incomplete data, reducing confidence
-            4. All - An option to compute a weighted combination of all factors as the confidence score
-
-        Args:
-            tile_gdf (gpd.GeoDataFrame): A geopandas dataframe with 'treetop_height' and 'tree_crown' columns
-            image_shape (tuple): The (i, j, channel) shape of the image that predictions were generated from
-
-        Returns:
-            List[float]: Calculated confidence scores.
-        """
-        if self.confidence_factor not in ["height", "area", "distance", "all"]:
-            raise ValueError(
-                "Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`"
-            )
-
-        if self.confidence_factor == "height":
-            # Use height values as scores
-            confidence_scores = tile_gdf["treetop_height"]
-
-        elif self.confidence_factor == "area":
-            # Use area values as scores
-            confidence_scores = tile_gdf["tree_crown"].apply(lambda geom: geom.area)
-
-        elif self.confidence_factor == "distance":
-            # Calculate the centroid of each tree crown
-            tile_gdf["centroid"] = tile_gdf["tree_crown"].apply(
-                lambda geom: geom.centroid if not geom.is_empty else None
-            )
-
-            # Calculate distances to the closest edge for each centroid
-            def calculate_edge_distance(centroid):
-                if centroid is None:  # Check if centroid is None (empty geometry case)
-                    return 0
-                x, y = centroid.x, centroid.y
-                distances = [
-                    x,  # left edge
-                    image_shape[1] - x,  # right edge
-                    y,  # bottom edge
-                    image_shape[0] - y,  # top edge
-                ]
-                # Return the distance to the closest edge
-                return min(distances)
-
-            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(
-                calculate_edge_distance
-            )
-            # Use edge distance values as scores
-            confidence_scores = tile_gdf["edge_distance"]
-
-        return list(confidence_scores)
 
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates using pre-filtering to identify potential maxima.
@@ -980,6 +918,258 @@ class GeometricTreeTopDetector(Detector):
             batch_detections_data.append({"score": treetop_heights})
         return batch_detections, batch_detections_data
 
+class GeometricTreeCrownDetector(Detector):
+
+    def __init__(
+        self,
+        res: float = 0.2,
+        radius_factor: float = 0.6,
+        threshold_factor: float = 0.3,
+        confidence_factor: str = "height",
+        contour_backend: str = "cv2",
+        postprocessors=None,
+    ):
+        """Detect tree crowns for CHM data, implementing algorithm described by Silva et al. (2016) for crown segmentation. 
+         This class requires the treetops to be detected first.
+
+        Args:
+            res (float, optional): Resolution of the CHM image. Defaults to 0.2.
+            radius_factor (float, optional): Factor to determine the radius of the tree crown. Defaults to 0.6.
+            threshold_factor (float, optional): Factor to determine the threshold for the binary mask. Defaults to 0.3.
+            confidence_factor (str, optional): Feature to use to compute the confidence scores for the predictions.
+                Choose from "height", "area", "distance", "all". Defaults to "height".
+            contour_backend (str, optional): The backend to use for contour extraction to generate treecrowns.
+                Choose from "cv2" and "contourpy".
+            postprocessors (list, optional):
+                See docstring for Detector class. Defaults to None.
+
+        """
+        super().__init__(postprocessors=postprocessors)
+        self.res = res
+        self.radius_factor = radius_factor
+        self.threshold_factor = threshold_factor
+        self.confidence_factor = confidence_factor
+        self.backend = contour_backend
+
+    def calculate_scores(
+        self, tile_gdf: gpd.GeoDataFrame, image_shape: tuple
+    ) -> List[float]:
+        """Calculate pseudo-confidence scores for the detections based on the following features of the tree crown:
+
+            1. Height - Taller trees are generally more easier to detect, making their confidence higher
+            2. Area - Larger tree crowns are easier to detect, hence less likely to be false positives
+            3. Distance - Trees near the edge of a tile might have incomplete data, reducing confidence
+            4. All - An option to compute a weighted combination of all factors as the confidence score
+
+        Args:
+            tile_gdf (gpd.GeoDataFrame): A geopandas dataframe with 'treetop_height' and 'tree_crown' columns
+            image_shape (tuple): The (i, j, channel) shape of the image that predictions were generated from
+
+        Returns:
+            List[float]: Calculated confidence scores.
+        """
+        if self.confidence_factor not in ["height", "area", "distance", "all"]:
+            raise ValueError(
+                "Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`"
+            )
+
+        if self.confidence_factor == "height":
+            # Use height values as scores
+            confidence_scores = tile_gdf["treetop_height"]
+
+        elif self.confidence_factor == "area":
+            # Use area values as scores
+            confidence_scores = tile_gdf["tree_crown"].apply(lambda geom: geom.area)
+
+        elif self.confidence_factor == "distance":
+            # Calculate the centroid of each tree crown
+            tile_gdf["centroid"] = tile_gdf["tree_crown"].apply(
+                lambda geom: geom.centroid if not geom.is_empty else None
+            )
+
+            # Calculate distances to the closest edge for each centroid
+            def calculate_edge_distance(centroid):
+                if centroid is None:  # Check if centroid is None (empty geometry case)
+                    return 0
+                x, y = centroid.x, centroid.y
+                distances = [
+                    x,  # left edge
+                    image_shape[1] - x,  # right edge
+                    y,  # bottom edge
+                    image_shape[0] - y,  # top edge
+                ]
+                # Return the distance to the closest edge
+                return min(distances)
+
+            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(
+                calculate_edge_distance
+            )
+            # Use edge distance values as scores
+            confidence_scores = tile_gdf["edge_distance"]
+
+        return list(confidence_scores)
+
+    def get_tree_crowns(
+        self,
+        image: np.ndarray,
+        all_treetop_pixel_coords: List[Point],
+        all_treetop_heights: List[float],
+    ) -> Tuple[List[shapely.Polygon], List[float]]:
+        """Generate tree crowns for an image.
+
+        Args:
+            image (np.ndarray): A single channel CHM image
+            all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
+            all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
+
+        Returns:
+            filtered_crowns (List[shapely.Polygon]): Detected tree crowns as shapely polygons/multipolygons
+            confidence_scores (List[float]): Pseudo-confidence scores for the detections
+        """
+
+        # Store the individual polygons from Voronoi diagram in the same sequence as the treetop points
+        if len(all_treetop_pixel_coords) == 1:
+            # This is a special case where the voronoi tesselation would return an "EMPTY" geometry
+            # instead, the corresponding geometry is set to the bounding rectangle of the tile
+            ordered_polygons = [box(0, 0, image.shape[1], image.shape[0])]
+        else:
+            # Get Voronoi Diagram from the calculated treetop points
+            voronoi_diagram = shapely.voronoi_polygons(
+                MultiPoint(all_treetop_pixel_coords)
+            )
+
+            ordered_polygons = []
+            for treetop_point in all_treetop_pixel_coords:
+                for polygon in voronoi_diagram.geoms:
+                    # Check if the treetop is inside the polygon
+                    if polygon.contains(treetop_point):
+                        ordered_polygons.append(polygon)
+                        break
+
+        # Create a GeoDataFrame to store information associated with the image
+        tile_gdf = gpd.GeoDataFrame(
+            {
+                "geometry": ordered_polygons,
+                "treetop_pixel_coords": all_treetop_pixel_coords,
+                "treetop_height": all_treetop_heights,
+            }
+        )
+
+        # Next, we get 2 new sets of polygons:
+        # 1. A circle for every detected treetop
+        # 2. A set of multipolygons geenrated from the binary mask of the image
+        all_radius_in_pixels = []
+        all_circles = []
+        all_polygon_masks = []
+
+        for treetop_point, treetop_height in zip(
+            tile_gdf["treetop_pixel_coords"], tile_gdf["treetop_height"]
+        ):
+            # Compute radius as a fraction of the height, divide by resolution to convert unit to pixels
+            radius = (self.radius_factor * treetop_height) / self.res
+            all_radius_in_pixels.append(radius)
+
+            # Create a circle by buffering it by the radius value and add to list
+            all_circles.append(treetop_point.buffer(radius))
+
+            # Calculate threshold value for the binary mask as a fraction of the treetop height
+            threshold = self.threshold_factor * treetop_height
+            # Thresholding the tile image
+            binary_mask = image > threshold
+            # Convert the mask to shapely polygons, returned as a MultiPolygon
+            shapely_polygon_mask = mask_to_shapely(binary_mask, backend=self.backend)
+            all_polygon_masks.append(shapely_polygon_mask)
+
+        # Add the calculated radii, circles and polygon masks to the GeoDataFrame
+        tile_gdf["radius_in_pixels"] = all_radius_in_pixels
+        tile_gdf["circle"] = all_circles
+        tile_gdf["multipolygon_mask"] = all_polygon_masks
+
+        # Fix invalid polygons by buffering 0
+        tile_gdf["multipolygon_mask"] = gpd.GeoSeries(
+            tile_gdf["multipolygon_mask"]
+        ).buffer(0)
+
+        # The final tree crown is computed as the intersection of voronoi polygon, circle, and mask
+        tile_gdf["tree_crown"] = (
+            gpd.GeoSeries(tile_gdf["geometry"])
+            .intersection(gpd.GeoSeries(tile_gdf["circle"]))
+            .intersection(gpd.GeoSeries(tile_gdf["multipolygon_mask"]))
+        )
+
+        filtered_crowns = []
+        indices_to_drop = []
+
+        for index, (tree_crown, treetop_point) in enumerate(
+            zip(tile_gdf["tree_crown"], tile_gdf["treetop_pixel_coords"])
+        ):
+            # Only keep valid polygons
+            if (
+                isinstance(tree_crown, Polygon)
+                and tree_crown.is_valid
+                and tree_crown.area > 0
+            ):
+                filtered_crowns.append(tree_crown)
+            elif isinstance(tree_crown, (MultiPolygon, GeometryCollection)):
+                # Iterate through each polygon in the MultiPolygon
+                for i, geom in enumerate(tree_crown.geoms):
+                    # Exclude LineString/Point/MultiPoint objects in case geom is a GeometryCollection
+                    if isinstance(geom, Polygon) and geom.is_valid and geom.area > 0:
+                        # If the polygon with the treetop has been found, add it to list and ignore all other polygons
+                        if geom.contains(treetop_point):
+                            filtered_crowns.append(geom)
+                            break
+                    # For other cases, add an empty polygon to avoid having a mismatch in number of rows in the gdf
+                    if i == (len(tree_crown.geoms) - 1):
+                        filtered_crowns.append(Polygon())
+            else:
+                # If tree_crown is not valid, mark the row for deletion
+                indices_to_drop.append(index)
+
+        # Drop the rows with invalid polygons
+        tile_gdf = tile_gdf.drop(indices_to_drop)
+
+        # Calculate pseudo-confidence scores for the detections
+        confidence_scores = self.calculate_scores(tile_gdf, image.shape)
+
+        return filtered_crowns, confidence_scores
+
+    def predict_batch(self, batch):
+        """Generate predictions for a batch of samples
+
+        Args:
+            batch (dict): A batch from the torchgeo dataloader created with an IntersectionDataset.
+
+        Returns:
+            List[List[shapely.geometry]]:
+                A list of predictions one per image in the batch. The predictions for each image
+                are a list of shapely objects.
+            Union[None, List[dict]]:
+                Any additional attributes that are predicted (such as class or confidence). Must
+                be formatted in a way that can be passed to gpd.GeoPandas data argument.
+        """
+        # List to store every tile's detections
+        batch_detections = []
+        batch_detections_data = []
+        for image, treetop, treetop_height  in zip(batch["image"], batch["shapes"], batch["attributes"]):
+            image = image.squeeze()
+            # Set NaN values to zero
+            image = np.nan_to_num(image)
+
+            # Get the treetop coordinates and corresponding heights for the tile
+            treetop_pixel_coords = [shape[0] for shape in treetop]
+            treetop_heights = treetop_height["score"]  # height values were saved as "score"
+
+            # Compute the polygon tree crown
+            final_tree_crowns, confidence_scores = self.get_tree_crowns(
+                image, treetop_pixel_coords, treetop_heights
+            )
+            batch_detections.append(
+                final_tree_crowns
+            )  # List[List[shapely.geometry]]
+            batch_detections_data.append({"score": confidence_scores})
+
+        return batch_detections, batch_detections_data
 
 class LightningDetector(Detector):
     model: lightning.LightningModule
