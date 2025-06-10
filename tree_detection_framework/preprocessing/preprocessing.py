@@ -1,5 +1,6 @@
 import json
 import logging
+import tempfile
 import random
 from pathlib import Path
 from typing import List, Optional, Union
@@ -20,6 +21,7 @@ from tree_detection_framework.preprocessing.derived_geodatasets import (
     CustomRasterDataset,
     CustomVectorDataset,
 )
+from tree_detection_framework.detection.region_detections import RegionDetectionsSet
 from tree_detection_framework.utils.geospatial import get_projected_CRS
 from tree_detection_framework.utils.raster import plot_from_dataloader
 
@@ -177,6 +179,90 @@ def create_dataloader(
 
     return dataloader
 
+def create_intersection_dataloader(
+    raster_data: PATH_TYPE,
+    vector_data: Union[PATH_TYPE, RegionDetectionsSet],
+    chip_size: float,
+    chip_stride: float = None,
+    chip_overlap_percentage: float = None,
+    use_units_meters: bool = False,
+    output_resolution: Optional[float] = None,
+    output_CRS: Optional[pyproj.CRS] = None,
+):
+    """
+    Create a dataloader for raster data with vector labels. Used to combine detected geometry outputs from
+    one detector with the input for the next detector.
+
+    Args:
+        raster_data (PATH_TYPE): Path to raster file or the folder containing raster files.
+        vector_data (Union[PATH_TYPE, RegionDetectionsSet]):
+            Path to the vector file or outputs from a Detector as a RegionDetectionsSet object.
+        chip_size (float): Size of the chips in pixels or meters.
+        chip_stride (float, optional): Stride of the chips in pixels or meters. Defaults to None.
+        chip_overlap_percentage (float, optional): Percent overlap of the chips from 0-100. Defaults to None.
+        use_units_meters (bool, optional): Use meters as units for chip size and stride. Defaults to False.
+        output_resolution (Optional[float], optional):
+            Spatial resolution of the output data in meters/pixel. If un-set, will be the resolution
+            of the first raster data that is read. Defaults to None.
+
+    Returns:
+        DataLoader: A dataloader containing raster data and vector labels.
+    """
+
+    if chip_overlap_percentage:
+        # Calculate `chip_stride` if `chip_overlap_percentage` is provided
+        chip_stride = chip_size * (1 - chip_overlap_percentage / 100.0)
+        logging.info(f"Calculated stride based on overlap: {chip_stride}")
+
+    elif chip_stride is None:
+        raise ValueError(
+            "Either 'chip_stride' or 'chip_overlap_percentage' must be provided."
+        )
+
+    logging.info(f"Stride = {chip_stride}")
+
+    units = Units.CRS if use_units_meters == True else Units.PIXELS
+    logging.info(f"Units = {units}")
+
+    kwargs = {}
+    if output_resolution is not None:
+        kwargs["res"] = output_resolution
+    if output_CRS is not None:
+        kwargs["crs"] = output_CRS
+
+    if isinstance(vector_data, RegionDetectionsSet):
+        # Merge to create a single RegionDetections object and get the GeoDataFrame
+        vector_data_gdf = vector_data.merge().get_data_frame()
+        # Update CRS
+        kwargs["crs"] = vector_data_gdf.crs
+        # Save the GeoDataFrame to a temporary file with .geojson extension
+        with tempfile.NamedTemporaryFile(suffix=".geojson", delete=False) as tmp_treetops_file:
+            vector_data_gdf.to_file(tmp_treetops_file.name, driver="GeoJSON")
+            logging.info(f"RegionDetectionsSet saved to: {tmp_treetops_file.name}")
+        vector_file_path = tmp_treetops_file.name
+    else:
+        vector_file_path = vector_data
+    
+    # Create the vector and raster datasets
+    vector_data = CustomVectorDataset(
+            paths=vector_file_path, 
+            **kwargs)
+    raster_data = CustomRasterDataset(
+            paths=raster_data,
+            **kwargs)
+
+    # Create an intersection dataset that combines the datasets
+    intersection_data = IntersectionDataset(vector_data, raster_data)
+
+    # GridGeoSampler to get contiguous tiles
+    sampler = GridGeoSampler(
+        intersection_data, size=chip_size, stride=chip_stride, units=units
+    )
+    dataloader = DataLoader(
+        intersection_data, sampler=sampler, collate_fn=stack_samples
+    )
+
+    return dataloader
 
 def create_image_dataloader(
     images_dir: Union[PATH_TYPE, List[str]],
