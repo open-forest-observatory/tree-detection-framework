@@ -1,6 +1,6 @@
 import copy
 from pathlib import Path
-from typing import List, Optional, Union, Callable
+from typing import Callable, List, Optional, Union
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
