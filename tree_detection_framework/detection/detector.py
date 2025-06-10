@@ -758,6 +758,228 @@ class GeometricDetector(Detector):
                 batch_detections_data.append({"score": treetop_heights})
         return batch_detections, batch_detections_data
 
+class GeometricTreeTopDetector(Detector):
+
+    def __init__(
+        self,
+        a: float = 0.00901,
+        b: float = 0,
+        c: float = 2.52503,
+        res: float = 0.2,
+        min_ht: int = 5,
+        confidence_factor: str = "height",
+        filter_shape: str = "circle",
+        postprocessors=None,
+    ):
+        """Detector to detect treetops for CHM data. Implementation of the variable window filter algorithm of Popescu and Wynne (2004).
+         Args:
+            a (float, optional): Coefficient for the quadratic term in the radius calculation. Defaults to 0.00901.
+            b (float, optional): Coefficient for the linear term in the radius calculation. Defaults to 0.
+            c (float, optional): Constant term in the radius calculation. Defaults to 2.52503.
+            res (float, optional): Resolution of the CHM image. Defaults to 0.2.
+            min_ht (int, optional): Minimum height for a pixel to be considered as a tree. Defaults to 5.
+            confidence_factor (str, optional): Feature to use to compute the confidence scores for the predictions.
+                Choose from "height", "area", "distance", "all". Defaults to "height".
+            filter_shape (str, optional): Shape of the filter to use for local maxima detection.
+                Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
+            postprocessors (list, optional):
+                See docstring for Detector class. Defaults to None.
+         """
+        super().__init__(postprocessors=postprocessors)
+        self.a = a
+        self.b = b
+        self.c = c
+        self.res = res
+        self.min_ht = min_ht
+        self.confidence_factor = confidence_factor
+        self.filter_shape = filter_shape
+
+    def calculate_scores(
+        self, tile_gdf: gpd.GeoDataFrame, image_shape: tuple
+    ) -> List[float]:
+        """Calculate pseudo-confidence scores for the detections based on the following features of the tree crown:
+
+            1. Height - Taller trees are generally more easier to detect, making their confidence higher
+            2. Area - Larger tree crowns are easier to detect, hence less likely to be false positives
+            3. Distance - Trees near the edge of a tile might have incomplete data, reducing confidence
+            4. All - An option to compute a weighted combination of all factors as the confidence score
+
+        Args:
+            tile_gdf (gpd.GeoDataFrame): A geopandas dataframe with 'treetop_height' and 'tree_crown' columns
+            image_shape (tuple): The (i, j, channel) shape of the image that predictions were generated from
+
+        Returns:
+            List[float]: Calculated confidence scores.
+        """
+        if self.confidence_factor not in ["height", "area", "distance", "all"]:
+            raise ValueError(
+                "Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`"
+            )
+
+        if self.confidence_factor == "height":
+            # Use height values as scores
+            confidence_scores = tile_gdf["treetop_height"]
+
+        elif self.confidence_factor == "area":
+            # Use area values as scores
+            confidence_scores = tile_gdf["tree_crown"].apply(lambda geom: geom.area)
+
+        elif self.confidence_factor == "distance":
+            # Calculate the centroid of each tree crown
+            tile_gdf["centroid"] = tile_gdf["tree_crown"].apply(
+                lambda geom: geom.centroid if not geom.is_empty else None
+            )
+
+            # Calculate distances to the closest edge for each centroid
+            def calculate_edge_distance(centroid):
+                if centroid is None:  # Check if centroid is None (empty geometry case)
+                    return 0
+                x, y = centroid.x, centroid.y
+                distances = [
+                    x,  # left edge
+                    image_shape[1] - x,  # right edge
+                    y,  # bottom edge
+                    image_shape[0] - y,  # top edge
+                ]
+                # Return the distance to the closest edge
+                return min(distances)
+
+            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(
+                calculate_edge_distance
+            )
+            # Use edge distance values as scores
+            confidence_scores = tile_gdf["edge_distance"]
+
+        return list(confidence_scores)
+
+    def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
+        """Calculate treetop coordinates using pre-filtering to identify potential maxima.
+
+        Args:
+            image (np.ndarray): A single-channel CHM image.
+
+        Returns:
+            tuple[List[Point], List[float]] containing:
+                all_treetop_pixel_coords (List[Point]): Detected treetop coordinates in pixel units.
+                all_treetop_heights (List[float]): Treetop heights corresponding to the coordinates.
+        """
+        all_treetop_pixel_coords = []
+        all_treetop_heights = []
+
+        # Apply a maximum filter to the CHM to identify potential treetops based on the local maxima
+        # Calculate the minimum suppression radius as a function of the minimum height
+        min_radius = (self.a * (self.min_ht**2)) + (self.b * self.min_ht) + self.c
+
+        # Determine filter size in pixels
+        min_radius_pixels = int(np.floor(min_radius / self.res))
+
+        if self.filter_shape == "circle":
+            # Create a circular footprint
+            y, x = np.ogrid[
+                -min_radius_pixels : min_radius_pixels + 1,
+                -min_radius_pixels : min_radius_pixels + 1,
+            ]
+            footprint = x**2 + y**2 <= min_radius_pixels**2
+
+            # Use a sliding window to find the maximum value in the region
+            filtered_image = maximum_filter(
+                image, footprint=footprint, mode="constant", cval=0
+            )
+
+        elif self.filter_shape == "square":
+            # Create a square window using the computed radius
+            # Reduce filter size by 1/sqrt(2) to keep corners within the suppression radius
+            window_size = int((min_radius_pixels * 2) / np.sqrt(2))
+
+            # Use a sliding window to find the maximum value in the region
+            filtered_image = maximum_filter(
+                image, size=window_size, mode="constant", cval=0
+            )
+
+        elif self.filter_shape == "none":
+            # Local maxima filtering step is skipped
+            logging.info("No filter applied to the image. Using brute-force method.")
+            filtered_image = image
+
+        else:
+            raise ValueError(
+                "Invalid filter_shape. Choose from: 'circle', 'square', 'none'."
+            )
+
+        # Create a mask for pixels that are above the min_ht threshold (left condition)
+        # and are local maxima (right condition) if the image was filtered
+        thresholded_mask = (image >= self.min_ht) & (image == filtered_image)
+
+        # Get the selected coordinates
+        selected_indices = np.argwhere(thresholded_mask)
+
+        for i, j in selected_indices:
+            ht = image[i, j]
+
+            # Calculate the radius based on the pixel height
+            radius = (self.a * (ht**2)) + (self.b * ht) + self.c
+            radius_pixels = radius / self.res
+            side = int(np.ceil(radius_pixels))
+
+            # Define bounds for the neighborhood
+            i_min = max(0, i - side)
+            i_max = min(image.shape[0], i + side + 1)
+            j_min = max(0, j - side)
+            j_max = min(image.shape[1], j + side + 1)
+
+            # Create column and row vectors for the neighborhood
+            region_i = np.arange(i_min, i_max)[:, np.newaxis]
+            region_j = np.arange(j_min, j_max)[np.newaxis, :]
+
+            # Calculate the distances to every point within the region
+            distances = np.sqrt((region_i - i) ** 2 + (region_j - j) ** 2)
+
+            # Create a mask for pixels inside the circle
+            mask = distances <= radius_pixels
+
+            # Apply the mask to the neighborhood
+            neighborhood = image[i_min:i_max, j_min:j_max][mask]
+
+            # Check if the pixel has the max height within the neighborhood
+            if ht == np.max(neighborhood):
+                all_treetop_pixel_coords.append(Point(j, i))
+                all_treetop_heights.append(ht)
+
+        return all_treetop_pixel_coords, all_treetop_heights
+
+    def predict_batch(self, batch):
+        """Generate predictions for a batch of samples
+
+        Args:
+            batch (dict): A batch from the torchgeo dataloader
+
+        Returns:
+            List[List[shapely.geometry]]:
+                A list of predictions one per image in the batch. The predictions for each image
+                are a list of shapely objects.
+            Union[None, List[dict]]:
+                Any additional attributes that are predicted (such as class or confidence). Must
+                be formatted in a way that can be passed to gpd.GeoPandas data argument.
+        """
+        # List to store every CHM tile's detections
+        batch_detections = []
+        batch_detections_data = []
+        for chm_tile in batch["image"]:
+            chm_tile = chm_tile.squeeze()
+            # Set NaN values to zero
+            chm_tile = np.nan_to_num(chm_tile)
+
+            # Get the treetop locations from the CHM
+            treetop_pixel_coords, treetop_heights = self.get_treetops(chm_tile)
+
+            batch_detections.append(
+                treetop_pixel_coords
+            )  # List[List[shapely.geometry]]
+            # And the score is the height
+            # TODO support could be added for the distance-from-edge metric
+            batch_detections_data.append({"score": treetop_heights})
+        return batch_detections, batch_detections_data
+
 
 class LightningDetector(Detector):
     model: lightning.LightningModule
