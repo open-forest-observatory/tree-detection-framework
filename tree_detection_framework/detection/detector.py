@@ -550,6 +550,7 @@ class GeometricTreeCrownDetector(Detector):
         threshold_factor: float = 0.3,
         confidence_factor: str = "height",
         contour_backend: str = "cv2",
+        tree_height_column: str = "score",
         postprocessors=None,
     ):
         """Detect tree crowns for CHM data, implementing algorithm described by Silva et al. (2016) for crown segmentation. 
@@ -563,6 +564,8 @@ class GeometricTreeCrownDetector(Detector):
                 Choose from "height", "area", "distance", "all". Defaults to "height".
             contour_backend (str, optional): The backend to use for contour extraction to generate treecrowns.
                 Choose from "cv2" and "contourpy".
+            tree_height_column (str, optional):
+                Column name in the vector data that contains the treetop heights. Defaults to "score".
             postprocessors (list, optional):
                 See docstring for Detector class. Defaults to None.
 
@@ -573,6 +576,7 @@ class GeometricTreeCrownDetector(Detector):
         self.threshold_factor = threshold_factor
         self.confidence_factor = confidence_factor
         self.backend = contour_backend
+        self.tree_height_column = tree_height_column
 
     def calculate_scores(
         self, tile_gdf: gpd.GeoDataFrame, image_shape: tuple
@@ -781,7 +785,7 @@ class GeometricTreeCrownDetector(Detector):
 
             # Get the treetop coordinates and corresponding heights for the tile
             treetop_pixel_coords = [shape[0] for shape in treetop]
-            treetop_heights = treetop_height["score"]  # height values were saved as "score"
+            treetop_heights = treetop_height[self.tree_height_column]
 
             # Compute the polygon tree crown
             final_tree_crowns, confidence_scores = self.get_tree_crowns(
