@@ -74,6 +74,7 @@ class CustomVectorDataset(VectorDataset):
             )
 
         shapes = []
+        attributes = []
         for filepath in filepaths:
             with fiona.open(filepath) as src:
                 # We need to know the bounding box of the query in the source CRS
@@ -92,6 +93,7 @@ class CustomVectorDataset(VectorDataset):
                     )
                     label = self.get_label(feature)
                     shapes.append((shape, label))
+                    attributes.append(feature["properties"])  # Non-geometry properties
 
         # Rasterize geometries
         width = (query.maxx - query.minx) / self.res
@@ -133,13 +135,26 @@ class CustomVectorDataset(VectorDataset):
             x_min, y_min, x_max, y_max = polygon.bounds
             bounding_boxes.append([x_min, y_min, x_max, y_max])
 
-        # Add `shapes` and `bounding_boxes` to the dictionary.
+        # Convert list of fiona.Properties into dict of lists
+        if attributes:
+            all_keys = attributes[0].keys()
+            # Create a dictionary where each key is an attribute name, and each value is a list
+            # containing the values of that attribute from all features in the current tile.
+            attributes_dict = {
+                key: [attr[key] for attr in attributes]
+                for key in all_keys
+            }
+        else:
+            attributes_dict = {}
+
+        # Add shapes, bounding_boxes, and attributes to the dictionary.
         sample = {
             "mask": masks,
             "crs": self.crs,
             "bounds": query,
             "shapes": pixel_transformed_shapes,
             "bounding_boxes": bounding_boxes,
+            "attributes": attributes_dict,
         }
 
         if self.transforms is not None:
