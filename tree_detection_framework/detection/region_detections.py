@@ -1,13 +1,12 @@
 import copy
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyproj
-import rasterio.plot
 import rasterio.transform
 import shapely
 from shapely.affinity import affine_transform
@@ -243,6 +242,36 @@ class RegionDetections:
         self.prediction_bounds_in_CRS = gpd.GeoSeries(
             data=[prediction_bounds_in_CRS], crs=CRS
         )
+
+    def apply_function_to_detections(
+        self,
+        func: Callable[[gpd.GeoDataFrame], gpd.GeoDataFrame],
+        inplace: bool = False,
+    ) -> Optional["RegionDetections"]:
+        """_summary_
+
+        Args:
+            func (Callable[[gpd.GeoDataFrame], gpd.GeoDataFrame]):
+                A function which takes in a GeoDataFrame and returns another GeoDataFrame.
+            inplace (bool):
+                Should the RegionDetections object be modified inplace, or a modified copy returned.
+                Defaults to False.
+
+        Returns:
+            Optional[RegionDetections]:
+                If inplace=False, returns a modified copy. Otherwise, returns None.
+        """
+        if inplace:
+            # If inplace, just modify the detections directly
+            self.detections = func(self.detections)
+        else:
+            # If not inplace, first deepcopy self to avoid any chance of modifying the original
+            # .detections object
+            modified_rd = copy.deepcopy(self)
+            # Then apply the function
+            modified_rd.detections = func(modified_rd.detections)
+
+            return modified_rd
 
     def subset_detections(self, detection_indices) -> "RegionDetections":
         """Return a new RegionDetections object with only the detections indicated by the indices
@@ -489,6 +518,29 @@ class RegionDetectionsSet:
             region_detections (List[RegionDetections]): A list of individual detections
         """
         self.region_detections = region_detections
+
+    def apply_function_to_detections(
+        self,
+        func: Callable[[gpd.GeoDataFrame], gpd.GeoDataFrame],
+        inplace: bool = False,
+    ) -> Optional["RegionDetectionsSet"]:
+        """
+        See documentation for RegionDetections.apply_function_to_detections
+        """
+        # Convert each detection
+        modified_region_detections = [
+            rd.apply_function_to_detections(func=func, inplace=inplace)
+            for rd in self.region_detections
+        ]
+
+        # If inplace, the individual RegionDetections objects will already have been updated and
+        # None should be returned for consistency
+        if inplace:
+            return None
+
+        # Create and return the new RDS
+        modified_rds = RegionDetectionsSet(modified_region_detections)
+        return modified_rds
 
     def all_regions_have_CRS(self) -> bool:
         """Check whether all sub-regions have a non-None CRS
