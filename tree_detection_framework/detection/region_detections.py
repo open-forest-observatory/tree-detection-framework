@@ -519,6 +519,29 @@ class RegionDetectionsSet:
         """
         self.region_detections = region_detections
 
+    def apply_function_to_detections(
+        self,
+        func: Callable[[gpd.GeoDataFrame], gpd.GeoDataFrame],
+        inplace: bool = False,
+    ) -> Optional["RegionDetectionsSet"]:
+        """
+        See documentation for RegionDetections.apply_function_to_detections
+        """
+        # Convert each detection
+        modified_region_detections = [
+            rd.apply_function_to_detections(func=func, inplace=inplace)
+            for rd in self.region_detections
+        ]
+
+        # If inplace, the individual RegionDetections objects will already have been updated and
+        # None should be returned for consistency
+        if inplace:
+            return None
+
+        # Create and return the new RDS
+        modified_rds = RegionDetectionsSet(modified_region_detections)
+        return modified_rds
+
     def all_regions_have_CRS(self) -> bool:
         """Check whether all sub-regions have a non-None CRS
 
