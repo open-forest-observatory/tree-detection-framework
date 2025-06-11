@@ -413,7 +413,7 @@ class GeometricTreeTopDetector(Detector):
            min_ht (int, optional): Minimum height for a pixel to be considered as a tree. Defaults to 5.
            filter_shape (str, optional): Shape of the filter to use for local maxima detection.
                Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
-           confidece_factor (str, optional): Feature to use to compute the confidence scores for the predictions. 
+           confidece_factor (str, optional): Feature to use to compute the confidence scores for the predictions.
                 Choose "height" or "distance". Defaults to "distance".
            postprocessors (list, optional):
                See docstring for Detector class. Defaults to None.
@@ -559,8 +559,12 @@ class GeometricTreeTopDetector(Detector):
                 treetop_pixel_coords
             )  # List[List[shapely.geometry]]
             # Calculate scores based on treetop height or distance from edge
-            confidence_scores = calculate_scores("geometry", self.confidence_factor, tile_gdf, chm_tile.shape)
-            batch_detections_data.append({"height": treetop_heights, "score": confidence_scores})
+            confidence_scores = calculate_scores(
+                "geometry", self.confidence_factor, tile_gdf, chm_tile.shape
+            )
+            batch_detections_data.append(
+                {"height": treetop_heights, "score": confidence_scores}
+            )
         return batch_detections, batch_detections_data
 
 
@@ -737,7 +741,9 @@ class GeometricTreeCrownDetector(Detector):
         tile_gdf = tile_gdf.drop(indices_to_drop)
 
         # Calculate pseudo-confidence scores for the detections
-        confidence_scores = calculate_scores("tree_crown", self.confidence_factor, tile_gdf, image.shape)
+        confidence_scores = calculate_scores(
+            "tree_crown", self.confidence_factor, tile_gdf, image.shape
+        )
 
         return (
             filtered_crowns,
