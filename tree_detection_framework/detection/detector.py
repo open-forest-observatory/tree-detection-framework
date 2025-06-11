@@ -119,7 +119,8 @@ class Detector:
             CRS = self.get_CRS_from_batch(batch)
 
             geometry_columns = [
-                k for k, v in batch_preds_data[0].items()
+                k
+                for k, v in batch_preds_data[0].items()
                 if all(isinstance(item, BaseGeometry) for item in v)
             ]
             geometry_columns.append("geometry")  # Ensure 'geometry' is always included
@@ -402,17 +403,17 @@ class GeometricTreeTopDetector(Detector):
         postprocessors=None,
     ):
         """Detector to detect treetops for CHM data. Implementation of the variable window filter algorithm of Popescu and Wynne (2004).
-         Args:
-            a (float, optional): Coefficient for the quadratic term in the radius calculation. Defaults to 0.00901.
-            b (float, optional): Coefficient for the linear term in the radius calculation. Defaults to 0.
-            c (float, optional): Constant term in the radius calculation. Defaults to 2.52503.
-            res (float, optional): Resolution of the CHM image. Defaults to 0.2.
-            min_ht (int, optional): Minimum height for a pixel to be considered as a tree. Defaults to 5.
-            filter_shape (str, optional): Shape of the filter to use for local maxima detection.
-                Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
-            postprocessors (list, optional):
-                See docstring for Detector class. Defaults to None.
-         """
+        Args:
+           a (float, optional): Coefficient for the quadratic term in the radius calculation. Defaults to 0.00901.
+           b (float, optional): Coefficient for the linear term in the radius calculation. Defaults to 0.
+           c (float, optional): Constant term in the radius calculation. Defaults to 2.52503.
+           res (float, optional): Resolution of the CHM image. Defaults to 0.2.
+           min_ht (int, optional): Minimum height for a pixel to be considered as a tree. Defaults to 5.
+           filter_shape (str, optional): Shape of the filter to use for local maxima detection.
+               Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
+           postprocessors (list, optional):
+               See docstring for Detector class. Defaults to None.
+        """
         super().__init__(postprocessors=postprocessors)
         self.a = a
         self.b = b
@@ -549,6 +550,7 @@ class GeometricTreeTopDetector(Detector):
             batch_detections_data.append({"score": treetop_heights})
         return batch_detections, batch_detections_data
 
+
 class GeometricTreeCrownDetector(Detector):
 
     def __init__(
@@ -561,7 +563,7 @@ class GeometricTreeCrownDetector(Detector):
         tree_height_column: str = "score",
         postprocessors=None,
     ):
-        """Detect tree crowns for CHM data, implementing algorithm described by Silva et al. (2016) for crown segmentation. 
+        """Detect tree crowns for CHM data, implementing algorithm described by Silva et al. (2016) for crown segmentation.
          This class requires the treetops to be detected first.
 
         Args:
@@ -740,7 +742,11 @@ class GeometricTreeCrownDetector(Detector):
         indices_to_drop = []
 
         for index, (tree_crown, treetop_point, treetop_height) in enumerate(
-            zip(tile_gdf["tree_crown"], tile_gdf["treetop_pixel_coords"], tile_gdf["treetop_height"])
+            zip(
+                tile_gdf["tree_crown"],
+                tile_gdf["treetop_pixel_coords"],
+                tile_gdf["treetop_height"],
+            )
         ):
             # Only keep valid polygons
             if (
@@ -778,7 +784,12 @@ class GeometricTreeCrownDetector(Detector):
         # Calculate pseudo-confidence scores for the detections
         confidence_scores = self.calculate_scores(tile_gdf, image.shape)
 
-        return filtered_crowns, filtered_treetops, filtered_tree_heights, confidence_scores
+        return (
+            filtered_crowns,
+            filtered_treetops,
+            filtered_tree_heights,
+            confidence_scores,
+        )
 
     def predict_batch(self, batch):
         """Generate predictions for a batch of samples
@@ -797,7 +808,9 @@ class GeometricTreeCrownDetector(Detector):
         # List to store every tile's detections
         batch_detections = []
         batch_detections_data = []
-        for image, treetop, treetop_height  in zip(batch["image"], batch["shapes"], batch["attributes"]):
+        for image, treetop, treetop_height in zip(
+            batch["image"], batch["shapes"], batch["attributes"]
+        ):
             image = image.squeeze()
             # Set NaN values to zero
             image = np.nan_to_num(image)
@@ -807,15 +820,20 @@ class GeometricTreeCrownDetector(Detector):
             treetop_heights = treetop_height[self.tree_height_column]
 
             # Compute the polygon tree crown
-            final_tree_crowns, final_treetops, final_tree_heights, confidence_scores = self.get_tree_crowns(
-                image, treetop_pixel_coords, treetop_heights
+            final_tree_crowns, final_treetops, final_tree_heights, confidence_scores = (
+                self.get_tree_crowns(image, treetop_pixel_coords, treetop_heights)
             )
-            batch_detections.append(
-                final_tree_crowns
-            )  # List[List[shapely.geometry]]
-            batch_detections_data.append({"score": confidence_scores, "treetop": final_treetops, "height": final_tree_heights})
+            batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
+            batch_detections_data.append(
+                {
+                    "score": confidence_scores,
+                    "treetop": final_treetops,
+                    "height": final_tree_heights,
+                }
+            )
 
         return batch_detections, batch_detections_data
+
 
 class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
 
@@ -884,11 +902,10 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
             final_tree_crowns, confidence_scores = self.get_tree_crowns(
                 image, treetop_pixel_coords, treetop_heights
             )
-            batch_detections.append(
-                final_tree_crowns
-            )  # List[List[shapely.geometry]]
+            batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
             batch_detections_data.append({"score": confidence_scores})
         return batch_detections, batch_detections_data
+
 
 class LightningDetector(Detector):
     model: lightning.LightningModule

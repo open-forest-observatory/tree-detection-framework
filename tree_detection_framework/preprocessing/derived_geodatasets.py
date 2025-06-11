@@ -141,8 +141,7 @@ class CustomVectorDataset(VectorDataset):
             # Create a dictionary where each key is an attribute name, and each value is a list
             # containing the values of that attribute from all features in the current tile.
             attributes_dict = {
-                key: [attr[key] for attr in attributes]
-                for key in all_keys
+                key: [attr[key] for attr in attributes] for key in all_keys
             }
         else:
             attributes_dict = {}
