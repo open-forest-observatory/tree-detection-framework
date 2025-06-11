@@ -3,8 +3,8 @@ import os
 import urllib
 from typing import List
 
-import pandas as pd
 import geopandas as gpd
+import pandas as pd
 from deepforest.utilities import DownloadProgressBar
 
 

@@ -34,8 +34,8 @@ from tree_detection_framework.preprocessing.derived_geodatasets import (
     CustomDataModule,
     bounding_box,
 )
-from tree_detection_framework.utils.geometric import mask_to_shapely
 from tree_detection_framework.utils.detection import calculate_scores
+from tree_detection_framework.utils.geometric import mask_to_shapely
 
 try:
     import detectron2.data.transforms as T
