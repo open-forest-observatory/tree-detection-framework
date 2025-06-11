@@ -1,7 +1,7 @@
 import json
 import logging
-import tempfile
 import random
+import tempfile
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -16,12 +16,12 @@ from torchgeo.samplers import GridGeoSampler, Units
 from torchvision.transforms import ToPILImage
 
 from tree_detection_framework.constants import ARRAY_TYPE, BOUNDARY_TYPE, PATH_TYPE
+from tree_detection_framework.detection.region_detections import RegionDetectionsSet
 from tree_detection_framework.preprocessing.derived_geodatasets import (
     CustomImageDataset,
     CustomRasterDataset,
     CustomVectorDataset,
 )
-from tree_detection_framework.detection.region_detections import RegionDetectionsSet
 from tree_detection_framework.utils.geospatial import get_projected_CRS
 from tree_detection_framework.utils.raster import plot_from_dataloader
 
