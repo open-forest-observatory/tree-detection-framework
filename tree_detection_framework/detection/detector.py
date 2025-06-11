@@ -547,7 +547,7 @@ class GeometricTreeTopDetector(Detector):
             )  # List[List[shapely.geometry]]
             # And the score is the height
             # TODO support could be added for the distance-from-edge metric
-            batch_detections_data.append({"score": treetop_heights})
+            batch_detections_data.append({"height": treetop_heights})
         return batch_detections, batch_detections_data
 
 
@@ -558,9 +558,9 @@ class GeometricTreeCrownDetector(Detector):
         res: float = 0.2,
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
-        confidence_factor: str = "height",
+        confidence_factor: str = "area",
         contour_backend: str = "cv2",
-        tree_height_column: str = "score",
+        tree_height_column: str = "height",
         postprocessors=None,
     ):
         """Detect tree crowns for CHM data, implementing algorithm described by Silva et al. (2016) for crown segmentation.
@@ -571,11 +571,11 @@ class GeometricTreeCrownDetector(Detector):
             radius_factor (float, optional): Factor to determine the radius of the tree crown. Defaults to 0.6.
             threshold_factor (float, optional): Factor to determine the threshold for the binary mask. Defaults to 0.3.
             confidence_factor (str, optional): Feature to use to compute the confidence scores for the predictions.
-                Choose from "height", "area", "distance", "all". Defaults to "height".
+                Choose from "height", "area", "distance", "all". Defaults to "area".
             contour_backend (str, optional): The backend to use for contour extraction to generate treecrowns.
                 Choose from "cv2" and "contourpy".
             tree_height_column (str, optional):
-                Column name in the vector data that contains the treetop heights. Defaults to "score".
+                Column name in the vector data that contains the treetop heights. Defaults to "height".
             postprocessors (list, optional):
                 See docstring for Detector class. Defaults to None.
 
