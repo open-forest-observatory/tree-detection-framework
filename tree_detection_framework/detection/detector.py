@@ -808,7 +808,7 @@ class GeometricTreeCrownDetector(Detector):
         # List to store every tile's detections
         batch_detections = []
         batch_detections_data = []
-        for image, treetop, treetop_height in zip(
+        for image, treetop, attribute in zip(
             batch["image"], batch["shapes"], batch["attributes"]
         ):
             image = image.squeeze()
@@ -817,7 +817,7 @@ class GeometricTreeCrownDetector(Detector):
 
             # Get the treetop coordinates and corresponding heights for the tile
             treetop_pixel_coords = [shape[0] for shape in treetop]
-            treetop_heights = treetop_height[self.tree_height_column]
+            treetop_heights = attribute[self.tree_height_column]
 
             # Compute the polygon tree crown
             final_tree_crowns, final_treetops, final_tree_heights, confidence_scores = (
