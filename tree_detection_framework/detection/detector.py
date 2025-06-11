@@ -35,6 +35,7 @@ from tree_detection_framework.preprocessing.derived_geodatasets import (
     bounding_box,
 )
 from tree_detection_framework.utils.geometric import mask_to_shapely
+from tree_detection_framework.utils.detection import calculate_scores
 
 try:
     import detectron2.data.transforms as T
@@ -400,6 +401,7 @@ class GeometricTreeTopDetector(Detector):
         res: float = 0.2,
         min_ht: int = 5,
         filter_shape: str = "circle",
+        confidence_factor: str = "distance",
         postprocessors=None,
     ):
         """Detector to detect treetops for CHM data. Implementation of the variable window filter algorithm of Popescu and Wynne (2004).
@@ -411,6 +413,8 @@ class GeometricTreeTopDetector(Detector):
            min_ht (int, optional): Minimum height for a pixel to be considered as a tree. Defaults to 5.
            filter_shape (str, optional): Shape of the filter to use for local maxima detection.
                Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
+           confidece_factor (str, optional): Feature to use to compute the confidence scores for the predictions. 
+                Choose "height" or "distance". Defaults to "distance".
            postprocessors (list, optional):
                See docstring for Detector class. Defaults to None.
         """
@@ -421,6 +425,7 @@ class GeometricTreeTopDetector(Detector):
         self.res = res
         self.min_ht = min_ht
         self.filter_shape = filter_shape
+        self.confidence_factor = confidence_factor
 
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates using pre-filtering to identify potential maxima.
@@ -542,12 +547,20 @@ class GeometricTreeTopDetector(Detector):
             # Get the treetop locations from the CHM
             treetop_pixel_coords, treetop_heights = self.get_treetops(chm_tile)
 
+            # Create a GeoDataFrame to store information associated with the image
+            tile_gdf = gpd.GeoDataFrame(
+                {
+                    "geometry": treetop_pixel_coords,
+                    "treetop_height": treetop_heights,
+                }
+            )
+
             batch_detections.append(
                 treetop_pixel_coords
             )  # List[List[shapely.geometry]]
-            # And the score is the height
-            # TODO support could be added for the distance-from-edge metric
-            batch_detections_data.append({"height": treetop_heights})
+            # Calculate scores based on treetop height or distance from edge
+            confidence_scores = calculate_scores("geometry", self.confidence_factor, tile_gdf, chm_tile.shape)
+            batch_detections_data.append({"height": treetop_heights, "score": confidence_scores})
         return batch_detections, batch_detections_data
 
 
@@ -587,64 +600,6 @@ class GeometricTreeCrownDetector(Detector):
         self.confidence_factor = confidence_factor
         self.backend = contour_backend
         self.tree_height_column = tree_height_column
-
-    def calculate_scores(
-        self, tile_gdf: gpd.GeoDataFrame, image_shape: tuple
-    ) -> List[float]:
-        """Calculate pseudo-confidence scores for the detections based on the following features of the tree crown:
-
-            1. Height - Taller trees are generally more easier to detect, making their confidence higher
-            2. Area - Larger tree crowns are easier to detect, hence less likely to be false positives
-            3. Distance - Trees near the edge of a tile might have incomplete data, reducing confidence
-            4. All - An option to compute a weighted combination of all factors as the confidence score
-
-        Args:
-            tile_gdf (gpd.GeoDataFrame): A geopandas dataframe with 'treetop_height' and 'tree_crown' columns
-            image_shape (tuple): The (i, j, channel) shape of the image that predictions were generated from
-
-        Returns:
-            List[float]: Calculated confidence scores.
-        """
-        if self.confidence_factor not in ["height", "area", "distance", "all"]:
-            raise ValueError(
-                "Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`"
-            )
-
-        if self.confidence_factor == "height":
-            # Use height values as scores
-            confidence_scores = tile_gdf["treetop_height"]
-
-        elif self.confidence_factor == "area":
-            # Use area values as scores
-            confidence_scores = tile_gdf["tree_crown"].apply(lambda geom: geom.area)
-
-        elif self.confidence_factor == "distance":
-            # Calculate the centroid of each tree crown
-            tile_gdf["centroid"] = tile_gdf["tree_crown"].apply(
-                lambda geom: geom.centroid if not geom.is_empty else None
-            )
-
-            # Calculate distances to the closest edge for each centroid
-            def calculate_edge_distance(centroid):
-                if centroid is None:  # Check if centroid is None (empty geometry case)
-                    return 0
-                x, y = centroid.x, centroid.y
-                distances = [
-                    x,  # left edge
-                    image_shape[1] - x,  # right edge
-                    y,  # bottom edge
-                    image_shape[0] - y,  # top edge
-                ]
-                # Return the distance to the closest edge
-                return min(distances)
-
-            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(
-                calculate_edge_distance
-            )
-            # Use edge distance values as scores
-            confidence_scores = tile_gdf["edge_distance"]
-
-        return list(confidence_scores)
 
     def get_tree_crowns(
         self,
@@ -782,7 +737,7 @@ class GeometricTreeCrownDetector(Detector):
         tile_gdf = tile_gdf.drop(indices_to_drop)
 
         # Calculate pseudo-confidence scores for the detections
-        confidence_scores = self.calculate_scores(tile_gdf, image.shape)
+        confidence_scores = calculate_scores("tree_crown", self.confidence_factor, tile_gdf, image.shape)
 
         return (
             filtered_crowns,
