@@ -695,60 +695,33 @@ class GeometricTreeCrownDetector(Detector):
             .intersection(gpd.GeoSeries(tile_gdf["multipolygon_mask"]))
         )
 
-        filtered_crowns = []
-        filtered_treetops = []
-        filtered_tree_heights = []
-        indices_to_drop = []
+        # Remove columns that are not needed in the final output
+        tree_crown_gdf = tile_gdf.drop(columns=["radius_in_pixels", "circle", "multipolygon_mask", "geometry"])
 
-        for index, (tree_crown, treetop_point, treetop_height) in enumerate(
-            zip(
-                tile_gdf["tree_crown"],
-                tile_gdf["treetop_pixel_coords"],
-                tile_gdf["treetop_height"],
-            )
-        ):
-            # Only keep valid polygons
-            if (
-                isinstance(tree_crown, Polygon)
-                and tree_crown.is_valid
-                and tree_crown.area > 0
-            ):
-                filtered_crowns.append(tree_crown)
-                filtered_treetops.append(treetop_point)
-                filtered_tree_heights.append(treetop_height)
-            elif isinstance(tree_crown, (MultiPolygon, GeometryCollection)):
-                # Iterate through each polygon in the MultiPolygon
-                for i, geom in enumerate(tree_crown.geoms):
-                    # Exclude LineString/Point/MultiPoint objects in case geom is a GeometryCollection
-                    if isinstance(geom, Polygon) and geom.is_valid and geom.area > 0:
-                        # If the polygon with the treetop has been found, add it to list and ignore all other polygons
-                        if geom.contains(treetop_point):
-                            filtered_crowns.append(geom)
-                            filtered_treetops.append(treetop_point)
-                            filtered_tree_heights.append(treetop_height)
-                            break
-                    # For other cases, add an empty polygon to avoid having a mismatch in number of rows in the gdf
-                    if i == (len(tree_crown.geoms) - 1):
-                        filtered_crowns.append(Polygon())
-                        # TODO: Should we add an empty Point or the detected treetop here? Same for tree heights
-                        filtered_treetops.append(Point())
-                        filtered_tree_heights.append(0)
-            else:
-                # If tree_crown is not valid, mark the row for deletion
-                indices_to_drop.append(index)
+        # Explode the 'tree_crown' column so that MultiPolygons are split into individual Polygons
+        tree_crown_gdf = gpd.GeoDataFrame(tree_crown_gdf, geometry="tree_crown", crs=tile_gdf.crs)
+        tree_crown_gdf_exploded = tree_crown_gdf.explode(ignore_index=True)
 
-        # Drop the rows with invalid polygons
-        tile_gdf = tile_gdf.drop(indices_to_drop)
-
+        # Retain only the rows where the treetop is within the corresponding tree crown polygon
+        tree_crown_gdf_exploded["keep"] = tree_crown_gdf_exploded.apply(lambda row: row["tree_crown"].contains(row["treetop_pixel_coords"]), axis=1)
+        tree_crown_gdf_filtered = tree_crown_gdf_exploded[tree_crown_gdf_exploded["keep"]].drop(columns="keep").reset_index(drop=True)
+        
+        # Drop rows with invalid geometries, zero area polygons, and non-polygon geometries
+        tree_crown_gdf_cleaned = tree_crown_gdf_filtered[
+                            tree_crown_gdf_filtered["tree_crown"].apply(lambda geom: (
+                                isinstance(geom, Polygon) and 
+                                geom.is_valid and 
+                                geom.area > 0
+                            ))
+                        ].reset_index(drop=True)
+        
         # Calculate pseudo-confidence scores for the detections
         confidence_scores = calculate_scores(
-            "tree_crown", self.confidence_factor, tile_gdf, image.shape
+            "tree_crown", self.confidence_factor, tree_crown_gdf_cleaned, image.shape
         )
 
         return (
-            filtered_crowns,
-            filtered_treetops,
-            filtered_tree_heights,
+            tree_crown_gdf_cleaned,
             confidence_scores,
         )
 
@@ -781,15 +754,15 @@ class GeometricTreeCrownDetector(Detector):
             treetop_heights = attribute[self.tree_height_column]
 
             # Compute the polygon tree crown
-            final_tree_crowns, final_treetops, final_tree_heights, confidence_scores = (
+            detected_crowns_gdf, confidence_scores = (
                 self.get_tree_crowns(image, treetop_pixel_coords, treetop_heights)
             )
-            batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
+            batch_detections.append(detected_crowns_gdf["tree_crown"].tolist())
             batch_detections_data.append(
                 {
                     "score": confidence_scores,
-                    "treetop": final_treetops,
-                    "height": final_tree_heights,
+                    "treetop": detected_crowns_gdf["treetop_pixel_coords"].tolist(),
+                    "height": detected_crowns_gdf["treetop_height"].tolist(),
                 }
             )
 
@@ -860,10 +833,10 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
             treetop_pixel_coords, treetop_heights = self.get_treetops(image)
 
             # Compute the polygon tree crown
-            final_tree_crowns, confidence_scores = self.get_tree_crowns(
+            detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
                 image, treetop_pixel_coords, treetop_heights
             )
-            batch_detections.append(final_tree_crowns)  # List[List[shapely.geometry]]
+            batch_detections.append(detected_crowns_gdf['tree_crown'].tolist())  # List[List[shapely.geometry]]
             batch_detections_data.append({"score": confidence_scores})
         return batch_detections, batch_detections_data
 
