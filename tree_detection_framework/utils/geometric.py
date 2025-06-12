@@ -2,6 +2,9 @@ import cv2
 import numpy as np
 import shapely
 from contourpy import contour_generator
+from shapely import plotting
+import matplotlib.pyplot as plt
+import geopandas as gpd
 
 
 def get_shapely_transform_from_matrix(matrix_transform: np.ndarray):
@@ -97,3 +100,64 @@ def mask_to_shapely(
         raise ValueError(
             f"Unsupported backend: {backend}. Choose 'cv2' or 'contourpy'."
         )
+
+
+def ordered_voronoi(points):
+    gpd.GeoDataFrame(geometry=[points]).plot()
+    voronoi = shapely.voronoi_polygons(points)
+
+    ordered_voronoi = []
+    for point in points.geoms:
+        matching_polygon = list(
+            filter(lambda poly: shapely.contains(poly, point), voronoi.geoms)
+        )[0]
+        ordered_voronoi.append(matching_polygon)
+    return shapely.GeometryCollection(ordered_voronoi)
+
+
+def split_overlapping_region(
+    poly1: shapely.Polygon, poly2: shapely.Polygon, epsilon: float = 1e-6
+):
+    # Compute the intersection between the two polygons
+    intersection = shapely.intersection(poly1, poly2)
+    intersection = intersection.buffer(epsilon)
+
+    # If there is no intersection, return the initial regions unchanged
+    if intersection.area == 0:
+        return (poly1, poly2)
+
+    # Subtract the (slightly buffered) intersection from both input polygons
+    p1_min_inter = poly1.difference(intersection)
+    p2_min_inter = poly2.difference(intersection)
+
+    # Get the boundary points, dropping the duplicated start/end point
+    boundary1 = list(shapely.segmentize(p1_min_inter.exterior, 0.05).coords)[:-1]
+    boundary2 = list(shapely.segmentize(p2_min_inter.exterior, 0.05).coords)[:-1]
+
+    # Compute IDs identifying which polygon each vertex corresponds to
+    vert_IDs = np.concatenate(
+        [np.zeros(len(boundary1), dtype=int), np.ones(len(boundary2), dtype=int)]
+    )
+
+    # Create a multipoint with the vertices from both polygons
+    all_verts = shapely.MultiPoint(boundary1 + boundary2)
+
+    # Compute the voronoi tesselation with the polygons ordered consistently with the input verts
+    voronoi = ordered_voronoi(all_verts)
+
+    voronoi_gdf = gpd.GeoDataFrame(data={"IDs": vert_IDs}, geometry=list(voronoi.geoms))
+
+    merged = voronoi_gdf.dissolve("IDs")
+    merged["IDs"] = merged.index
+    merged.plot("IDs")
+
+    poly1_merged = merged.iloc[0, :].geometry
+    poly2_merged = merged.iloc[1, :].geometry
+
+    poly1_clipped = poly1.intersection(poly1_merged)
+    poly2_clipped = poly2.intersection(poly2_merged)
+
+    f, ax = plt.subplots()
+    plotting.plot_polygon(poly1_clipped, ax=ax, color="b")
+    plotting.plot_polygon(poly2_clipped, ax=ax, color="r")
+    plt.show()
