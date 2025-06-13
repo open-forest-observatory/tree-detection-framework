@@ -69,9 +69,7 @@ class CustomVectorDataset(VectorDataset):
             vector_data_gdf = vector_data.merge().get_data_frame()
 
             # Save GeoDataFrame to a temp file that persists until object is deleted
-            self._tempfile = tempfile.NamedTemporaryFile(
-                suffix=".geojson", delete=True
-            )
+            self._tempfile = tempfile.NamedTemporaryFile(suffix=".geojson", delete=True)
             vector_data_gdf.to_file(self._tempfile.name, driver="GeoJSON")
             vector_data = self._tempfile.name
 

@@ -699,7 +699,11 @@ class GeometricTreeCrownDetector(Detector):
         tree_crown_gdf_exploded = tree_crown_gdf.explode(ignore_index=True)
 
         # Retain only the rows where the treetop is within the corresponding tree crown polygon
-        tree_crown_gdf_filtered = tree_crown_gdf_exploded[tree_crown_gdf_exploded["tree_crown"].contains(gpd.GeoSeries(tree_crown_gdf_exploded["treetop_pixel_coords"]))]
+        tree_crown_gdf_filtered = tree_crown_gdf_exploded[
+            tree_crown_gdf_exploded["tree_crown"].contains(
+                gpd.GeoSeries(tree_crown_gdf_exploded["treetop_pixel_coords"])
+            )
+        ]
 
         # Drop rows with invalid geometries, zero area polygons, and non-polygon geometries
         tree_crown_gdf_cleaned = tree_crown_gdf_filtered[
