@@ -119,13 +119,6 @@ class Detector:
             batch_geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
             CRS = self.get_CRS_from_batch(batch)
 
-            geometry_columns = [
-                k
-                for k, v in batch_preds_data[0].items()
-                if all(isinstance(item, BaseGeometry) for item in v)
-            ]
-            geometry_columns.append("geometry")  # Ensure 'geometry' is always included
-
             # Iterate over samples in the batch so we can yield them one at a time
             for preds_geometry, preds_data, image_bounds, geospatial_bounds in zip(
                 batch_preds_geometries,
@@ -141,7 +134,6 @@ class Detector:
                     input_in_pixels=True,
                     pixel_prediction_bounds=image_bounds,
                     geospatial_prediction_bounds=geospatial_bounds,
-                    geometry_columns=geometry_columns,
                 )
 
                 if postprocess_region_detections:
