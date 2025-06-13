@@ -159,6 +159,7 @@ class RegionDetections:
                 to None.
         """
         # Record which columns contain geometry attributes
+        # TODO: if not specified, set it to all columns that are of type BaseGeometry
         self.geometry_columns = geometry_columns
 
         # Build a geopandas dataframe containing the geometries, additional attributes, and CRS
