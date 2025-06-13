@@ -1,8 +1,8 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
-import pyproj
+from geopandas import GeoDataFrame
 from polygone_nms import nms
 from shapely import box
 from shapely.geometry import MultiPolygon, Polygon
@@ -149,6 +149,74 @@ def multi_region_NMS(
     )
 
     return NMS_suppressed_merged_detections
+
+
+def update_gdf_to_centroid(gdf: GeoDataFrame) -> GeoDataFrame:
+    """Return the geodataframe with the geometry updated to be the centroid Point
+
+    Args:
+        gdf (GeoDataFrame): A dataframe to convert
+
+    Returns:
+        GeoDataFrame: the input geodataframe with the geometry updated to be the centroid Point
+    """
+    # Copy the data to avoid updating the orignal
+    copied_gdf = gdf.copy()
+    # Set the geometry column to the centroid
+    copied_gdf.geometry = gdf.centroid
+
+    return copied_gdf
+
+
+def NMS_on_points(
+    detections: Union[RegionDetections, RegionDetectionsSet],
+    threshold_distance: float,
+) -> RegionDetections:
+    """
+    Run non-max suppression on point data, suppressing points within a thereshold distance of
+    higher-score points
+
+    Args:
+        detections (Union[RegionDetections, RegionDetectionsSet]):
+            The input data to run NMS on. Can either be a RegionDetections or RegionDetectionsSet
+            object.
+        threshold_distance (float):
+            Detections within this distance of each other are suppressed
+
+    Returns:
+        RegionDetections:
+            The NMS-suppressed detections with all the original attributes
+    """
+
+    # Define a function to buffer each point out by half the suppression distance
+    def buffer_out(gdf: GeoDataFrame):
+        copied_gdf = gdf.copy()
+        # Buffer by half the distance because both objects will be buffered
+        copied_gdf.geometry = copied_gdf.buffer(threshold_distance / 2)
+        return copied_gdf
+
+    # Buffer the points out to form circles of the desired radius
+    # TODO Consider error checking that this is actually point-typed data
+    buffered_points = detections.apply_function_to_detections(buffer_out, inplace=False)
+
+    # Determine whether the single- or multi-region NMS function based on the type of the input data
+    NMS_func = (
+        multi_region_NMS
+        if isinstance(detections, RegionDetectionsSet)
+        else single_region_NMS
+    )
+
+    # Run NMS with the appropriate function. The theshold is set very low because we want any nonzero
+    # overlap between the buffered circles to to count as an intersection, since that means the two
+    # original centers are less than the threshold distance
+    NMS_suppressed = NMS_func(buffered_points, threshold=1e-10, min_confidence=0)
+
+    # We ran NMS on the buffered version of the data. Now, convert it back to a point representation.
+    # Note: this whole process should run even if the input data was not points, but the result will
+    # be points either way
+    points = NMS_suppressed.apply_function_to_detections(update_gdf_to_centroid)
+
+    return points
 
 
 def polygon_hole_suppression(polygon: Polygon, min_area_threshold: float = 20.0):
