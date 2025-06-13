@@ -1,6 +1,8 @@
+import logging
 from collections import defaultdict, namedtuple
 from pathlib import Path
 from typing import Any, List, Optional, Union
+import tempfile
 
 import fiona
 import fiona.transform
@@ -24,6 +26,11 @@ from torchgeo.samplers import GridGeoSampler, Units
 from torchvision import transforms
 
 from tree_detection_framework.constants import PATH_TYPE
+from tree_detection_framework.detection.region_detections import RegionDetectionsSet
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # Define a namedtuple to store bounds of tiles images from the `CustomImageDataset`
 bounding_box = namedtuple("bounding_box", ["minx", "maxx", "miny", "maxy"])
@@ -48,6 +55,37 @@ class CustomVectorDataset(VectorDataset):
     """
     Custom dataset class for vector data which act as labels for the raster data. This class extends the `VectorDataset` from `torchgeo`.
     """
+
+    def __init__(self, 
+            vector_data: Union[PATH_TYPE, RegionDetectionsSet], 
+            kwargs: Optional[dict] = None,
+            ):
+        
+        self._tempfile = None  # Will hold a NamedTemporaryFile if we generate one
+
+        if isinstance(vector_data, RegionDetectionsSet):
+            # Get the merged GeoDataFrame for the RegionDetectionsSet
+            vector_data_gdf = vector_data.merge().get_data_frame()
+
+            # Save GeoDataFrame to a temp file that persists until object is deleted
+            self._tempfile = tempfile.NamedTemporaryFile(suffix=".geojson", delete=False)
+            vector_data_gdf.to_file(self._tempfile.name, driver="GeoJSON")
+            vector_data = self._tempfile.name
+
+            # Update CRS to be used for the created VectorDataset object
+            kwargs["crs"] = vector_data_gdf.crs
+
+            logging.info(f"RegionDetectionsSet temporarily saved to: {vector_data}")
+
+        super().__init__(paths=vector_data, **kwargs)
+
+    def __del__(self):
+        if self._tempfile is not None:
+            try:
+                Path(self._tempfile.name).unlink()
+                logging.info(f"Tempfile {self._tempfile.name} was successfully deleted.")
+            except Exception as e:
+                logging.info(f"Warning: Failed to delete temp file {self._tempfile.name}: {e}")
 
     def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
         """Retrieve image/mask and metadata indexed by query.

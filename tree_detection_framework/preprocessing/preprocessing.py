@@ -231,24 +231,9 @@ def create_intersection_dataloader(
     if output_CRS is not None:
         kwargs["crs"] = output_CRS
 
-    if isinstance(vector_data, RegionDetectionsSet):
-        # Merge to create a single RegionDetections object and get the GeoDataFrame
-        vector_data_gdf = vector_data.merge().get_data_frame()
-        # Update CRS
-        kwargs["crs"] = vector_data_gdf.crs
-        # Save the GeoDataFrame to a temporary file with .geojson extension
-        with tempfile.NamedTemporaryFile(
-            suffix=".geojson", delete=False
-        ) as tmp_treetops_file:
-            vector_data_gdf.to_file(tmp_treetops_file.name, driver="GeoJSON")
-            logging.info(f"RegionDetectionsSet saved to: {tmp_treetops_file.name}")
-        vector_file_path = tmp_treetops_file.name
-    else:
-        vector_file_path = vector_data
-
     # Create the vector and raster datasets
-    vector_data = CustomVectorDataset(paths=vector_file_path, **kwargs)
-    raster_data = CustomRasterDataset(paths=raster_data, **kwargs)
+    vector_data = CustomVectorDataset(vector_data, kwargs)
+    raster_data = CustomRasterDataset(raster_data, **kwargs)
 
     # Create an intersection dataset that combines the datasets
     intersection_data = IntersectionDataset(vector_data, raster_data)
