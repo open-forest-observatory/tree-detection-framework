@@ -59,7 +59,7 @@ class CustomVectorDataset(VectorDataset):
     def __init__(
         self,
         vector_data: Union[PATH_TYPE, RegionDetectionsSet],
-        kwargs: Optional[dict] = None,
+        **kwargs,
     ):
 
         self._tempfile = None  # Will hold a NamedTemporaryFile if we generate one

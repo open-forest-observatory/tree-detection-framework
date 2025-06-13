@@ -232,7 +232,7 @@ def create_intersection_dataloader(
         kwargs["crs"] = output_CRS
 
     # Create the vector and raster datasets
-    vector_data = CustomVectorDataset(vector_data, kwargs)
+    vector_data = CustomVectorDataset(vector_data, **kwargs)
     raster_data = CustomRasterDataset(raster_data, **kwargs)
 
     # Create an intersection dataset that combines the datasets
