@@ -1,6 +1,7 @@
 import logging
 from typing import List, Optional, Union
 
+import geopandas as gpd
 import numpy as np
 from geopandas import GeoDataFrame
 from polygone_nms import nms
@@ -482,3 +483,60 @@ def remove_out_of_bounds_detections(
         region_idx += num_of_regions_in_a_set
 
     return list_of_filtered_region_sets
+
+
+def remove_edge_detections(
+    detections: RegionDetectionsSet,
+    suppression_distance: float,
+    retain_method: str = "within",
+) -> RegionDetectionsSet:
+    """Remove detections at the edges of tiles
+
+    Args:
+        detections (RegionDetectionsSet):
+            The detections to suppress
+        suppression_distance (float):
+            Remove detections within this distance of the boundary
+        retain_method (str, optional):
+            How to deal with edge detections. "within" keeps detections that are fully within the
+            interior region, "intersects" keeps any that touch the interior region, and "clip" clips
+            detections on the boundary so only the portion within the interior is retained. Defaults
+            to "within".
+
+    Returns:
+        RegionDetectionsSet: Updated detections
+    """
+    updated_rd_list = []
+    for rd in detections.region_detections:
+        # Compute the buffered bounds for this region
+        buffered_bounds = rd.get_bounds().buffer(-suppression_distance)
+
+        def update_detections(detections: gpd.GeoDataFrame):
+            if retain_method == "within":
+                # Keep detections that are fully within the interior region
+                updated_detections = detections[
+                    detections.within(buffered_bounds.geometry[0])
+                ]
+            elif retain_method == "intersects":
+                # Keep detections that intersect the interior region
+                updated_detections = detections[
+                    detections.intersects(buffered_bounds.geometry[0])
+                ]
+            elif retain_method == "clip":
+                # Clip detections to the interior region, entirely dropping empty geometries
+                updated_detections = detections.clip(buffered_bounds)
+            else:
+                raise ValueError(
+                    f"retain_method was {retain_method}, but should be 'within', 'intersects', or 'clip'"
+                )
+
+            return updated_detections
+
+        # Apply the function to the detections DataFrame to suppress detections in the edge region
+        updated_rd = rd.apply_function_to_detections(update_detections)
+        # Record the result
+        updated_rd_list.append(updated_rd)
+
+    # Create a new RDS
+    updated_rds = RegionDetectionsSet(updated_rd_list)
+    return updated_rds
