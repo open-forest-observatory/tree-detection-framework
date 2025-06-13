@@ -56,11 +56,12 @@ class CustomVectorDataset(VectorDataset):
     Custom dataset class for vector data which act as labels for the raster data. This class extends the `VectorDataset` from `torchgeo`.
     """
 
-    def __init__(self, 
-            vector_data: Union[PATH_TYPE, RegionDetectionsSet], 
-            kwargs: Optional[dict] = None,
-            ):
-        
+    def __init__(
+        self,
+        vector_data: Union[PATH_TYPE, RegionDetectionsSet],
+        kwargs: Optional[dict] = None,
+    ):
+
         self._tempfile = None  # Will hold a NamedTemporaryFile if we generate one
 
         if isinstance(vector_data, RegionDetectionsSet):
@@ -68,7 +69,9 @@ class CustomVectorDataset(VectorDataset):
             vector_data_gdf = vector_data.merge().get_data_frame()
 
             # Save GeoDataFrame to a temp file that persists until object is deleted
-            self._tempfile = tempfile.NamedTemporaryFile(suffix=".geojson", delete=False)
+            self._tempfile = tempfile.NamedTemporaryFile(
+                suffix=".geojson", delete=False
+            )
             vector_data_gdf.to_file(self._tempfile.name, driver="GeoJSON")
             vector_data = self._tempfile.name
 
@@ -83,9 +86,13 @@ class CustomVectorDataset(VectorDataset):
         if self._tempfile is not None:
             try:
                 Path(self._tempfile.name).unlink()
-                logging.info(f"Tempfile {self._tempfile.name} was successfully deleted.")
+                logging.info(
+                    f"Tempfile {self._tempfile.name} was successfully deleted."
+                )
             except Exception as e:
-                logging.info(f"Warning: Failed to delete temp file {self._tempfile.name}: {e}")
+                logging.info(
+                    f"Warning: Failed to delete temp file {self._tempfile.name}: {e}"
+                )
 
     def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
         """Retrieve image/mask and metadata indexed by query.
