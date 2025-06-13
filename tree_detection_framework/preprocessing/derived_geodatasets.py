@@ -1,8 +1,8 @@
 import logging
+import tempfile
 from collections import defaultdict, namedtuple
 from pathlib import Path
 from typing import Any, List, Optional, Union
-import tempfile
 
 import fiona
 import fiona.transform
