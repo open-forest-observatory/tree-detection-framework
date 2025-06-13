@@ -70,7 +70,7 @@ class CustomVectorDataset(VectorDataset):
 
             # Save GeoDataFrame to a temp file that persists until object is deleted
             self._tempfile = tempfile.NamedTemporaryFile(
-                suffix=".geojson", delete=False
+                suffix=".geojson", delete=True
             )
             vector_data_gdf.to_file(self._tempfile.name, driver="GeoJSON")
             vector_data = self._tempfile.name
@@ -81,18 +81,6 @@ class CustomVectorDataset(VectorDataset):
             logging.info(f"RegionDetectionsSet temporarily saved to: {vector_data}")
 
         super().__init__(paths=vector_data, **kwargs)
-
-    def __del__(self):
-        if self._tempfile is not None:
-            try:
-                Path(self._tempfile.name).unlink()
-                logging.info(
-                    f"Tempfile {self._tempfile.name} was successfully deleted."
-                )
-            except Exception as e:
-                logging.info(
-                    f"Warning: Failed to delete temp file {self._tempfile.name}: {e}"
-                )
 
     def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
         """Retrieve image/mask and metadata indexed by query.
