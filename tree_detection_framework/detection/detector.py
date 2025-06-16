@@ -393,7 +393,7 @@ class GeometricTreeTopDetector(Detector):
         res: float = 0.2,
         min_ht: int = 5,
         filter_shape: str = "circle",
-        confidence_factor: str = "distance",
+        confidence_feature: str = "distance",
         postprocessors=None,
     ):
         """Detector to detect treetops for CHM data. Implementation of the variable window filter algorithm of Popescu and Wynne (2004).
@@ -405,7 +405,7 @@ class GeometricTreeTopDetector(Detector):
            min_ht (int, optional): Minimum height for a pixel to be considered as a tree. Defaults to 5.
            filter_shape (str, optional): Shape of the filter to use for local maxima detection.
                Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
-           confidece_factor (str, optional): Feature to use to compute the confidence scores for the predictions.
+           confidence_feature (str, optional): Feature to use to compute the confidence scores for the predictions.
                 Choose "height" or "distance". Defaults to "distance".
            postprocessors (list, optional):
                See docstring for Detector class. Defaults to None.
@@ -417,7 +417,7 @@ class GeometricTreeTopDetector(Detector):
         self.res = res
         self.min_ht = min_ht
         self.filter_shape = filter_shape
-        self.confidence_factor = confidence_factor
+        self.confidence_feature = confidence_feature
 
     def get_treetops(self, image: np.ndarray) -> tuple[List[Point], List[float]]:
         """Calculate treetop coordinates using pre-filtering to identify potential maxima.
@@ -552,7 +552,7 @@ class GeometricTreeTopDetector(Detector):
             )  # List[List[shapely.geometry]]
             # Calculate scores based on treetop height or distance from edge
             confidence_scores = calculate_scores(
-                "geometry", self.confidence_factor, tile_gdf, chm_tile.shape
+                "geometry", self.confidence_feature, tile_gdf, chm_tile.shape
             )
             batch_detections_data.append(
                 {"height": treetop_heights, "score": confidence_scores}
@@ -567,7 +567,7 @@ class GeometricTreeCrownDetector(Detector):
         res: float = 0.2,
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
-        confidence_factor: str = "area",
+        confidence_feature: str = "area",
         contour_backend: str = "cv2",
         tree_height_column: str = "height",
         postprocessors=None,
@@ -579,7 +579,7 @@ class GeometricTreeCrownDetector(Detector):
             res (float, optional): Resolution of the CHM image. Defaults to 0.2.
             radius_factor (float, optional): Factor to determine the radius of the tree crown. Defaults to 0.6.
             threshold_factor (float, optional): Factor to determine the threshold for the binary mask. Defaults to 0.3.
-            confidence_factor (str, optional): Feature to use to compute the confidence scores for the predictions.
+            confidence_feature (str, optional): Feature to use to compute the confidence scores for the predictions.
                 Choose from "height", "area", "distance", "all". Defaults to "area".
             contour_backend (str, optional): The backend to use for contour extraction to generate treecrowns.
                 Choose from "cv2" and "contourpy".
@@ -593,7 +593,7 @@ class GeometricTreeCrownDetector(Detector):
         self.res = res
         self.radius_factor = radius_factor
         self.threshold_factor = threshold_factor
-        self.confidence_factor = confidence_factor
+        self.confidence_feature = confidence_feature
         self.backend = contour_backend
         self.tree_height_column = tree_height_column
 
@@ -716,7 +716,7 @@ class GeometricTreeCrownDetector(Detector):
 
         # Calculate pseudo-confidence scores for the detections
         confidence_scores = calculate_scores(
-            "tree_crown", self.confidence_factor, tree_crown_gdf_cleaned, image.shape
+            "tree_crown", self.confidence_feature, tree_crown_gdf_cleaned, image.shape
         )
 
         return (
@@ -779,7 +779,7 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
         min_ht: int = 5,
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
-        confidence_factor: str = "height",
+        confidence_feature: str = "height",
         filter_shape: str = "circle",
         contour_backend: str = "cv2",
         postprocessors=None,
@@ -801,7 +801,7 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
             self,
             radius_factor=radius_factor,
             threshold_factor=threshold_factor,
-            confidence_factor=confidence_factor,
+            confidence_feature=confidence_feature,
             contour_backend=contour_backend,
             postprocessors=postprocessors,
         )

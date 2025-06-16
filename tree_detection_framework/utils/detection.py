@@ -10,7 +10,7 @@ from deepforest.utilities import DownloadProgressBar
 
 def calculate_scores(
     geometry_column: str,
-    confidence_factor: str,
+    confidence_feature: str,
     tile_gdf: gpd.GeoDataFrame,
     image_shape: tuple,
 ) -> List[float]:
@@ -23,23 +23,23 @@ def calculate_scores(
 
     Args:
         geometry_column (str): The name of the column in the GeoDataFrame which has the geometries to be used for scoring
-        confidence_factor (str): The factor to use for scoring. Choose from: "height", "area", "distance", "all"
+        confidence_feature (str): The factor to use for scoring. Choose from: "height", "area", "distance", "all"
         tile_gdf (gpd.GeoDataFrame): A GeoDataFrame with "treetop_height" (if using "height" based scoring) and other relevant columns
         image_shape (tuple): The (i, j, channel) shape of the image that predictions were generated from
 
     Returns:
         List[float]: Calculated confidence scores.
     """
-    if confidence_factor not in ["height", "area", "distance", "all"]:
+    if confidence_feature not in ["height", "area", "distance", "all"]:
         raise ValueError(
-            "Invalid confidence_factor provided. Choose from: `height`, `area`, `distance`, `all`"
+            "Invalid confidence_feature provided. Choose from: `height`, `area`, `distance`, `all`"
         )
 
-    if confidence_factor == "height":
+    if confidence_feature == "height":
         # Use height values as scores
         confidence_scores = tile_gdf["treetop_height"]
 
-    elif confidence_factor == "area":
+    elif confidence_feature == "area":
         # Check if all geometries are Polygon
         if (tile_gdf[geometry_column].geom_type == "Point").any():
             raise TypeError(f"Cannot compute scores based on area for Point shapes.")
@@ -47,7 +47,7 @@ def calculate_scores(
         # Use area values as scores
         confidence_scores = tile_gdf[geometry_column].apply(lambda geom: geom.area)
 
-    elif confidence_factor == "distance":
+    elif confidence_feature == "distance":
         # Calculate the centroid of each tree crown
         tile_gdf["centroid"] = tile_gdf[geometry_column].apply(
             lambda geom: geom.centroid if not geom.is_empty else None
@@ -71,7 +71,7 @@ def calculate_scores(
         # Use edge distance values as scores
         confidence_scores = tile_gdf["edge_distance"]
 
-    elif confidence_factor == "all":
+    elif confidence_feature == "all":
         raise NotImplementedError()
 
     return list(confidence_scores)
