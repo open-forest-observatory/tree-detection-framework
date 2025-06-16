@@ -1,3 +1,5 @@
+import logging
+import tempfile
 from collections import defaultdict, namedtuple
 from pathlib import Path
 from typing import Any, List, Optional, Union
@@ -24,6 +26,11 @@ from torchgeo.samplers import GridGeoSampler, Units
 from torchvision import transforms
 
 from tree_detection_framework.constants import PATH_TYPE
+from tree_detection_framework.detection.region_detections import RegionDetectionsSet
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # Define a namedtuple to store bounds of tiles images from the `CustomImageDataset`
 bounding_box = namedtuple("bounding_box", ["minx", "maxx", "miny", "maxy"])
@@ -48,6 +55,30 @@ class CustomVectorDataset(VectorDataset):
     """
     Custom dataset class for vector data which act as labels for the raster data. This class extends the `VectorDataset` from `torchgeo`.
     """
+
+    def __init__(
+        self,
+        vector_data: Union[PATH_TYPE, RegionDetectionsSet],
+        **kwargs,
+    ):
+
+        self._tempfile = None  # Will hold a NamedTemporaryFile if we generate one
+
+        if isinstance(vector_data, RegionDetectionsSet):
+            # Get the merged GeoDataFrame for the RegionDetectionsSet
+            vector_data_gdf = vector_data.merge().get_data_frame()
+
+            # Save GeoDataFrame to a temp file that persists until object is deleted
+            self._tempfile = tempfile.NamedTemporaryFile(suffix=".geojson", delete=True)
+            vector_data_gdf.to_file(self._tempfile.name, driver="GeoJSON")
+            vector_data = self._tempfile.name
+
+            # Update CRS to be used for the created VectorDataset object
+            kwargs["crs"] = vector_data_gdf.crs
+
+            logging.info(f"RegionDetectionsSet temporarily saved to: {vector_data}")
+
+        super().__init__(paths=vector_data, **kwargs)
 
     def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
         """Retrieve image/mask and metadata indexed by query.
@@ -74,6 +105,7 @@ class CustomVectorDataset(VectorDataset):
             )
 
         shapes = []
+        attributes = []
         for filepath in filepaths:
             with fiona.open(filepath) as src:
                 # We need to know the bounding box of the query in the source CRS
@@ -92,6 +124,7 @@ class CustomVectorDataset(VectorDataset):
                     )
                     label = self.get_label(feature)
                     shapes.append((shape, label))
+                    attributes.append(feature["properties"])  # Non-geometry properties
 
         # Rasterize geometries
         width = (query.maxx - query.minx) / self.res
@@ -133,13 +166,25 @@ class CustomVectorDataset(VectorDataset):
             x_min, y_min, x_max, y_max = polygon.bounds
             bounding_boxes.append([x_min, y_min, x_max, y_max])
 
-        # Add `shapes` and `bounding_boxes` to the dictionary.
+        # Convert list of fiona.Properties into dict of lists
+        if attributes:
+            all_keys = attributes[0].keys()
+            # Create a dictionary where each key is an attribute name, and each value is a list
+            # containing the values of that attribute from all features in the current tile.
+            attributes_dict = {
+                key: [attr[key] for attr in attributes] for key in all_keys
+            }
+        else:
+            attributes_dict = {}
+
+        # Add shapes, bounding_boxes, and attributes to the dictionary.
         sample = {
             "mask": masks,
             "crs": self.crs,
             "bounds": query,
             "shapes": pixel_transformed_shapes,
             "bounding_boxes": bounding_boxes,
+            "attributes": attributes_dict,
         }
 
         if self.transforms is not None:
