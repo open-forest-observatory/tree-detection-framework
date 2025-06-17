@@ -621,10 +621,14 @@ class RegionDetectionsSet:
             gdf[region_ID_key] = ID
 
         # Concatenate the geodataframes together
-        concatenated_geodataframes = pd.concat(detection_geodataframes, ignore_index=True)
+        concatenated_geodataframes = pd.concat(
+            detection_geodataframes, ignore_index=True
+        )
 
         # Add a globally unique 5-digit ID column
-        concatenated_geodataframes["unique_ID"] = concatenated_geodataframes.index.map(lambda i: f"{i:05d}")
+        concatenated_geodataframes["unique_ID"] = concatenated_geodataframes.index.map(
+            lambda i: f"{i:05d}"
+        )
 
         ## Merge_bounds
         # Get the merged bounds

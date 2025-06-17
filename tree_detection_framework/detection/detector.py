@@ -764,17 +764,24 @@ class GeometricTreeCrownDetector(Detector):
                 "height": detected_crowns_gdf["treetop_height"].tolist(),
             }
 
-            # Include the tree top's UID if the input data had it. 
+            # Include the tree top's UID if the input data had it.
             # This helps map the tree crown to its tree top
             if "unique_ID" in attribute:
                 treetop_unique_IDs = attribute["unique_ID"]
 
                 # Create a lookup dict to map the treetop points to their corresponding unique_ID values
-                id_lookup = {(pt.x, pt.y): uid for pt, uid in zip(treetop_pixel_coords, treetop_unique_IDs)}
+                id_lookup = {
+                    (pt.x, pt.y): uid
+                    for pt, uid in zip(treetop_pixel_coords, treetop_unique_IDs)
+                }
                 retained_treetops = detected_crowns_gdf["treetop_pixel_coords"].tolist()
 
                 # Save the ID of each treetop point that got retained after crown generation
-                retained_ids = [id_lookup[(pt.x, pt.y)] for pt in retained_treetops if (pt.x, pt.y) in id_lookup]
+                retained_ids = [
+                    id_lookup[(pt.x, pt.y)]
+                    for pt in retained_treetops
+                    if (pt.x, pt.y) in id_lookup
+                ]
 
                 # Create a new column in the RegionDetections
                 data["treetop_unique_ID"] = retained_ids
