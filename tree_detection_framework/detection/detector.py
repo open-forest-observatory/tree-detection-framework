@@ -761,7 +761,6 @@ class GeometricTreeCrownDetector(Detector):
 
             data = {
                 "score": confidence_scores,
-                "treetop": detected_crowns_gdf["treetop_pixel_coords"].tolist(),
                 "height": detected_crowns_gdf["treetop_height"].tolist(),
             }
 
