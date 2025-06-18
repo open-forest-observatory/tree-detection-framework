@@ -107,9 +107,7 @@ def create_dataloader(
     # 2. TODO: float or uint8 images
     # match with the param dict from the model, else error out
     # Stores image data
-    raster_dataset = CustomRasterDataset(
-        paths=raster_folder_path, res=resolution
-    )
+    raster_dataset = CustomRasterDataset(paths=raster_folder_path, res=resolution)
 
     # Stores label data
     vector_dataset = (
