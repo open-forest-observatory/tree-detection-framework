@@ -59,7 +59,7 @@ def create_dataloader(
     chip_overlap_percentage: float = None,
     use_units_meters: bool = False,
     region_of_interest: Optional[BOUNDARY_TYPE] = None,
-    output_resolution: Optional[float] = None,
+    resolution: Optional[float] = None,
     output_CRS: Optional[pyproj.CRS] = None,
     vector_label_folder_path: Optional[PATH_TYPE] = None,
     vector_label_attribute: Optional[str] = None,
@@ -83,7 +83,7 @@ def create_dataloader(
             Defaults to False.
         region_of_interest (Optional[BOUNDARY_TYPE], optional):
             Only data from this spatial region will be included in the dataloader. Defaults to None.
-        output_resolution (Optional[float], optional):
+        resolution (Optional[float], optional):
             Spatial resolution the data in meters/pixel. If un-set, will be the resolution of the
             first raster data that is read. Defaults to None.
         output_CRS: (Optional[pyproj.CRS], optional):
@@ -108,14 +108,14 @@ def create_dataloader(
     # match with the param dict from the model, else error out
     # Stores image data
     raster_dataset = CustomRasterDataset(
-        paths=raster_folder_path, res=output_resolution
+        paths=raster_folder_path, res=resolution
     )
 
     # Stores label data
     vector_dataset = (
         CustomVectorDataset(
             paths=vector_label_folder_path,
-            res=output_resolution,
+            res=resolution,
             label_name=vector_label_attribute,
         )
         if vector_label_folder_path is not None
@@ -187,7 +187,7 @@ def create_intersection_dataloader(
     chip_stride: float = None,
     chip_overlap_percentage: float = None,
     use_units_meters: bool = False,
-    output_resolution: Optional[float] = None,
+    resolution: Optional[float] = None,
     output_CRS: Optional[pyproj.CRS] = None,
 ):
     """
@@ -202,7 +202,7 @@ def create_intersection_dataloader(
         chip_stride (float, optional): Stride of the chips in pixels or meters. Defaults to None.
         chip_overlap_percentage (float, optional): Percent overlap of the chips from 0-100. Defaults to None.
         use_units_meters (bool, optional): Use meters as units for chip size and stride. Defaults to False.
-        output_resolution (Optional[float], optional):
+        resolution (Optional[float], optional):
             Spatial resolution of the output data in meters/pixel. If un-set, will be the resolution
             of the first raster data that is read. Defaults to None.
 
@@ -226,8 +226,8 @@ def create_intersection_dataloader(
     logging.info(f"Units = {units}")
 
     kwargs = {}
-    if output_resolution is not None:
-        kwargs["res"] = output_resolution
+    if resolution is not None:
+        kwargs["res"] = resolution
     if output_CRS is not None:
         kwargs["crs"] = output_CRS
 
