@@ -7,11 +7,13 @@ import geopandas as gpd
 import lightning
 import numpy as np
 import pyproj
+import rasterio
 import shapely
 import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from scipy.ndimage import maximum_filter
+from shapely import affinity
 from shapely.geometry import (
     GeometryCollection,
     MultiPoint,
@@ -105,25 +107,28 @@ class Detector:
 
             # This is the expensive step, generate the predictions using predict_batch from the
             # derived class. The additional arguments are also passed to this method with kwargs
-            batch_preds_geometries, batch_preds_data = self.predict_batch(
+            batch_preds_pixel_geometries, batch_preds_data = self.predict_batch(
                 batch, **kwargs
             )
 
             # If the prediction doesn't generate any data, set it to a list of None for
             # compatability with downstream steps
             if batch_preds_data is None:
-                batch_preds_data = [None] * len(batch_preds_geometries)
+                batch_preds_data = [None] * len(batch_preds_pixel_geometries)
 
-            # Extract attributes from the batch
-            batch_image_bounds = self.get_image_bounds_as_shapely(batch)
-            batch_geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
+            # Convert the detections to geospatail
+            batch_preds_geospatial_geometries = self.convert_detections_to_geospatial(
+                batch_preds_pixel_geometries, batch
+            )
+
+            # Attributes required to construct the RegionDetection object
             CRS = self.get_CRS_from_batch(batch)
+            batch_geospatial_bounds = self.get_geospatial_bounds_as_shapely(batch)
 
             # Iterate over samples in the batch so we can yield them one at a time
-            for preds_geometry, preds_data, image_bounds, geospatial_bounds in zip(
-                batch_preds_geometries,
+            for preds_geometry, preds_data, geospatial_bounds in zip(
+                batch_preds_geospatial_geometries,
                 batch_preds_data,
-                batch_image_bounds,
                 batch_geospatial_bounds,
             ):
                 # Create a region detections object
@@ -131,8 +136,6 @@ class Detector:
                     detection_geometries=preds_geometry,
                     data=preds_data,
                     CRS=CRS,
-                    input_in_pixels=True,
-                    pixel_prediction_bounds=image_bounds,
                     geospatial_prediction_bounds=geospatial_bounds,
                 )
 
@@ -261,25 +264,6 @@ class Detector:
         raise NotImplementedError()
 
     @staticmethod
-    def get_image_bounds_as_shapely(
-        batch: DefaultDict[str, Any],
-    ) -> List[shapely.geometry.Polygon]:
-        """Get pixel image bounds as shapely objects from a batch.
-        Args:
-            batch: (DefaultDict[str, Any]): Batch from DataLoader with image sample(s).
-        Returns:
-            List[shapely.geometry.Polygon]: A list of shapely Polygons representing the pixel bounds.
-        """
-        image_shape = batch["image"].shape[-2:]
-        # Note that the y min bounds are reversed from the expected convention. This is because
-        # they are measured in pixel coordinates, which start at the top and go down. So this
-        # convention matches how the geospatial bounding box is represented.
-        image_bounds = shapely.box(
-            xmin=0, ymin=image_shape[0], xmax=image_shape[1], ymax=0
-        )
-        return [image_bounds] * batch["image"].shape[0]
-
-    @staticmethod
     def get_geospatial_bounds_as_shapely(
         batch: DefaultDict[str, Any],
     ) -> List[shapely.geometry.Polygon]:
@@ -299,6 +283,99 @@ class Detector:
             )
             for tile_bounds in batch_bounds
         ]
+
+    @staticmethod
+    def get_pixel_to_geospatial_transforms(
+        batch: DefaultDict[str, Any],
+    ) -> List[Tuple]:
+        """Compute a list of affine transforms for each sample in the batch
+
+        Args:
+            batch (DefaultDict[str, Any]): Batch from the dataloader
+
+        Returns:
+            List[Tuple]:
+                A list of tuples specifying the transform from pixel to geospatial coordinates
+                following the convention described here:
+                https://shapely.readthedocs.io/en/stable/manual.html#shapely.affinity.affine_transform
+        """
+        # Get the geospatial bounds for each tile in the batch
+        geospatial_bounds = Detector.get_geospatial_bounds_as_shapely(batch)
+
+        # Compute the pixel-space bounds
+        image_shape = batch["image"].shape[-2:]
+        # Note that the y min bounds are reversed from the expected convention. This is because
+        # they are measured in pixel coordinates, which start at the top and go down. So this
+        # convention matches how the geospatial bounding box is represented.
+        single_image_bounds = shapely.box(
+            xmin=0, ymin=image_shape[0], xmax=image_shape[1], ymax=0
+        )
+        # Duplicate the bounds for each sample in the batch
+        image_bounds = [single_image_bounds] * batch["image"].shape[0]
+
+        # Compute the transform for each sample in the batch
+        transforms = []
+        for geo_bound, image_bound in zip(geospatial_bounds, image_bounds):
+            # Compute the array corresponding to the corners of the tile. Note that the duplicated
+            # start/end point is removed. The starting point and direction is assumed to be
+            # consistent between the two.
+            geospatial_corners_array = shapely.get_coordinates(geo_bound)[:-1]
+            pixel_corners_array = shapely.get_coordinates(image_bound)[:-1]
+
+            # Representing the correspondences as rasterio ground control points
+            ground_control_points = [
+                rasterio.control.GroundControlPoint(
+                    col=pixel_vertex[0],
+                    row=pixel_vertex[1],
+                    x=geospatial_vertex[0],
+                    y=geospatial_vertex[1],
+                )
+                for pixel_vertex, geospatial_vertex in zip(
+                    pixel_corners_array, geospatial_corners_array
+                )
+            ]
+            # Solve the affine transform that best transforms from the pixel to geospatial coordinates
+            pixel_to_CRS_transform = rasterio.transform.from_gcps(ground_control_points)
+
+            # Get the transform in the format expected by shapely
+            shapely_transform = pixel_to_CRS_transform.to_shapely()
+
+            transforms.append(shapely_transform)
+
+        return transforms
+
+    @staticmethod
+    def convert_detections_to_geospatial(
+        detection_geometries: List[List[BaseGeometry]],
+        batch: DefaultDict[str, Any],
+    ) -> List[List[BaseGeometry]]:
+        """Convert detection geometries from pixel to geospatial coordinates
+
+        Args:
+            detection_geometries (List[List[BaseGeometry]]):
+                The input geometries in pixel coordinates. Each element in the outer list should
+                correspond to a tile in the `batch`
+            batch (DefaultDict[str, Any]):
+                A batch from the dataloader from which the `detection_geometries` were derived
+
+        Returns:
+            List[List[BaseGeometry]]: Detections transformed into the CRS of the batch
+        """
+        # Compute the pixel-to-geospatial transform for each element of the batch
+        batch_trasforms = Detector.get_pixel_to_geospatial_transforms(batch)
+
+        # Transform each set of detections based on the corresponding transform for that tile
+        batch_transformed_detections = [
+            [
+                affinity.affine_transform(detection, tile_transform)
+                for detection in tile_detections
+            ]
+            for tile_detections, tile_transform in zip(
+                detection_geometries, batch_trasforms
+            )
+        ]
+
+        return batch_transformed_detections
 
     @staticmethod
     def get_CRS_from_batch(batch):

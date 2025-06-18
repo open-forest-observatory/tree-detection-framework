@@ -289,7 +289,6 @@ def single_region_hole_suppression(
     return RegionDetections(
         detection_geometries=None,
         data=detections_df,
-        input_in_pixels=False,
         CRS=detections.get_CRS(),
     )
 
@@ -369,7 +368,7 @@ def merge_and_postprocess_detections(
     # Create a RegionDetections for the merged and postprocessed detections
     # TODO: Handle cases when input is in pixels
     postprocessed_detections = RegionDetections(
-        new_polygons, input_in_pixels=False, CRS=all_detections_gdf.crs
+        new_polygons, CRS=all_detections_gdf.crs
     )
 
     return postprocessed_detections
