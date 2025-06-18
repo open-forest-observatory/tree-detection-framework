@@ -602,19 +602,18 @@ class GeometricTreeCrownDetector(Detector):
         image: np.ndarray,
         all_treetop_pixel_coords: List[Point],
         all_treetop_heights: List[float],
-    ) -> Tuple[List[Polygon], List[Point], List[float], List[float]]:
+        all_treetop_ids: Optional[List[str]] = None,
+    ) -> Tuple[gpd.GeoDataFrame, List[float]]:
         """Generate tree crowns for an image.
 
         Args:
             image (np.ndarray): A single channel CHM image
             all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
             all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
+            all_treetop_ids: (List[str]) : Detected treetop IDs. Defaults to None
 
         Returns:
-            filtered_crowns (List[Polygon]): Detected tree crowns as shapely polygons/multipolygons
-            filtered_treetops (List[Point]): Detected treetop coordinates in pixel units
-            filtered_tree_heights (List[float]): Treetop heights corresponding to the crowns
-            confidence_scores (List[float]): Pseudo-confidence scores for the detections
+            (GeoDataFrame, List[float]): GeoDataFrame containing crowns, treetops, tree heights and a list with confidence scores
         """
 
         # Store the individual polygons from Voronoi diagram in the same sequence as the treetop points
@@ -644,6 +643,9 @@ class GeometricTreeCrownDetector(Detector):
                 "treetop_height": all_treetop_heights,
             }
         )
+
+        if all_treetop_ids is not None:
+            tile_gdf["treetop_unique_ID"] = all_treetop_ids
 
         # Next, we get 2 new sets of polygons:
         # 1. A circle for every detected treetop
@@ -752,11 +754,17 @@ class GeometricTreeCrownDetector(Detector):
             # Get the treetop coordinates and corresponding heights for the tile
             treetop_pixel_coords = [shape[0] for shape in treetop]
             treetop_heights = attribute[self.tree_height_column]
-
+            
             # Compute the polygon tree crown
-            detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
-                image, treetop_pixel_coords, treetop_heights
-            )
+            if "unique_ID" in attribute:
+                detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
+                    image, treetop_pixel_coords, treetop_heights, attribute["unique_ID"]
+                )
+            else:
+                detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
+                    image, treetop_pixel_coords, treetop_heights,
+                )
+
             batch_detections.append(detected_crowns_gdf["tree_crown"].tolist())
 
             data = {
@@ -764,27 +772,9 @@ class GeometricTreeCrownDetector(Detector):
                 "height": detected_crowns_gdf["treetop_height"].tolist(),
             }
 
-            # Include the tree top's UID if the input data had it.
-            # This helps map the tree crown to its tree top
-            if "unique_ID" in attribute:
-                treetop_unique_IDs = attribute["unique_ID"]
-
-                # Create a lookup dict to map the treetop points to their corresponding unique_ID values
-                id_lookup = {
-                    (pt.x, pt.y): uid
-                    for pt, uid in zip(treetop_pixel_coords, treetop_unique_IDs)
-                }
-                retained_treetops = detected_crowns_gdf["treetop_pixel_coords"].tolist()
-
-                # Save the ID of each treetop point that got retained after crown generation
-                retained_ids = [
-                    id_lookup[(pt.x, pt.y)]
-                    for pt in retained_treetops
-                    if (pt.x, pt.y) in id_lookup
-                ]
-
+            if "treetop_unique_ID" in detected_crowns_gdf.columns:
                 # Create a new column in the RegionDetections
-                data["treetop_unique_ID"] = retained_ids
+                data["treetop_unique_ID"] = detected_crowns_gdf["treetop_unique_ID"].tolist()
 
             batch_detections_data.append(data)
 
