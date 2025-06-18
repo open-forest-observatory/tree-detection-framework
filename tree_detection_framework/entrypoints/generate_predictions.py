@@ -23,7 +23,7 @@ def generate_predictions(
     chip_overlap_percentage: float = None,
     use_units_meters: bool = False,
     region_of_interest: Optional[BOUNDARY_TYPE] = None,
-    output_resolution: Optional[float] = None,
+    resolution: Optional[float] = None,
     output_CRS: Optional[pyproj.CRS] = None,
     predictions_save_path: Optional[PATH_TYPE] = None,
     view_predictions_plot: bool = False,
@@ -52,7 +52,7 @@ def generate_predictions(
             Defaults to False.
         region_of_interest (Optional[BOUNDARY_TYPE], optional):
             Only data from this spatial region will be included in the dataloader. Defaults to None.
-        output_resolution (Optional[float], optional):
+        resolution (Optional[float], optional):
             Spatial resolution the data in meters/pixel. If un-set, will be the resolution of the
             first raster data that is read. Defaults to None.
         output_CRS: (Optional[pyproj.CRS], optional):
@@ -80,7 +80,7 @@ def generate_predictions(
         chip_overlap_percentage=chip_overlap_percentage,
         use_units_meters=use_units_meters,
         region_of_interest=region_of_interest,
-        output_resolution=output_resolution,
+        resolution=resolution,
         output_CRS=output_CRS,
         batch_size=batch_size,
     )
@@ -161,7 +161,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--chip-overlap-percentage", type=float)
     parser.add_argument("--use-units-meters", action="store_true")
     parser.add_argument("--region-of-interest")
-    parser.add_argument("--output-resolution", type=float)
+    parser.add_argument("--resolution", type=float)
     parser.add_argument("--output-CRS")
     parser.add_argument("--predictions-save-path")
     parser.add_argument("--view-predictions-plot", action="store_true")
