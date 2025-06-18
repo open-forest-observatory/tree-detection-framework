@@ -679,19 +679,18 @@ class GeometricTreeCrownDetector(Detector):
         image: np.ndarray,
         all_treetop_pixel_coords: List[Point],
         all_treetop_heights: List[float],
-    ) -> Tuple[List[Polygon], List[Point], List[float], List[float]]:
+        all_treetop_ids: Optional[List[str]] = None,
+    ) -> Tuple[gpd.GeoDataFrame, List[float]]:
         """Generate tree crowns for an image.
 
         Args:
             image (np.ndarray): A single channel CHM image
             all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
             all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
+            all_treetop_ids: (List[str]) : Detected treetop IDs. Defaults to None
 
         Returns:
-            filtered_crowns (List[Polygon]): Detected tree crowns as shapely polygons/multipolygons
-            filtered_treetops (List[Point]): Detected treetop coordinates in pixel units
-            filtered_tree_heights (List[float]): Treetop heights corresponding to the crowns
-            confidence_scores (List[float]): Pseudo-confidence scores for the detections
+            (GeoDataFrame, List[float]): GeoDataFrame containing crowns, treetops, tree heights and a list with confidence scores
         """
 
         # Store the individual polygons from Voronoi diagram in the same sequence as the treetop points
@@ -721,6 +720,9 @@ class GeometricTreeCrownDetector(Detector):
                 "treetop_height": all_treetop_heights,
             }
         )
+
+        if all_treetop_ids is not None:
+            tile_gdf["treetop_unique_ID"] = all_treetop_ids
 
         # Next, we get 2 new sets of polygons:
         # 1. A circle for every detected treetop
@@ -818,6 +820,7 @@ class GeometricTreeCrownDetector(Detector):
         # List to store every tile's detections
         batch_detections = []
         batch_detections_data = []
+
         for image, treetop, attribute in zip(
             batch["image"], batch["shapes"], batch["attributes"]
         ):
@@ -830,17 +833,31 @@ class GeometricTreeCrownDetector(Detector):
             treetop_heights = attribute[self.tree_height_column]
 
             # Compute the polygon tree crown
-            detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
-                image, treetop_pixel_coords, treetop_heights
-            )
+            if "unique_ID" in attribute:
+                detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
+                    image, treetop_pixel_coords, treetop_heights, attribute["unique_ID"]
+                )
+            else:
+                detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
+                    image,
+                    treetop_pixel_coords,
+                    treetop_heights,
+                )
+
             batch_detections.append(detected_crowns_gdf["tree_crown"].tolist())
-            batch_detections_data.append(
-                {
-                    "score": confidence_scores,
-                    "treetop": detected_crowns_gdf["treetop_pixel_coords"].tolist(),
-                    "height": detected_crowns_gdf["treetop_height"].tolist(),
-                }
-            )
+
+            data = {
+                "score": confidence_scores,
+                "height": detected_crowns_gdf["treetop_height"].tolist(),
+            }
+
+            if "treetop_unique_ID" in detected_crowns_gdf.columns:
+                # Create a new column in the RegionDetections
+                data["treetop_unique_ID"] = detected_crowns_gdf[
+                    "treetop_unique_ID"
+                ].tolist()
+
+            batch_detections_data.append(data)
 
         return batch_detections, batch_detections_data
 
