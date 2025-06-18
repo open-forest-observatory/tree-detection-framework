@@ -754,7 +754,7 @@ class GeometricTreeCrownDetector(Detector):
             # Get the treetop coordinates and corresponding heights for the tile
             treetop_pixel_coords = [shape[0] for shape in treetop]
             treetop_heights = attribute[self.tree_height_column]
-            
+
             # Compute the polygon tree crown
             if "unique_ID" in attribute:
                 detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
@@ -762,7 +762,9 @@ class GeometricTreeCrownDetector(Detector):
                 )
             else:
                 detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
-                    image, treetop_pixel_coords, treetop_heights,
+                    image,
+                    treetop_pixel_coords,
+                    treetop_heights,
                 )
 
             batch_detections.append(detected_crowns_gdf["tree_crown"].tolist())
@@ -774,7 +776,9 @@ class GeometricTreeCrownDetector(Detector):
 
             if "treetop_unique_ID" in detected_crowns_gdf.columns:
                 # Create a new column in the RegionDetections
-                data["treetop_unique_ID"] = detected_crowns_gdf["treetop_unique_ID"].tolist()
+                data["treetop_unique_ID"] = detected_crowns_gdf[
+                    "treetop_unique_ID"
+                ].tolist()
 
             batch_detections_data.append(data)
 
