@@ -100,6 +100,9 @@ class Detector:
             inference_dataloader (DataLoader): Dataloader to generate predictions for
             postprocess_region_detections (bool, optional): Set as True if `postprocessors` is intended for RegionDetections.
         """
+        # Store the dataset resolution so that derived detector classes can access it if needed
+        self.data_resolution = inference_dataloader.dataset.res
+
         # Iterate over each batch in the dataloader
         for batch in tqdm(
             inference_dataloader, desc="Performing prediction on batches"
@@ -467,7 +470,6 @@ class GeometricTreeTopDetector(Detector):
         a: float = 0.00901,
         b: float = 0,
         c: float = 2.52503,
-        res: float = 0.2,
         min_ht: int = 5,
         filter_shape: str = "circle",
         confidence_feature: str = "distance",
@@ -478,7 +480,6 @@ class GeometricTreeTopDetector(Detector):
            a (float, optional): Coefficient for the quadratic term in the radius calculation. Defaults to 0.00901.
            b (float, optional): Coefficient for the linear term in the radius calculation. Defaults to 0.
            c (float, optional): Constant term in the radius calculation. Defaults to 2.52503.
-           res (float, optional): Resolution of the CHM image. Defaults to 0.2.
            min_ht (int, optional): Minimum height for a pixel to be considered as a tree. Defaults to 5.
            filter_shape (str, optional): Shape of the filter to use for local maxima detection.
                Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
@@ -491,7 +492,6 @@ class GeometricTreeTopDetector(Detector):
         self.a = a
         self.b = b
         self.c = c
-        self.res = res
         self.min_ht = min_ht
         self.filter_shape = filter_shape
         self.confidence_feature = confidence_feature
@@ -515,7 +515,7 @@ class GeometricTreeTopDetector(Detector):
         min_radius = (self.a * (self.min_ht**2)) + (self.b * self.min_ht) + self.c
 
         # Determine filter size in pixels
-        min_radius_pixels = int(np.floor(min_radius / self.res))
+        min_radius_pixels = int(np.floor(min_radius / self.data_resolution))
 
         if self.filter_shape == "circle":
             # Create a circular footprint
@@ -562,7 +562,7 @@ class GeometricTreeTopDetector(Detector):
 
             # Calculate the radius based on the pixel height
             radius = (self.a * (ht**2)) + (self.b * ht) + self.c
-            radius_pixels = radius / self.res
+            radius_pixels = radius / self.data_resolution
             side = int(np.ceil(radius_pixels))
 
             # Define bounds for the neighborhood
@@ -641,7 +641,6 @@ class GeometricTreeCrownDetector(Detector):
 
     def __init__(
         self,
-        res: float = 0.2,
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
         confidence_feature: str = "area",
@@ -653,7 +652,6 @@ class GeometricTreeCrownDetector(Detector):
          This class requires the treetops to be detected first.
 
         Args:
-            res (float, optional): Resolution of the CHM image. Defaults to 0.2.
             radius_factor (float, optional): Factor to determine the radius of the tree crown. Defaults to 0.6.
             threshold_factor (float, optional): Factor to determine the threshold for the binary mask. Defaults to 0.3.
             confidence_feature (str, optional): Feature to use to compute the confidence scores for the predictions.
@@ -667,7 +665,6 @@ class GeometricTreeCrownDetector(Detector):
 
         """
         super().__init__(postprocessors=postprocessors)
-        self.res = res
         self.radius_factor = radius_factor
         self.threshold_factor = threshold_factor
         self.confidence_feature = confidence_feature
@@ -735,7 +732,7 @@ class GeometricTreeCrownDetector(Detector):
             tile_gdf["treetop_pixel_coords"], tile_gdf["treetop_height"]
         ):
             # Compute radius as a fraction of the height, divide by resolution to convert unit to pixels
-            radius = (self.radius_factor * treetop_height) / self.res
+            radius = (self.radius_factor * treetop_height) / self.data_resolution
             all_radius_in_pixels.append(radius)
 
             # Create a circle by buffering it by the radius value and add to list
@@ -869,7 +866,6 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
         a: float = 0.00901,
         b: float = 0,
         c: float = 2.52503,
-        res: float = 0.2,
         min_ht: int = 5,
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
@@ -887,7 +883,6 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
             a=a,
             b=b,
             c=c,
-            res=res,
             min_ht=min_ht,
             filter_shape=filter_shape,
         )
