@@ -824,7 +824,7 @@ class GeometricTreeCrownDetector(Detector):
             image = image.squeeze()
             # Set NaN values to zero
             image = np.nan_to_num(image)
-            
+
             # If attribute is empty, it means that the tile does not have any treetops
             # detected. Such cases get ignored.
             if not attribute:
