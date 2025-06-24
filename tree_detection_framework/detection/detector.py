@@ -825,6 +825,11 @@ class GeometricTreeCrownDetector(Detector):
             # Set NaN values to zero
             image = np.nan_to_num(image)
 
+            # If attribute is empty, it means that the tile does not have any treetops
+            # detected. Such cases get ignored.
+            if not attribute:
+                continue
+
             # Get the treetop coordinates and corresponding heights for the tile
             treetop_pixel_coords = [shape[0] for shape in treetop]
             treetop_heights = attribute[self.tree_height_column]
