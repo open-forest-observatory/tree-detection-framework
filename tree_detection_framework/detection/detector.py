@@ -24,6 +24,7 @@ from shapely.geometry import (
 )
 from shapely.geometry.base import BaseGeometry
 from torch.utils.data import DataLoader
+from torchgeo.datasets import IntersectionDataset
 from tqdm import tqdm
 
 from tree_detection_framework.constants import PATH_TYPE
@@ -34,6 +35,7 @@ from tree_detection_framework.detection.region_detections import (
 )
 from tree_detection_framework.preprocessing.derived_geodatasets import (
     CustomDataModule,
+    CustomRasterDataset,
     bounding_box,
 )
 from tree_detection_framework.utils.detection import calculate_scores
@@ -101,7 +103,14 @@ class Detector:
             postprocess_region_detections (bool, optional): Set as True if `postprocessors` is intended for RegionDetections.
         """
         # Store the dataset resolution so that derived detector classes can access it if needed
-        self.data_resolution = inference_dataloader.dataset.res
+        # Resolution is only available for raster datasets, and is only used for geometric tree
+        # identification (not usable on other types of datasets anyway)
+        if isinstance(
+            inference_dataloader.dataset, (CustomRasterDataset, IntersectionDataset)
+        ):
+            self.data_resolution = inference_dataloader.dataset.res
+        else:
+            self.data_resolution = None
 
         # Iterate over each batch in the dataloader
         for batch in tqdm(
