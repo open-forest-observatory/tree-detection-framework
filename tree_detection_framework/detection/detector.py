@@ -26,6 +26,7 @@ from shapely.geometry.base import BaseGeometry
 from torch.utils.data import DataLoader
 from torchgeo.datasets import IntersectionDataset
 from tqdm import tqdm
+
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.models import DeepForestModule
 from tree_detection_framework.detection.region_detections import (
