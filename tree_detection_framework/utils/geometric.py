@@ -1,10 +1,10 @@
 import cv2
+import geopandas as gpd
+import matplotlib.pyplot as plt
 import numpy as np
 import shapely
 from contourpy import contour_generator
 from shapely import plotting
-import matplotlib.pyplot as plt
-import geopandas as gpd
 
 
 def get_shapely_transform_from_matrix(matrix_transform: np.ndarray):
