@@ -737,25 +737,41 @@ class GeometricTreeCrownDetector(Detector):
         all_circles = []
         all_polygon_masks = []
 
-        for treetop_point, treetop_height in zip(
-            tile_gdf["treetop_pixel_coords"], tile_gdf["treetop_height"]
-        ):
-            # Compute radius as a fraction of the height, divide by resolution to convert unit to pixels
+        img_h, img_w = image.shape
+
+        for i in range(len(tile_gdf)):
+            treetop_point = tile_gdf.at[i, "treetop_pixel_coords"]
+            treetop_height = tile_gdf.at[i, "treetop_height"]
+
+            # Radius in pixels
             radius = (self.radius_factor * treetop_height) / self.data_resolution
             all_radius_in_pixels.append(radius)
 
-            # Create a circle by buffering it by the radius value and add to list
-            all_circles.append(treetop_point.buffer(radius))
+            # Circle and bounding box
+            circle = treetop_point.buffer(radius)
+            all_circles.append(circle)
+            minx, miny, maxx, maxy = circle.bounds
 
-            # Calculate threshold value for the binary mask as a fraction of the treetop height
+            # Clip to image bounds
+            min_row = max(int(miny), 0)
+            max_row = min(int(np.ceil(maxy)), img_h)
+            min_col = max(int(minx), 0)
+            max_col = min(int(np.ceil(maxx)), img_w)
+
+            # Crop a patch around the circle
+            patch = image[min_row:max_row, min_col:max_col]
+
+            # Threshold and polygonize
             threshold = self.threshold_factor * treetop_height
-            # Thresholding the tile image
-            binary_mask = image > threshold
-            # Convert the mask to shapely polygons, returned as a MultiPolygon
-            shapely_polygon_mask = mask_to_shapely(binary_mask, backend=self.backend)
-            all_polygon_masks.append(shapely_polygon_mask)
+            binary_patch = patch > threshold
+            patch_mask_poly = mask_to_shapely(binary_patch, backend=self.backend)
 
-        # Add the calculated radii, circles and polygon masks to the GeoDataFrame
+            # When cropping the patch, the coordinates are relative to the patch
+            # It needs to be translated back to the global coordinates of the image
+            mask_global_poly = shapely.affinity.translate(patch_mask_poly, xoff=min_col, yoff=min_row)
+            all_polygon_masks.append(mask_global_poly)
+
+        # Add to DataFrame
         tile_gdf["radius_in_pixels"] = all_radius_in_pixels
         tile_gdf["circle"] = all_circles
         tile_gdf["multipolygon_mask"] = all_polygon_masks
