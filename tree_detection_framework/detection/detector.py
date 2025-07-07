@@ -769,7 +769,9 @@ class GeometricTreeCrownDetector(Detector):
 
             # When cropping the patch, the coordinates are relative to the patch
             # It needs to be translated back to the global coordinates of the image
-            mask_global_poly = shapely.affinity.translate(patch_mask_poly, xoff=min_col, yoff=min_row)
+            mask_global_poly = shapely.affinity.translate(
+                patch_mask_poly, xoff=min_col, yoff=min_row
+            )
             all_polygon_masks.append(mask_global_poly)
 
         # Add the calculated radii, circles and polygon masks to the GeoDataFrame
