@@ -747,7 +747,7 @@ class GeometricTreeCrownDetector(Detector):
             radius = (self.radius_factor * treetop_height) / self.data_resolution
             all_radius_in_pixels.append(radius)
 
-            # Circle and bounding box
+            # Get the circle and bounding box containing the whole circle
             circle = treetop_point.buffer(radius)
             all_circles.append(circle)
             minx, miny, maxx, maxy = circle.bounds
@@ -761,9 +761,10 @@ class GeometricTreeCrownDetector(Detector):
             # Crop a patch around the circle
             patch = image[min_row:max_row, min_col:max_col]
 
-            # Threshold and polygonize
+            # Threshold to create a mask of the patch
             threshold = self.threshold_factor * treetop_height
             binary_patch = patch > threshold
+            # Convet the mask to a shapely object
             patch_mask_poly = mask_to_shapely(binary_patch, backend=self.backend)
 
             # When cropping the patch, the coordinates are relative to the patch
