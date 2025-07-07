@@ -790,14 +790,17 @@ class GeometricTreeCrownDetector(Detector):
             )
         ]
 
-        # Drop rows with invalid geometries, zero area polygons, and non-polygon geometries
-        tree_crown_gdf_cleaned = tree_crown_gdf_filtered[
-            tree_crown_gdf_filtered["tree_crown"].apply(
-                lambda geom: (
-                    isinstance(geom, Polygon) and geom.is_valid and geom.area > 0
-                )
-            )
-        ].reset_index(drop=True)
+        # Compute the three attributes of a valid row 1) the geometry is valid 2) the area is
+        # greater than 0 and 3) it is a polygon
+        valid_geometry = tree_crown_gdf_filtered.is_valid
+        nonzero_area = tree_crown_gdf_filtered.area > 0
+        is_polygon = tree_crown_gdf_filtered.geom_type == "Polygon"
+        # Take the logical and of all three attributes
+        valid_rows = valid_geometry & nonzero_area & is_polygon
+        # Retain only valid rows
+        tree_crown_gdf_cleaned = tree_crown_gdf_filtered[valid_rows].reset_index(
+            drop=True
+        )
 
         # Calculate pseudo-confidence scores for the detections
         confidence_scores = calculate_scores(
