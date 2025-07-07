@@ -761,7 +761,7 @@ class GeometricTreeCrownDetector(Detector):
             # Crop a patch around the circle
             patch = image[min_row:max_row, min_col:max_col]
 
-            # Threshold to create a mask of the patch
+            # Calculate threshold value for the binary mask as a fraction of the treetop height
             threshold = self.threshold_factor * treetop_height
             binary_patch = patch > threshold
             # Convet the mask to a shapely object
@@ -772,7 +772,7 @@ class GeometricTreeCrownDetector(Detector):
             mask_global_poly = shapely.affinity.translate(patch_mask_poly, xoff=min_col, yoff=min_row)
             all_polygon_masks.append(mask_global_poly)
 
-        # Add to DataFrame
+        # Add the calculated radii, circles and polygon masks to the GeoDataFrame
         tile_gdf["radius_in_pixels"] = all_radius_in_pixels
         tile_gdf["circle"] = all_circles
         tile_gdf["multipolygon_mask"] = all_polygon_masks
