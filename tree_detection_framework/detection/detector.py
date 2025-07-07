@@ -730,26 +730,22 @@ class GeometricTreeCrownDetector(Detector):
         if all_treetop_ids is not None:
             tile_gdf["treetop_unique_ID"] = all_treetop_ids
 
-        # Next, we get 2 new sets of polygons:
-        # 1. A circle for every detected treetop
-        # 2. A set of multipolygons geenrated from the binary mask of the image
-        all_radius_in_pixels = []
-        all_circles = []
-        all_polygon_masks = []
-
+        # Get the image dimensions
         img_h, img_w = image.shape
 
-        for i in range(len(tile_gdf)):
-            treetop_point = tile_gdf.at[i, "treetop_pixel_coords"]
-            treetop_height = tile_gdf.at[i, "treetop_height"]
+        treetop_heights = tile_gdf["treetop_height"].to_numpy()
+        treetop_coords = gpd.GeoSeries(tile_gdf["treetop_pixel_coords"])
+        # Calculate the radius for each treetop based on the height
+        radii = (self.radius_factor * treetop_heights) / self.data_resolution
+        # Create a circle around each treetop coordinates with the calculated radii
+        circles = treetop_coords.buffer(radii)
 
-            # Compute radius as a fraction of the height, divide by resolution to convert unit to pixels
-            radius = (self.radius_factor * treetop_height) / self.data_resolution
-            all_radius_in_pixels.append(radius)
+        all_radius_in_pixels = radii.tolist()
+        all_circles = list(circles)
+        all_polygon_masks = []
 
+        for circle, treetop_height in zip(all_circles, treetop_heights):
             # Get the circle and bounding box containing the whole circle
-            circle = treetop_point.buffer(radius)
-            all_circles.append(circle)
             minx, miny, maxx, maxy = circle.bounds
 
             # Clip to image bounds
