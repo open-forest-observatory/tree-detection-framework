@@ -743,7 +743,7 @@ class GeometricTreeCrownDetector(Detector):
             treetop_point = tile_gdf.at[i, "treetop_pixel_coords"]
             treetop_height = tile_gdf.at[i, "treetop_height"]
 
-            # Radius in pixels
+            # Compute radius as a fraction of the height, divide by resolution to convert unit to pixels
             radius = (self.radius_factor * treetop_height) / self.data_resolution
             all_radius_in_pixels.append(radius)
 
