@@ -26,7 +26,10 @@ jobs:
       - name: Install dependencies
         run: |
           poetry install
-          pip install pytest
+
+      - name: Print Python path info
+        run: |
+          poetry run python -c "import sys; print(sys.path)"
 
       - name: Run pytest
         run: |
