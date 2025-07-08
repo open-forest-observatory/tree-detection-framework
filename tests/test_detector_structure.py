@@ -1,8 +1,10 @@
 # This checks that all classes defined in the `detector.py` module inherit from the `Detector` base class.
 
 import inspect
+
 import tree_detection_framework.detection.detector as detector_module
 from tree_detection_framework.detection.detector import Detector
+
 
 def test_all_detectors_inherit_from_Detector():
     # Get all classes defined in detector.py
