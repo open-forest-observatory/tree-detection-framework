@@ -730,30 +730,45 @@ class GeometricTreeCrownDetector(Detector):
         if all_treetop_ids is not None:
             tile_gdf["treetop_unique_ID"] = all_treetop_ids
 
-        # Next, we get 2 new sets of polygons:
-        # 1. A circle for every detected treetop
-        # 2. A set of multipolygons geenrated from the binary mask of the image
-        all_radius_in_pixels = []
-        all_circles = []
+        # Get the image dimensions
+        img_h, img_w = image.shape
+
+        treetop_heights = tile_gdf["treetop_height"].to_numpy()
+        treetop_coords = gpd.GeoSeries(tile_gdf["treetop_pixel_coords"])
+        # Calculate the radius for each treetop based on the height
+        radii = (self.radius_factor * treetop_heights) / self.data_resolution
+        # Create a circle around each treetop coordinates with the calculated radii
+        circles = treetop_coords.buffer(radii)
+
+        all_radius_in_pixels = radii.tolist()
+        all_circles = list(circles)
         all_polygon_masks = []
 
-        for treetop_point, treetop_height in zip(
-            tile_gdf["treetop_pixel_coords"], tile_gdf["treetop_height"]
-        ):
-            # Compute radius as a fraction of the height, divide by resolution to convert unit to pixels
-            radius = (self.radius_factor * treetop_height) / self.data_resolution
-            all_radius_in_pixels.append(radius)
+        for circle, treetop_height in zip(all_circles, treetop_heights):
+            # Get the circle and bounding box containing the whole circle
+            minx, miny, maxx, maxy = circle.bounds
 
-            # Create a circle by buffering it by the radius value and add to list
-            all_circles.append(treetop_point.buffer(radius))
+            # Clip to image bounds
+            min_row = max(int(miny), 0)
+            max_row = min(int(np.ceil(maxy)), img_h)
+            min_col = max(int(minx), 0)
+            max_col = min(int(np.ceil(maxx)), img_w)
+
+            # Crop a patch around the circle
+            patch = image[min_row:max_row, min_col:max_col]
 
             # Calculate threshold value for the binary mask as a fraction of the treetop height
             threshold = self.threshold_factor * treetop_height
-            # Thresholding the tile image
-            binary_mask = image > threshold
-            # Convert the mask to shapely polygons, returned as a MultiPolygon
-            shapely_polygon_mask = mask_to_shapely(binary_mask, backend=self.backend)
-            all_polygon_masks.append(shapely_polygon_mask)
+            binary_patch = patch > threshold
+            # Convet the mask to a shapely object
+            patch_mask_poly = mask_to_shapely(binary_patch, backend=self.backend)
+
+            # When cropping the patch, the coordinates are relative to the patch
+            # It needs to be translated back to the global coordinates of the image
+            mask_global_poly = shapely.affinity.translate(
+                patch_mask_poly, xoff=min_col, yoff=min_row
+            )
+            all_polygon_masks.append(mask_global_poly)
 
         # Add the calculated radii, circles and polygon masks to the GeoDataFrame
         tile_gdf["radius_in_pixels"] = all_radius_in_pixels
