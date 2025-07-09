@@ -234,7 +234,7 @@ def create_intersection_dataloader(
     raster_data = CustomRasterDataset(raster_data, **kwargs)
 
     # Create an intersection dataset that combines the datasets
-    intersection_data = IntersectionDataset(vector_data, raster_data)
+    intersection_data = IntersectionDataset(raster_data, vector_data)
 
     # GridGeoSampler to get contiguous tiles
     sampler = GridGeoSampler(
