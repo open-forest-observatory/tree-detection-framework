@@ -22,14 +22,12 @@ def main():
         description="Detect trees in raw images using a specified model.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "image_dir", type=Path, help="Directory containing raw images."
-    )
+    parser.add_argument("image_dir", type=Path, help="Directory containing raw images.")
     parser.add_argument(
         "out_dir",
         type=Path,
         help="Directory to save detection results. Will be created if it does"
-        " not already exist."
+        " not already exist.",
     )
     parser.add_argument(
         "model_key", type=str, choices=MODEL_KEYS, help=f"Model to use: {MODEL_KEYS}"
