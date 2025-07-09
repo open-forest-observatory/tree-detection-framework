@@ -36,8 +36,9 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 class UnboundedGridGeoSampler(GridGeoSampler):
-    """Samples elements in a grid-like fashion. 
+    """Samples elements in a grid-like fashion.
 
     This allows the full raster to be returned as a single tile.
     """
