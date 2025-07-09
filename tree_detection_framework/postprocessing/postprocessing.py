@@ -43,6 +43,9 @@ def single_region_NMS(
     # Extract the geodataframe for the detections
     detections_df = detections.get_data_frame()
 
+    # Buffer by zero to fix any issues with invalid geometries
+    detections_df["geometry"] = detections_df.geometry.buffer(0)
+
     # Determine which detections are high enough confidence to retain
     # Get rows that are both high confidence and not empty
     not_empty_mask = ~detections_df.geometry.is_empty
