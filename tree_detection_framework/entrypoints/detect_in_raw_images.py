@@ -10,6 +10,7 @@ from tree_detection_framework.detection.detector import (
 from tree_detection_framework.detection.models import DeepForestModule, Detectree2Module
 from tree_detection_framework.detection.SAM2_detector import SAMV2Detector
 from tree_detection_framework.postprocessing.postprocessing import (
+    multi_region_NMS,
     remove_out_of_bounds_detections,
 )
 from tree_detection_framework.preprocessing.preprocessing import create_image_dataloader
@@ -89,6 +90,7 @@ def main():
 
     # Filter detections
     filtered_sets = remove_out_of_bounds_detections(detection_sets, bounds)
+    filtered_sets = [multi_region_NMS(rds) for rds in filtered_sets]
 
     # Save results for each image
     for rds, file in zip(filtered_sets, files):
