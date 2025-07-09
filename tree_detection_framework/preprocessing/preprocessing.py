@@ -11,9 +11,15 @@ import rasterio
 import shapely
 import torch
 from torch.utils.data import DataLoader
-from torchgeo.datasets import BoundingBox, GeoDataset, IntersectionDataset, stack_samples, unbind_samples
+from torchgeo.datasets import (
+    BoundingBox,
+    GeoDataset,
+    IntersectionDataset,
+    stack_samples,
+    unbind_samples,
+)
 from torchgeo.samplers import GeoSampler, GridGeoSampler, Units
-from torchgeo.samplers.utils import tile_to_chips, _to_tuple
+from torchgeo.samplers.utils import _to_tuple, tile_to_chips
 from torchvision.transforms import ToPILImage
 
 from tree_detection_framework.constants import ARRAY_TYPE, BOUNDARY_TYPE, PATH_TYPE
