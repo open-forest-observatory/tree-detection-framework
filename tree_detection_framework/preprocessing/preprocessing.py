@@ -38,11 +38,13 @@ logging.basicConfig(
 
 
 class UnboundedGridGeoSampler(GridGeoSampler):
-    """Samples elements in a grid-like fashion.
-
-    This allows the full raster to be returned as a single tile.
     """
+    A variant of GridGeoSampler that optionally includes tiles smaller than the chip size.
 
+    Default GridGeoSampler skips tiles that are too small to contain a full chip. Setting
+    `include_smaller_tiles=True` overrides this behavior, and ensures all tiles are included. 
+    This is useful for generating a single chip from an entire raster.
+    """
     def __init__(
         self,
         dataset: GeoDataset,
@@ -50,6 +52,7 @@ class UnboundedGridGeoSampler(GridGeoSampler):
         stride: tuple[float, float] | float,
         roi: BoundingBox | None = None,
         units: Units = Units.PIXELS,
+        include_smaller_tiles: bool = True,
     ) -> None:
         """Initialize a new Sampler instance.
 
@@ -70,6 +73,8 @@ class UnboundedGridGeoSampler(GridGeoSampler):
             roi: region of interest to sample from (minx, maxx, miny, maxy, mint, maxt)
                 (defaults to the bounds of ``dataset.index``)
             units: defines if ``size`` and ``stride`` are in pixel or CRS units
+            allow_smaller_tiles: If True, includes all tiles regardless of size.
+                If False, behaves like GridGeoSampler. Defaults to True.
         """
         GeoSampler.__init__(self, dataset, roi)
         self.size = _to_tuple(size)
@@ -81,8 +86,17 @@ class UnboundedGridGeoSampler(GridGeoSampler):
 
         self.hits = []
         for hit in self.index.intersection(tuple(self.roi), objects=True):
-            # Modification: Include all hits regardless of size
-            self.hits.append(hit)
+            if include_smaller_tiles is True:
+                # If including smaller tiles, append all hits regardless of size
+                self.hits.append(hit)
+            else:
+                # Otherwise, proceed like GridGeoSampler
+                bounds = BoundingBox(*hit.bounds)
+                if (
+                bounds.maxx - bounds.minx >= self.size[1]
+                and bounds.maxy - bounds.miny >= self.size[0]
+                ):
+                    self.hits.append(hit)
 
         self.length = 0
         for hit in self.hits:
