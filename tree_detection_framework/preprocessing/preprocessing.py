@@ -84,17 +84,17 @@ class UnboundedGridGeoSampler(GridGeoSampler):
             self.size = (self.size[0] * self.res, self.size[1] * self.res)
             self.stride = (self.stride[0] * self.res, self.stride[1] * self.res)
 
-        self.hits = []
-        for hit in self.index.intersection(tuple(self.roi), objects=True):
-            if include_smaller_tiles is True:
-                # If including smaller tiles, append all hits regardless of size
-                self.hits.append(hit)
-            else:
-                # Otherwise, proceed like GridGeoSampler
+        # If including smaller tiles, append all hits regardless of size
+        if include_smaller_tiles is True:
+            self.hits = list(self.index.intersection(tuple(self.roi), objects=True))
+        else:
+            # Otherwise, behave like GridGeoSampler
+            self.hits = []
+            for hit in self.index.intersection(tuple(self.roi), objects=True):
                 bounds = BoundingBox(*hit.bounds)
                 if (
-                bounds.maxx - bounds.minx >= self.size[1]
-                and bounds.maxy - bounds.miny >= self.size[0]
+                    bounds.maxx - bounds.minx >= self.size[1]
+                    and bounds.maxy - bounds.miny >= self.size[0]
                 ):
                     self.hits.append(hit)
 
@@ -309,6 +309,7 @@ def create_intersection_dataloader(
     raster_data = CustomRasterDataset(raster_data, **kwargs)
 
     # Create an intersection dataset that combines the datasets
+    # Attributes such as resolution will be taken from the first dataset
     intersection_data = IntersectionDataset(raster_data, vector_data)
 
     # Create a sampler to generate contiguous tiles of the input dataset
