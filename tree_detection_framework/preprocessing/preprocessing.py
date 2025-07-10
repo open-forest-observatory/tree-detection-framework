@@ -11,8 +11,15 @@ import rasterio
 import shapely
 import torch
 from torch.utils.data import DataLoader
-from torchgeo.datasets import IntersectionDataset, stack_samples, unbind_samples
-from torchgeo.samplers import GridGeoSampler, Units
+from torchgeo.datasets import (
+    BoundingBox,
+    GeoDataset,
+    IntersectionDataset,
+    stack_samples,
+    unbind_samples,
+)
+from torchgeo.samplers import GeoSampler, GridGeoSampler, Units
+from torchgeo.samplers.utils import _to_tuple, tile_to_chips
 from torchvision.transforms import ToPILImage
 
 from tree_detection_framework.constants import ARRAY_TYPE, BOUNDARY_TYPE, PATH_TYPE
@@ -28,6 +35,75 @@ from tree_detection_framework.utils.raster import plot_from_dataloader
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+
+class UnboundedGridGeoSampler(GridGeoSampler):
+    """
+    A variant of GridGeoSampler that optionally includes tiles smaller than the chip size.
+
+    Default GridGeoSampler skips tiles that are too small to contain a full chip. Setting
+    `include_smaller_tiles=True` overrides this behavior, and ensures all tiles are included.
+    This is useful for generating a single chip from an entire raster.
+    """
+
+    def __init__(
+        self,
+        dataset: GeoDataset,
+        size: tuple[float, float] | float,
+        stride: tuple[float, float] | float,
+        roi: BoundingBox | None = None,
+        units: Units = Units.PIXELS,
+        include_smaller_tiles: bool = True,
+    ) -> None:
+        """Initialize a new Sampler instance.
+
+        The ``size`` and ``stride`` arguments can either be:
+
+        * a single ``float`` - in which case the same value is used for the height and
+          width dimension
+        * a ``tuple`` of two floats - in which case, the first *float* is used for the
+          height dimension, and the second *float* for the width dimension
+
+        .. versionchanged:: 0.3
+           Added ``units`` parameter, changed default to pixel units
+
+        Args:
+            dataset: dataset to index from
+            size: dimensions of each :term:`patch`
+            stride: distance to skip between each patch
+            roi: region of interest to sample from (minx, maxx, miny, maxy, mint, maxt)
+                (defaults to the bounds of ``dataset.index``)
+            units: defines if ``size`` and ``stride`` are in pixel or CRS units
+            allow_smaller_tiles: If True, includes all tiles regardless of size.
+                If False, behaves like GridGeoSampler. Defaults to True.
+        """
+        GeoSampler.__init__(self, dataset, roi)
+        self.size = _to_tuple(size)
+        self.stride = _to_tuple(stride)
+
+        if units == Units.PIXELS:
+            self.size = (self.size[0] * self.res, self.size[1] * self.res)
+            self.stride = (self.stride[0] * self.res, self.stride[1] * self.res)
+
+        # If including smaller tiles, append all hits regardless of size
+        if include_smaller_tiles is True:
+            self.hits = list(self.index.intersection(tuple(self.roi), objects=True))
+        else:
+            # Otherwise, behave like GridGeoSampler
+            self.hits = []
+            for hit in self.index.intersection(tuple(self.roi), objects=True):
+                bounds = BoundingBox(*hit.bounds)
+                if (
+                    bounds.maxx - bounds.minx >= self.size[1]
+                    and bounds.maxy - bounds.miny >= self.size[0]
+                ):
+                    self.hits.append(hit)
+
+        self.length = 0
+        for hit in self.hits:
+            bounds = BoundingBox(*hit.bounds)
+            rows, cols = tile_to_chips(bounds, self.size, self.stride)
+            self.length += rows * cols
 
 
 def create_spatial_split(
@@ -167,8 +243,8 @@ def create_dataloader(
 
     logging.info(f"Stride = {chip_stride}")
 
-    # GridGeoSampler to get contiguous tiles
-    sampler = GridGeoSampler(
+    # Create a sampler to generate contiguous tiles of the input dataset
+    sampler = UnboundedGridGeoSampler(
         final_dataset, size=chip_size, stride=chip_stride, units=units
     )
     dataloader = DataLoader(
@@ -234,10 +310,11 @@ def create_intersection_dataloader(
     raster_data = CustomRasterDataset(raster_data, **kwargs)
 
     # Create an intersection dataset that combines the datasets
-    intersection_data = IntersectionDataset(vector_data, raster_data)
+    # Attributes such as resolution will be taken from the first dataset
+    intersection_data = IntersectionDataset(raster_data, vector_data)
 
-    # GridGeoSampler to get contiguous tiles
-    sampler = GridGeoSampler(
+    # Create a sampler to generate contiguous tiles of the input dataset
+    sampler = UnboundedGridGeoSampler(
         intersection_data, size=chip_size, stride=chip_stride, units=units
     )
     dataloader = DataLoader(
