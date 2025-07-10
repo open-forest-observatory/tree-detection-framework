@@ -22,6 +22,7 @@ def plot_detections(
     CRS: Optional[pyproj.CRS] = None,
     plt_ax: Optional[plt.axes] = None,
     plt_show: bool = True,
+    plt_points: bool = False,
     visualization_column: Optional[str] = None,
     bounds_color: Optional[Union[str, np.array, pd.Series]] = None,
     detection_kwargs: dict = {},
@@ -42,6 +43,8 @@ def plot_detections(
             A pyplot axes to plot on. If not provided, one will be created. Defaults to None.
         plt_show (bool, optional):
             Whether to plot the result or just return it. Defaults to True.
+        plt_points (bool, optional):
+            Whether to plot the centroid points within the boundaries. Defaults to False.
         visualization_column (Optional[str], optional):
             Which column to visualize from the detections dataframe. Defaults to None.
         bounds_color (Optional[Union[str, np.array, pd.Series]], optional):
@@ -65,7 +68,7 @@ def plot_detections(
 
     # If no axes are provided, create new ones
     if plt_ax is None:
-        _, plt_ax = plt.subplots()
+        _, plt_ax = plt.subplots(figsize=(10, 8))
 
     # Show the raster if provided
     if raster_file is not None:
@@ -87,6 +90,16 @@ def plot_detections(
     # Use the .boundary attribute to plot just the border. This works since it's a geoseries,
     # not a geodataframe
     bounds.boundary.plot(ax=plt_ax, color=bounds_color, **bounds_kwargs)
+
+    # Plot the centroids if requested
+    if plt_points is True:
+        for i, row in data_frame.iterrows():
+            centroid = row.geometry.centroid
+            x, y = centroid.x, centroid.y
+            plt_ax.plot(x, y, "ro", markersize=1)
+            plt_ax.text(
+                x + 3, y, f"{i:03}", color="red", fontsize=4, ha="left", va="top"
+            )
 
     # Show if requested
     if plt_show:
@@ -300,6 +313,7 @@ class RegionDetections:
         CRS: Optional[pyproj.CRS] = None,
         plt_ax: Optional[plt.axes] = None,
         plt_show: bool = True,
+        plt_points: bool = False,
         visualization_column: Optional[str] = None,
         bounds_color: Optional[Union[str, np.array, pd.Series]] = None,
         detection_kwargs: dict = {},
@@ -316,6 +330,8 @@ class RegionDetections:
                 A pyplot axes to plot on. If not provided, one will be created. Defaults to None.
             plt_show (bool, optional):
                 Whether to plot the result or just return it. Defaults to True.
+            plt_points (bool, optional):
+                Whether to plot the centroid points within the boundaries. Defaults to False.
             visualization_column (Optional[str], optional):
                 Which column to visualize from the detections dataframe. Defaults to None.
             bounds_color (Optional[Union[str, np.array, pd.Series]], optional):
@@ -342,12 +358,13 @@ class RegionDetections:
         bounds = self.get_bounds(CRS)
 
         # Perform plotting and return the axes
-        plot_detections(
+        return plot_detections(
             data_frame=data_frame,
             bounds=bounds,
             CRS=data_frame.crs,
             plt_ax=plt_ax,
             plt_show=plt_show,
+            plt_points=plt_points,
             visualization_column=visualization_column,
             detection_kwargs=detection_kwargs,
             bounds_kwargs=bounds_kwargs,
