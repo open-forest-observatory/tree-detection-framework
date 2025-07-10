@@ -42,9 +42,10 @@ class UnboundedGridGeoSampler(GridGeoSampler):
     A variant of GridGeoSampler that optionally includes tiles smaller than the chip size.
 
     Default GridGeoSampler skips tiles that are too small to contain a full chip. Setting
-    `include_smaller_tiles=True` overrides this behavior, and ensures all tiles are included. 
+    `include_smaller_tiles=True` overrides this behavior, and ensures all tiles are included.
     This is useful for generating a single chip from an entire raster.
     """
+
     def __init__(
         self,
         dataset: GeoDataset,
