@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import torch
@@ -14,8 +15,8 @@ try:
     SAM2_AVAILABLE = True
 except ImportError:
     SAM2_AVAILABLE = False
-    raise ImportError(
-        "SAM2 is not installed. Please install it using the instructions in the README."
+    logging.warning(
+        "SAM2 is not installed. SAMV2Detector will be disabled. See README for install instructions"
     )
 
 
@@ -37,6 +38,10 @@ class SAMV2Detector(Detector):
             model_cfg (str): Path to the SAM2 model config.
             postprocessors (list, optional): See docstring for Detector class. Defaults to None.
         """
+        if not SAM2_AVAILABLE:
+            raise ImportError(
+                "SAMV2Detector requires SAM2. Please install it to use this detector."
+            )
         super().__init__(postprocessors=postprocessors)
 
         self.device = device
