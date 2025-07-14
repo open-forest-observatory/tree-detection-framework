@@ -8,11 +8,13 @@ import lightning
 import numpy as np
 import pyproj
 import rasterio
+from rasterio.features import shapes, rasterize
 import shapely
 import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from scipy.ndimage import maximum_filter
+from skimage.segmentation import watershed
 from shapely import affinity
 from shapely.geometry import (
     GeometryCollection,
@@ -21,6 +23,7 @@ from shapely.geometry import (
     Point,
     Polygon,
     box,
+    shape,
 )
 from shapely.geometry.base import BaseGeometry
 from torch.utils.data import DataLoader
@@ -679,6 +682,88 @@ class GeometricTreeCrownDetector(Detector):
         self.confidence_feature = confidence_feature
         self.backend = contour_backend
         self.tree_height_column = tree_height_column
+
+    def get_tree_crowns_watershed(
+        self,
+        image: np.ndarray,
+        all_treetop_pixel_coords: List[Point],
+        all_treetop_heights: List[float],
+        all_treetop_ids: Optional[List[str]] = None,
+        min_height: float = 5,        
+    ) -> Tuple[gpd.GeoDataFrame, List[float]]:
+        """
+        Marker-Controlled Watershed Segmentation from detected treetop points.
+
+        Args:
+            image (np.ndarray): A single channel CHM image
+            all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
+            all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
+            all_treetop_ids: (List[str]) : Detected treetop IDs. Defaults to None
+            min_height: (float) : Minimum CHM threshold to keep
+
+        Returns:
+            (GeoDataFrame, List[float]): GeoDataFrame containing crowns, treetops, tree heights and a list with confidence scores
+        """
+
+        # Filter CHM values to only include pixels above the minimum height 
+        chm_masked = np.where(image >= min_height, image, 0)
+
+        # Filter treetops that are valid (inside CHM and above height threshold)
+        H, W = image.shape
+        filtered = [
+            (pt, uid, h)
+            for pt, uid, h in zip(all_treetop_pixel_coords, all_treetop_ids, all_treetop_heights)
+            if 0 <= pt.x < W and 0 <= pt.y < H and h >= min_height
+        ]
+        if len(filtered) == 0:
+            raise ValueError("No valid treetops after filtering for height.")
+        
+        # Unpack the list of (point, ID, height) tuples into separate lists
+        filtered_points, filtered_ids, filtered_heights = zip(*filtered)
+
+        # Rasterize treetops as markers
+        markers = rasterize(
+            # Convert uid to int since it's a string with 0 padded values
+            [(pt, int(uid)) for pt, uid in zip(filtered_points, filtered_ids)],
+            out_shape=image.shape,
+        )
+
+        # Invert the CHM so that high points (tree tops) become basins for watershed
+        elevation = -1 * chm_masked
+        # Perform watershed segmentation with treetop markers
+        labels = watershed(elevation, markers=markers, mask=chm_masked > 0)
+
+        # Create a mapping of treetop IDs and heights
+        id_to_height = {
+            int(uid): height for uid, height in zip(filtered_ids, filtered_heights)
+        }
+        
+        # Convert the labeled raster into polygon geometries using rasterio's shapes(). 
+        # Each contiguous region of the same label value/crown ID is extracted as a polygon
+        # `val` is the ID associated with that region.
+        # `mask` ensures that only non-zero crown areas are included in the output.
+        crowns = []
+        for geom, val in shapes(labels.astype("int32"), mask=(labels > 0)):
+            val = int(val)
+            crowns.append({
+                "tree_crown": shape(geom),  # return a shapely object witht he coordinates
+                "treetop_unique_ID": f"{val:05d}",  # convert to zero padded str
+                "treetop_height": id_to_height.get(val)  # get height value corresponding to the treetop ID
+            })
+
+        # Create a gdf for the output
+        crown_gdf = gpd.GeoDataFrame(crowns, geometry="tree_crown")
+
+        # Calculate pseudo-confidence scores for the detections
+        confidence_scores = calculate_scores(
+            "tree_crown", self.confidence_feature, crown_gdf, image.shape
+        )
+
+        return (
+            crown_gdf,
+            confidence_scores,
+        )
+
 
     def get_tree_crowns(
         self,
