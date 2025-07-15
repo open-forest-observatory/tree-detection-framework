@@ -1,6 +1,6 @@
 import argparse
-from pathlib import Path
 import warnings
+from pathlib import Path
 
 import geopandas as gpd
 from rasterio.errors import NotGeoreferencedWarning
@@ -13,9 +13,28 @@ warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)
 
 
 def visualize_detections(
-    image_dir, detection_dir, out_dir, n_images, step, show_centroid,
-):
+    image_dir: Path,
+    detection_dir: Path,
+    out_dir: Path,
+    n_images: int,
+    step: int,
+    show_centroid: bool,
+    image_ext: str,
+) -> None:
+    """
+    Visualize detection results by pairing images and detection files, sampling
+    according to n_images and step.
 
+    Args:
+        image_dir: Directory containing raw images.
+        detection_dir: Directory containing detection .gpkg files.
+        out_dir: Directory to save visualizations.
+        n_images: Number of images to visualize.
+        step: Step size between visualized images.
+        show_centroid: Whether to show centroid in visualization.
+        image_ext: Extension of image files (e.g., 'JPG', 'tif').
+    Returns: None. Saves files in the output directory.
+    """
     # Get sorted lists of image and gpkg files
     gpkg_paths = sorted(detection_dir.glob("*.gpkg"))
 
@@ -24,7 +43,7 @@ def visualize_detections(
 
     for idx in tqdm(indices, f"Saving images to {out_dir}"):
         gpkg_path = gpkg_paths[idx]
-        image_path = image_dir / (gpkg_path.stem + ".JPG")
+        image_path = image_dir / f"{gpkg_path.stem}.{image_ext}"
 
         detections = RegionDetections(
             detection_geometries="geometry",
@@ -81,6 +100,12 @@ def parse_args():
         action="store_true",
         help="Do not show centroid in visualization.",
     )
+    parser.add_argument(
+        "--image-ext",
+        type=str,
+        default="JPG",
+        help="Extension of image files (e.g., 'JPG', 'tif').",
+    )
 
     args = parser.parse_args()
 
@@ -89,12 +114,12 @@ def parse_args():
         assert dir_path.is_dir(), f"{dir_path} not found"
         assert any(dir_path.iterdir()), f"{dir_path} empty"
 
-    # Check that each detection file matches an image file (by stem, with .JPG extension)
-    image_stems = {p.stem for p in args.image_dir.glob("*.JPG")}
+    # Check that each detection file matches an image file (by stem, with user-specified extension)
+    image_stems = {p.stem for p in args.image_dir.glob(f"*.{args.image_ext}")}
     for gpkg_file in args.detection_dir.glob("*.gpkg"):
         assert (
             gpkg_file.stem in image_stems
-        ), f"No matching image for detection {gpkg_file}"
+        ), f"No matching image for detection file {gpkg_file.name}"
 
     # Create out_dir if it doesn't exist
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -111,6 +136,7 @@ def main():
         n_images=args.n_images,
         step=args.step,
         show_centroid=not args.no_centroid,
+        image_ext=args.image_ext,
     )
 
 
