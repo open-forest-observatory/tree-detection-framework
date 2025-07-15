@@ -53,6 +53,12 @@ def parse_args():
     parser.add_argument(
         "--batch_size", type=int, default=4, help="Batch size for inference"
     )
+    parser.add_argument(
+        "--downsample-factor",
+        type=float,
+        default=1.0,
+        help="Downsample factor for input images (default: 1.0, no downsampling).",
+    )
     args = parser.parse_args()
 
     assert args.image_dir.is_dir(), f"image_dir {args.image_dir} is not a directory"
@@ -73,6 +79,7 @@ def main(
     chip_size: int,
     chip_stride: int,
     batch_size: int,
+    downsample_factor: float,
 ) -> None:
     """
     Detect trees in raw images using a specified model and save detection results.
@@ -85,6 +92,8 @@ def main(
         chip_size (int): Chip size for tiling images.
         chip_stride (int): Chip stride for tiling images.
         batch_size (int): Batch size for inference.
+        downsample_factor (float): Downsample factor for input images. 1.0 means no downsampling;
+            values >1.0 reduce image size by this factor. Default is 1.0.
 
     Raises:
         ValueError: If an unknown model_key is provided.
@@ -98,7 +107,7 @@ def main(
         chip_size=chip_size,
         chip_stride=chip_stride,
         batch_size=batch_size,
-        downsample_factor=2.0,
+        downsample_factor=downsample_factor,
     )
     print("Dataloader created")
 
@@ -145,4 +154,5 @@ if __name__ == "__main__":
         chip_size=args.chip_size,
         chip_stride=args.chip_stride,
         batch_size=args.batch_size,
+        downsample_factor=args.downsample_factor,
     )
