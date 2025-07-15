@@ -12,7 +12,7 @@ from tree_detection_framework.detection.region_detections import RegionDetection
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)
 
 
-def visualize_detections(
+def visualize_detection_sets(
     image_dir: Path,
     detection_dir: Path,
     out_dir: Path,
@@ -39,7 +39,7 @@ def visualize_detections(
     gpkg_paths = sorted(detection_dir.glob("*.gpkg"))
 
     # Sample indices according to n_images and step
-    indices = [i for i in range(0, len(gpkg_paths), step)][:n_images]
+    indices = list(range(0, min(len(gpkg_paths), step * n_images), step))
 
     for idx in tqdm(indices, f"Saving images to {out_dir}"):
         gpkg_path = gpkg_paths[idx]
@@ -53,7 +53,7 @@ def visualize_detections(
         axis = detections.plot(
             plt_show=False,
             raster_file=image_path,
-            plt_points=show_centroid,
+            show_centroid=show_centroid,
             raster_vis_downsample=1,
         )
 
@@ -129,7 +129,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    visualize_detections(
+    visualize_detection_sets(
         image_dir=args.image_dir,
         detection_dir=args.detection_dir,
         out_dir=args.out_dir,
