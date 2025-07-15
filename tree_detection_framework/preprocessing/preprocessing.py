@@ -331,6 +331,7 @@ def create_image_dataloader(
     chip_overlap_percentage: Optional[float] = None,
     labels_dir: Optional[List[str]] = None,
     batch_size: int = 1,
+    downsample_factor: float = 1.0,
 ) -> DataLoader:
     """
     Create a dataloader for a folder of normal images (e.g., JPGs), tiling them into smaller patches.
@@ -372,6 +373,7 @@ def create_image_dataloader(
         chip_size=chip_size,
         chip_stride=chip_stride,
         labels_dir=labels_dir,
+        downsample_factor=downsample_factor,
     )
     dataloader = DataLoader(
         dataset,

@@ -200,6 +200,7 @@ class CustomImageDataset(Dataset):
         chip_size: int,
         chip_stride: int,
         labels_dir: Optional[List[str]] = None,
+        downsample_factor: float = 1.0,
     ):
         """
         Dataset for creating a dataloader from a folder of individual images, with an option to create tiles.
@@ -213,6 +214,7 @@ class CustomImageDataset(Dataset):
         """
         self.chip_size = chip_size
         self.chip_stride = chip_stride
+        self.downsample_factor = downsample_factor
 
         if not isinstance(images_dir, list):
             self.images_dir = Path(images_dir)
@@ -288,6 +290,13 @@ class CustomImageDataset(Dataset):
                 # Crop the image section and paste onto the white image
                 img_section = img.crop((x, y, x + tile_width, y + tile_height))
                 tile.paste(img_section, (0, 0))
+
+            if self.downsample_factor is not None and self.downsample_factor != 1.0:
+                new_size = (
+                    int(tile.width / self.downsample_factor),
+                    int(tile.height / self.downsample_factor)
+                )
+                tile = tile.resize(new_size, resample=Image.LANCZOS)
 
             # Convert to tensor
             if not isinstance(tile, torch.Tensor):

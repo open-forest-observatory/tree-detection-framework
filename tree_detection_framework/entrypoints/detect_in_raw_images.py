@@ -98,6 +98,7 @@ def main(
         chip_size=chip_size,
         chip_stride=chip_stride,
         batch_size=batch_size,
+        downsample_factor=2.0,
     )
     print("Dataloader created")
 
