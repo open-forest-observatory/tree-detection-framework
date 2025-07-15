@@ -1,4 +1,6 @@
 import argparse
+import logging
+import warnings
 from pathlib import Path
 
 import torch
@@ -111,6 +113,8 @@ def main(
         detector = Detectree2Detector(module)
     elif model_key == "sam2":
         detector = SAMV2Detector(device=device)
+        warnings.filterwarnings("ignore", message="cannot import name '_C' from 'sam2'")
+        logging.getLogger().setLevel(logging.WARNING)
     else:
         raise ValueError(f"Unknown model key: {model_key}")
     print("Model loaded")
