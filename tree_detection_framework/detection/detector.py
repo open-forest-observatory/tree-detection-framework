@@ -8,13 +8,12 @@ import lightning
 import numpy as np
 import pyproj
 import rasterio
-from rasterio.features import shapes, rasterize
 import shapely
 import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
+from rasterio.features import rasterize, shapes
 from scipy.ndimage import maximum_filter
-from skimage.segmentation import watershed
 from shapely import affinity
 from shapely.geometry import (
     GeometryCollection,
@@ -26,6 +25,7 @@ from shapely.geometry import (
     shape,
 )
 from shapely.geometry.base import BaseGeometry
+from skimage.segmentation import watershed
 from torch.utils.data import DataLoader
 from torchgeo.datasets import IntersectionDataset
 from tqdm import tqdm
