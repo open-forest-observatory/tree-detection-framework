@@ -724,6 +724,13 @@ class GeometricTreeCrownDetector(Detector):
             (GeoDataFrame, List[float]): GeoDataFrame containing crowns, treetops, tree heights and a list with confidence scores
         """
 
+        # Generate default treetop IDs if none provided
+        if all_treetop_ids is None:
+            treetop_ids_provided = False
+            all_treetop_ids = [f"{i:05d}" for i in range(len(all_treetop_pixel_coords))]
+        else:
+            treetop_ids_provided = True
+
         # Filter CHM values to only include pixels above the minimum height 
         chm_masked = np.where(image >= self.min_height, image, 0)
 
@@ -764,11 +771,14 @@ class GeometricTreeCrownDetector(Detector):
         crowns = []
         for geom, val in shapes(labels.astype("int32"), mask=(labels > 0)):
             val = int(val)
-            crowns.append({
+            data_dict = {
                 "tree_crown": shape(geom),  # return a shapely object witht he coordinates
-                "treetop_unique_ID": f"{val:05d}",  # convert to zero padded str
                 "treetop_height": id_to_height.get(val)  # get height value corresponding to the treetop ID
-            })
+            }
+            # Return treetop IDs only if they were separately detected 
+            if treetop_ids_provided:
+                data_dict["treetop_unique_ID"] = f"{val:05d}"
+            crowns.append(data_dict)
 
         # Create a gdf for the output
         crown_gdf = gpd.GeoDataFrame(crowns, geometry="tree_crown")
@@ -949,7 +959,7 @@ class GeometricTreeCrownDetector(Detector):
         batch_detections = []
         batch_detections_data = []
 
-        # Get the specified approach to use to generate tree crowns
+        # Get the tree crown generation method that corresponds to the approach
         if self.approach == "watershed":
             get_tree_crowns = self.get_tree_crowns_watershed
 
@@ -1013,16 +1023,18 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
         b: float = 0,
         c: float = 2.52503,
         min_ht: int = 5,
+        approach: str = "watershed",
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
         confidence_feature: str = "height",
         filter_shape: str = "circle",
         contour_backend: str = "cv2",
+        tree_height_column: str = "height",
         postprocessors=None,
     ):
         """Learning-free algorithm to detect tree crowns using CHM data. This first detects the treetops
-        using the algorithm of Popescu and Wynne (2004) and then uses the Silva et al. (2016) algorithm to
-        compute the tree crowns. Refer docstring of `GeometricTreeTopDetector` and `GeometricTreeCrownDetector`
+        using the algorithm of Popescu and Wynne (2004) and then uses either Watershed method or the Silva et al. (2016)
+        algorithm to compute the tree crowns. Refer docstring of `GeometricTreeTopDetector` and `GeometricTreeCrownDetector`
         for details about the args."""
         GeometricTreeTopDetector.__init__(
             self,
@@ -1034,10 +1046,13 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
         )
         GeometricTreeCrownDetector.__init__(
             self,
+            approach=approach,
             radius_factor=radius_factor,
             threshold_factor=threshold_factor,
             confidence_feature=confidence_feature,
             contour_backend=contour_backend,
+            tree_height_column=tree_height_column,
+            min_height=min_ht,
             postprocessors=postprocessors,
         )
 
@@ -1055,6 +1070,13 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
                 Any additional attributes that are predicted (such as class or confidence). Must
                 be formatted in a way that can be passed to gpd.GeoPandas data argument.
         """
+        # Get the tree crown generation method that corresponds to the approach
+        if self.approach == "watershed":
+            get_tree_crowns = self.get_tree_crowns_watershed
+
+        elif self.approach == "silva":
+            get_tree_crowns = self.get_tree_crowns_silva
+
         # List to store every image's detections
         batch_detections = []
         batch_detections_data = []
@@ -1067,7 +1089,7 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
             treetop_pixel_coords, treetop_heights = self.get_treetops(image)
 
             # Compute the polygon tree crown
-            detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
+            detected_crowns_gdf, confidence_scores = get_tree_crowns(
                 image, treetop_pixel_coords, treetop_heights
             )
             batch_detections.append(
