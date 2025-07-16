@@ -659,33 +659,33 @@ class GeometricTreeCrownDetector(Detector):
         confidence_feature: str = "area",
         contour_backend: str = "cv2",
         tree_height_column: str = "height",
-        min_height: float = 5,  
+        min_height: float = 5,
         postprocessors=None,
     ):
         """Detect tree crowns for CHM data. This class requires the treetops to be detected first.
 
         Args:
-            approach (str, optional): 
+            approach (str, optional):
                 Which approach to use for tree crown computation. Choose from "watershed" or "silva".
                 Defaults to "watershed". For more details about the approaches, see the function docstrings.
-            radius_factor (float, optional): 
+            radius_factor (float, optional):
                 Factor to determine the radius of the tree crown. Defaults to 0.6.
                 Used in "silva" approach.
-            threshold_factor (float, optional): 
+            threshold_factor (float, optional):
                 Factor to determine the threshold for the binary mask. Defaults to 0.3.
                 Used in "silva" approach.
             confidence_feature (str, optional):
                 Feature to use to compute the confidence scores for the predictions.
                 Choose from "height", "area", "distance", "all". Defaults to "area".
                 Used in all approaches.
-            contour_backend (str, optional): 
+            contour_backend (str, optional):
                 The backend to use for contour extraction to generate treecrowns.
                 Choose from "cv2" and "contourpy". Used in "silva" approach.
             tree_height_column (str, optional):
                 Column name in the vector data that contains the treetop heights. Defaults to "height".
                 Used in all approaches.
-            min_height (float, optional): 
-                Only include pixels from CHM that are above this value. Defaults to 5. 
+            min_height (float, optional):
+                Only include pixels from CHM that are above this value. Defaults to 5.
                 Used in "watershed" approach.
             postprocessors (list, optional):
                 See docstring for Detector class. Defaults to None.
@@ -707,11 +707,11 @@ class GeometricTreeCrownDetector(Detector):
         image: np.ndarray,
         all_treetop_pixel_coords: List[Point],
         all_treetop_heights: List[float],
-        all_treetop_ids: Optional[List[str]] = None,      
+        all_treetop_ids: Optional[List[str]] = None,
     ) -> Tuple[gpd.GeoDataFrame, List[float]]:
         """
         Marker-Controlled Watershed Segmentation from detected treetop points. This replicates the behaviour of R function "mcws".
-        https://github.com/andrew-plowright/ForestTools/blob/master/R/mwcs.R 
+        https://github.com/andrew-plowright/ForestTools/blob/master/R/mwcs.R
 
         Args:
             image (np.ndarray): A single channel CHM image
@@ -731,19 +731,21 @@ class GeometricTreeCrownDetector(Detector):
         else:
             treetop_ids_provided = True
 
-        # Filter CHM values to only include pixels above the minimum height 
+        # Filter CHM values to only include pixels above the minimum height
         chm_masked = np.where(image >= self.min_height, image, 0)
 
         # Filter treetops that are valid (inside CHM and above height threshold)
         H, W = image.shape
         filtered = [
             (pt, uid, h)
-            for pt, uid, h in zip(all_treetop_pixel_coords, all_treetop_ids, all_treetop_heights)
+            for pt, uid, h in zip(
+                all_treetop_pixel_coords, all_treetop_ids, all_treetop_heights
+            )
             if 0 <= pt.x < W and 0 <= pt.y < H and h >= self.min_height
         ]
         if len(filtered) == 0:
             raise ValueError("No valid treetops after filtering for height.")
-        
+
         # Unpack the list of (point, ID, height) tuples into separate lists
         filtered_points, filtered_ids, filtered_heights = zip(*filtered)
 
@@ -763,8 +765,8 @@ class GeometricTreeCrownDetector(Detector):
         id_to_height = {
             int(uid): height for uid, height in zip(filtered_ids, filtered_heights)
         }
-        
-        # Convert the labeled raster into polygon geometries using rasterio's shapes(). 
+
+        # Convert the labeled raster into polygon geometries using rasterio's shapes().
         # Each contiguous region of the same label value/crown ID is extracted as a polygon
         # `val` is the ID associated with that region.
         # `mask` ensures that only non-zero crown areas are included in the output.
@@ -772,10 +774,14 @@ class GeometricTreeCrownDetector(Detector):
         for geom, val in shapes(labels.astype("int32"), mask=(labels > 0)):
             val = int(val)
             data_dict = {
-                "tree_crown": shape(geom),  # return a shapely object witht he coordinates
-                "treetop_height": id_to_height.get(val)  # get height value corresponding to the treetop ID
+                "tree_crown": shape(
+                    geom
+                ),  # return a shapely object witht he coordinates
+                "treetop_height": id_to_height.get(
+                    val
+                ),  # get height value corresponding to the treetop ID
             }
-            # Return treetop IDs only if they were separately detected 
+            # Return treetop IDs only if they were separately detected
             if treetop_ids_provided:
                 data_dict["treetop_unique_ID"] = f"{val:05d}"
             crowns.append(data_dict)
@@ -792,7 +798,6 @@ class GeometricTreeCrownDetector(Detector):
             crown_gdf,
             confidence_scores,
         )
-
 
     def get_tree_crowns_silva(
         self,
@@ -967,7 +972,9 @@ class GeometricTreeCrownDetector(Detector):
             get_tree_crowns = self.get_tree_crowns_silva
 
         else:
-            raise ValueError(f"The 'approach' value {self.approach} is invalid. Choose 'watershed' or 'silva'.")
+            raise ValueError(
+                f"The 'approach' value {self.approach} is invalid. Choose 'watershed' or 'silva'."
+            )
 
         for image, treetop, attribute in zip(
             batch["image"], batch["shapes"], batch["attributes"]
