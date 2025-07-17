@@ -773,22 +773,22 @@ class GeometricTreeCrownDetector(Detector):
 
         # Convert the labeled raster into polygon geometries using rasterio's shapes().
         # Each contiguous region of the same label value/crown ID is extracted as a polygon
-        # `val` is the ID associated with that region.
+        # `tree_id` is the ID associated with that region.
         # `mask` ensures that only non-zero crown areas are included in the output.
         crowns = []
-        for geom, val in shapes(labels.astype("int32"), mask=(labels > 0)):
-            val = int(val)
+        for geom, tree_id in shapes(labels.astype("int32"), mask=(labels > 0)):
+            tree_id = int(tree_id)
             data_dict = {
                 "tree_crown": shape(
                     geom
                 ),  # return a shapely object with the coordinates
                 "treetop_height": id_to_height.get(
-                    val
+                    tree_id
                 ),  # get height value corresponding to the treetop ID
             }
             # Return treetop IDs only if they were separately detected
             if treetop_ids_provided:
-                data_dict["treetop_unique_ID"] = f"{val:05d}"
+                data_dict["treetop_unique_ID"] = f"{tree_id:05d}"
             crowns.append(data_dict)
 
         # Create a gdf for the output
