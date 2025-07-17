@@ -744,7 +744,12 @@ class GeometricTreeCrownDetector(Detector):
             if 0 <= pt.x < W and 0 <= pt.y < H and h >= self.min_height
         ]
         if len(filtered) == 0:
-            raise ValueError("No valid treetops after filtering for height.")
+            # Tile has no treetops above threshold. Return an empty GeoDataFrame.
+            columns = ["tree_crown", "treetop_height"]
+            if treetop_ids_provided:
+                columns.append("treetop_unique_ID")
+            empty_gdf = gpd.GeoDataFrame(columns=columns, geometry="tree_crown")
+            return empty_gdf, []
 
         # Unpack the list of (point, ID, height) tuples into separate lists
         filtered_points, filtered_ids, filtered_heights = zip(*filtered)
@@ -776,7 +781,7 @@ class GeometricTreeCrownDetector(Detector):
             data_dict = {
                 "tree_crown": shape(
                     geom
-                ),  # return a shapely object witht he coordinates
+                ),  # return a shapely object with the coordinates
                 "treetop_height": id_to_height.get(
                     val
                 ),  # get height value corresponding to the treetop ID
