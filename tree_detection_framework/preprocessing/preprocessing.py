@@ -311,7 +311,7 @@ def create_intersection_dataloader(
 
     # Create an intersection dataset that combines the datasets
     # Attributes such as resolution will be taken from the first dataset
-    intersection_data = IntersectionDataset(vector_data, raster_data)
+    intersection_data = IntersectionDataset(raster_data, vector_data)
 
     # Create a sampler to generate contiguous tiles of the input dataset
     sampler = UnboundedGridGeoSampler(
