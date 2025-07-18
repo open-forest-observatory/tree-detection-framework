@@ -799,7 +799,9 @@ class GeometricTreeCrownDetector(Detector):
         # Create a gdf for the output
         crown_gdf = gpd.GeoDataFrame(crowns, geometry="tree_crown")
         # Simplify by tolerance value to get smoother crown polygons
-        crown_gdf["tree_crown"] = crown_gdf["tree_crown"].simplify(tolerance=self.simplify_tolerance, preserve_topology=True)
+        crown_gdf["tree_crown"] = crown_gdf["tree_crown"].simplify(
+            tolerance=self.simplify_tolerance, preserve_topology=True
+        )
 
         # Calculate pseudo-confidence scores for the detections
         confidence_scores = calculate_scores(
