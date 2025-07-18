@@ -12,6 +12,7 @@ import shapely
 import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
+from rasterio.features import rasterize, shapes
 from scipy.ndimage import maximum_filter
 from shapely import affinity
 from shapely.geometry import (
@@ -21,8 +22,10 @@ from shapely.geometry import (
     Point,
     Polygon,
     box,
+    shape,
 )
 from shapely.geometry.base import BaseGeometry
+from skimage.segmentation import watershed
 from torch.utils.data import DataLoader
 from torchgeo.datasets import IntersectionDataset
 from tqdm import tqdm
@@ -650,44 +653,174 @@ class GeometricTreeCrownDetector(Detector):
 
     def __init__(
         self,
+        approach: str = "watershed",
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
         confidence_feature: str = "area",
         contour_backend: str = "cv2",
         tree_height_column: str = "height",
+        min_height: float = 5,
+        simplify_tolerance: float = 2.0,
         postprocessors=None,
     ):
-        """Detect tree crowns for CHM data, implementing algorithm described by Silva et al. (2016) for crown segmentation.
-         This class requires the treetops to be detected first.
+        """Detect tree crowns for CHM data. This class requires the treetops to be detected first.
 
         Args:
-            radius_factor (float, optional): Factor to determine the radius of the tree crown. Defaults to 0.6.
-            threshold_factor (float, optional): Factor to determine the threshold for the binary mask. Defaults to 0.3.
-            confidence_feature (str, optional): Feature to use to compute the confidence scores for the predictions.
+            approach (str, optional):
+                Which approach to use for tree crown computation. Choose from "watershed" or "silva".
+                Defaults to "watershed". For more details about the approaches, see the function docstrings.
+            radius_factor (float, optional):
+                Factor to determine the radius of the tree crown. Defaults to 0.6.
+                Used in "silva" approach.
+            threshold_factor (float, optional):
+                Factor to determine the threshold for the binary mask. Defaults to 0.3.
+                Used in "silva" approach.
+            confidence_feature (str, optional):
+                Feature to use to compute the confidence scores for the predictions.
                 Choose from "height", "area", "distance", "all". Defaults to "area".
-            contour_backend (str, optional): The backend to use for contour extraction to generate treecrowns.
-                Choose from "cv2" and "contourpy".
+                Used in all approaches.
+            contour_backend (str, optional):
+                The backend to use for contour extraction to generate treecrowns.
+                Choose from "cv2" and "contourpy". Used in "silva" approach.
             tree_height_column (str, optional):
                 Column name in the vector data that contains the treetop heights. Defaults to "height".
+                Used in all approaches.
+            min_height (float, optional):
+                Only include pixels from CHM that are above this value. Defaults to 5.
+                Used in "watershed" approach.
+            simplify_tolerance (float, optional):
+                Simplify tree crown polygons by this tolerance value. Units is in pixels.
+                Defaults to 2. Used in "watershed" approach.
             postprocessors (list, optional):
                 See docstring for Detector class. Defaults to None.
 
         """
         super().__init__(postprocessors=postprocessors)
+        self.approach = approach
         self.radius_factor = radius_factor
         self.threshold_factor = threshold_factor
         self.confidence_feature = confidence_feature
         self.backend = contour_backend
         self.tree_height_column = tree_height_column
+        self.min_height = min_height
+        self.simplify_tolerance = simplify_tolerance
 
-    def get_tree_crowns(
+        logging.info(f"Using {self.approach} approach to compute the tree crowns.")
+
+    def get_tree_crowns_watershed(
         self,
         image: np.ndarray,
         all_treetop_pixel_coords: List[Point],
         all_treetop_heights: List[float],
         all_treetop_ids: Optional[List[str]] = None,
     ) -> Tuple[gpd.GeoDataFrame, List[float]]:
-        """Generate tree crowns for an image.
+        """
+        Marker-Controlled Watershed Segmentation from detected treetop points. This replicates the behaviour of R function "mcws".
+        https://github.com/andrew-plowright/ForestTools/blob/master/R/mwcs.R
+
+        Args:
+            image (np.ndarray): A single channel CHM image
+            all_treetop_pixel_coords (List[Point]): A list with all detected treetop coordinates in pixel units
+            all_treetop_heights (List[float]): A list with treetop heights in the same sequence as the coordinates
+            all_treetop_ids: (List[str]) : Detected treetop IDs. Defaults to None
+            min_height: (float) : Minimum CHM threshold to keep
+
+        Returns:
+            (GeoDataFrame, List[float]): GeoDataFrame containing crowns, treetops, tree heights and a list with confidence scores
+        """
+
+        # Generate default treetop IDs if none provided
+        if all_treetop_ids is None:
+            treetop_ids_provided = False
+            all_treetop_ids = [f"{i:05d}" for i in range(len(all_treetop_pixel_coords))]
+        else:
+            treetop_ids_provided = True
+
+        # Filter CHM values to only include pixels above the minimum height
+        chm_masked = np.where(image >= self.min_height, image, 0)
+
+        # Filter treetops that are valid (inside CHM and above height threshold)
+        H, W = image.shape
+        filtered = [
+            (pt, uid, h)
+            for pt, uid, h in zip(
+                all_treetop_pixel_coords, all_treetop_ids, all_treetop_heights
+            )
+            if 0 <= pt.x < W and 0 <= pt.y < H and h >= self.min_height
+        ]
+        if len(filtered) == 0:
+            # Tile has no treetops above threshold. Return an empty GeoDataFrame.
+            columns = ["tree_crown", "treetop_height"]
+            if treetop_ids_provided:
+                columns.append("treetop_unique_ID")
+            empty_gdf = gpd.GeoDataFrame(columns=columns, geometry="tree_crown")
+            return empty_gdf, []
+
+        # Unpack the list of (point, ID, height) tuples into separate lists
+        filtered_points, filtered_ids, filtered_heights = zip(*filtered)
+
+        # Rasterize treetops as markers
+        markers = rasterize(
+            # Convert uid to int since it's a string with 0 padded values
+            [(pt, int(uid)) for pt, uid in zip(filtered_points, filtered_ids)],
+            out_shape=image.shape,
+        )
+
+        # Invert the CHM so that high points (tree tops) become basins for watershed
+        elevation = -1 * chm_masked
+        # Perform watershed segmentation with treetop markers
+        labels = watershed(elevation, markers=markers, mask=chm_masked > 0)
+
+        # Create a mapping of treetop IDs and heights
+        id_to_height = {
+            int(uid): height for uid, height in zip(filtered_ids, filtered_heights)
+        }
+
+        # Convert the labeled raster into polygon geometries using rasterio's shapes().
+        # Each contiguous region of the same label value/crown ID is extracted as a polygon
+        # `tree_id` is the ID associated with that region.
+        # `mask` ensures that only non-zero crown areas are included in the output.
+        crowns = []
+        for geom, tree_id in shapes(labels.astype("int32"), mask=(labels > 0)):
+            tree_id = int(tree_id)
+            data_dict = {
+                "tree_crown": shape(
+                    geom
+                ),  # return a shapely object with the coordinates
+                "treetop_height": id_to_height.get(
+                    tree_id
+                ),  # get height value corresponding to the treetop ID
+            }
+            # Return treetop IDs only if they were separately detected
+            if treetop_ids_provided:
+                data_dict["treetop_unique_ID"] = f"{tree_id:05d}"
+            crowns.append(data_dict)
+
+        # Create a gdf for the output
+        crown_gdf = gpd.GeoDataFrame(crowns, geometry="tree_crown")
+        # Simplify by tolerance value to get smoother crown polygons
+        crown_gdf["tree_crown"] = crown_gdf["tree_crown"].simplify(
+            tolerance=self.simplify_tolerance, preserve_topology=True
+        )
+
+        # Calculate pseudo-confidence scores for the detections
+        confidence_scores = calculate_scores(
+            "tree_crown", self.confidence_feature, crown_gdf, image.shape
+        )
+
+        return (
+            crown_gdf,
+            confidence_scores,
+        )
+
+    def get_tree_crowns_silva(
+        self,
+        image: np.ndarray,
+        all_treetop_pixel_coords: List[Point],
+        all_treetop_heights: List[float],
+        all_treetop_ids: Optional[List[str]] = None,
+    ) -> Tuple[gpd.GeoDataFrame, List[float]]:
+        """Generate tree crowns by implementing algorithm described by Silva et al. (2016) for crown segmentation.
 
         Args:
             image (np.ndarray): A single channel CHM image
@@ -845,6 +978,18 @@ class GeometricTreeCrownDetector(Detector):
         batch_detections = []
         batch_detections_data = []
 
+        # Get the tree crown generation method that corresponds to the approach
+        if self.approach == "watershed":
+            get_tree_crowns = self.get_tree_crowns_watershed
+
+        elif self.approach == "silva":
+            get_tree_crowns = self.get_tree_crowns_silva
+
+        else:
+            raise ValueError(
+                f"The 'approach' value {self.approach} is invalid. Choose 'watershed' or 'silva'."
+            )
+
         for image, treetop, attribute in zip(
             batch["image"], batch["shapes"], batch["attributes"]
         ):
@@ -863,11 +1008,11 @@ class GeometricTreeCrownDetector(Detector):
 
             # Compute the polygon tree crown
             if "unique_ID" in attribute:
-                detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
+                detected_crowns_gdf, confidence_scores = get_tree_crowns(
                     image, treetop_pixel_coords, treetop_heights, attribute["unique_ID"]
                 )
             else:
-                detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
+                detected_crowns_gdf, confidence_scores = get_tree_crowns(
                     image,
                     treetop_pixel_coords,
                     treetop_heights,
@@ -899,16 +1044,19 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
         b: float = 0,
         c: float = 2.52503,
         min_ht: int = 5,
+        approach: str = "watershed",
         radius_factor: float = 0.6,
         threshold_factor: float = 0.3,
         confidence_feature: str = "height",
         filter_shape: str = "circle",
         contour_backend: str = "cv2",
+        tree_height_column: str = "height",
+        simplify_tolerance: float = 2.0,
         postprocessors=None,
     ):
         """Learning-free algorithm to detect tree crowns using CHM data. This first detects the treetops
-        using the algorithm of Popescu and Wynne (2004) and then uses the Silva et al. (2016) algorithm to
-        compute the tree crowns. Refer docstring of `GeometricTreeTopDetector` and `GeometricTreeCrownDetector`
+        using the algorithm of Popescu and Wynne (2004) and then uses either Watershed method or the Silva et al. (2016)
+        algorithm to compute the tree crowns. Refer docstring of `GeometricTreeTopDetector` and `GeometricTreeCrownDetector`
         for details about the args."""
         GeometricTreeTopDetector.__init__(
             self,
@@ -920,10 +1068,14 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
         )
         GeometricTreeCrownDetector.__init__(
             self,
+            approach=approach,
             radius_factor=radius_factor,
             threshold_factor=threshold_factor,
             confidence_feature=confidence_feature,
             contour_backend=contour_backend,
+            tree_height_column=tree_height_column,
+            min_height=min_ht,
+            simplify_tolerance=simplify_tolerance,
             postprocessors=postprocessors,
         )
 
@@ -941,6 +1093,13 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
                 Any additional attributes that are predicted (such as class or confidence). Must
                 be formatted in a way that can be passed to gpd.GeoPandas data argument.
         """
+        # Get the tree crown generation method that corresponds to the approach
+        if self.approach == "watershed":
+            get_tree_crowns = self.get_tree_crowns_watershed
+
+        elif self.approach == "silva":
+            get_tree_crowns = self.get_tree_crowns_silva
+
         # List to store every image's detections
         batch_detections = []
         batch_detections_data = []
@@ -953,7 +1112,7 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
             treetop_pixel_coords, treetop_heights = self.get_treetops(image)
 
             # Compute the polygon tree crown
-            detected_crowns_gdf, confidence_scores = self.get_tree_crowns(
+            detected_crowns_gdf, confidence_scores = get_tree_crowns(
                 image, treetop_pixel_coords, treetop_heights
             )
             batch_detections.append(
