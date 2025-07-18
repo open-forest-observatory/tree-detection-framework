@@ -660,6 +660,7 @@ class GeometricTreeCrownDetector(Detector):
         contour_backend: str = "cv2",
         tree_height_column: str = "height",
         min_height: float = 5,
+        simplify_tolerance: float = 2.0,
         postprocessors=None,
     ):
         """Detect tree crowns for CHM data. This class requires the treetops to be detected first.
@@ -687,6 +688,9 @@ class GeometricTreeCrownDetector(Detector):
             min_height (float, optional):
                 Only include pixels from CHM that are above this value. Defaults to 5.
                 Used in "watershed" approach.
+            simplify_tolerance (float, optional):
+                Simplify tree crown polygons by this tolerance value. Units is in pixels.
+                Defaults to 2. Used in "watershed" approach.
             postprocessors (list, optional):
                 See docstring for Detector class. Defaults to None.
 
@@ -699,6 +703,7 @@ class GeometricTreeCrownDetector(Detector):
         self.backend = contour_backend
         self.tree_height_column = tree_height_column
         self.min_height = min_height
+        self.simplify_tolerance = simplify_tolerance
 
         logging.info(f"Using {self.approach} approach to compute the tree crowns.")
 
@@ -793,6 +798,8 @@ class GeometricTreeCrownDetector(Detector):
 
         # Create a gdf for the output
         crown_gdf = gpd.GeoDataFrame(crowns, geometry="tree_crown")
+        # Simplify by tolerance value to get smoother crown polygons
+        crown_gdf["tree_crown"] = crown_gdf["tree_crown"].simplify(tolerance=self.simplify_tolerance, preserve_topology=True)
 
         # Calculate pseudo-confidence scores for the detections
         confidence_scores = calculate_scores(
@@ -1042,6 +1049,7 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
         filter_shape: str = "circle",
         contour_backend: str = "cv2",
         tree_height_column: str = "height",
+        simplify_tolerance: float = 2.0,
         postprocessors=None,
     ):
         """Learning-free algorithm to detect tree crowns using CHM data. This first detects the treetops
@@ -1065,6 +1073,7 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
             contour_backend=contour_backend,
             tree_height_column=tree_height_column,
             min_height=min_ht,
+            simplify_tolerance=simplify_tolerance,
             postprocessors=postprocessors,
         )
 
