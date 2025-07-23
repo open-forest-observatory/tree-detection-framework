@@ -12,6 +12,7 @@ from tree_detection_framework.preprocessing.derived_geodatasets import (
 
 
 def create_image(path: Path, size=(100, 100), color="blue"):
+    # Note that size is in (x, y) = (width, height)
     img = Image.new("RGB", size, color=color)
     img.save(path)
     return path
@@ -94,9 +95,15 @@ class TestCustomImageDataset:
             assert isinstance(chip["image"], torch.Tensor)
             # And existence of certain fields
             assert "metadata" in chip
-            assert "bounds" in chip
             assert "annotations" not in chip["metadata"]
             assert chip["crs"] is None
+            # Check that the chip and image bounds are consistent
+            for exp_x, exp_y, bounds in (
+                (32, 32, chip["bounds"]),
+                (128, 64, chip["metadata"]["image_bounds"]),
+            ):
+                assert np.isclose(bounds.maxx - bounds.minx, exp_x)
+                assert np.isclose(bounds.maxy - bounds.miny, exp_y)
 
         assert count == {"red": 8, "blue": 8}
 

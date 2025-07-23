@@ -200,7 +200,7 @@ class CustomImageDataset(Dataset):
         images_dir: Union[PATH_TYPE, List[PATH_TYPE]],
         chip_size: int,
         chip_stride: int,
-        labels_dir: Optional[List[str]] = None,
+        labels_dir: Optional[List[PATH_TYPE]] = None,
     ):
         """
         Dataset for creating a dataloader from a folder of individual images, with an option to create tiles.
@@ -217,34 +217,34 @@ class CustomImageDataset(Dataset):
                             [images]
             chip_size (int): Dimension of each image chip (width, height) in pixels.
             chip_stride (int): Stride to take while chipping the images (horizontal, vertical) in pixels.
-            labels_dir (Optional[List[str]]): List of paths to annotation .geojson files corresponding to the images.
+            labels_dir (Optional[List[PATH_TYPE]]): List of paths to annotation .geojson files corresponding to the images.
                 Should have same file name as the image.
         """
         self.chip_size = chip_size
         self.chip_stride = chip_stride
 
         if not isinstance(images_dir, list):
-            self.images_dir = Path(images_dir)
+            self.images_root_dir = Path(images_dir)
             # Get a list of all image paths
             image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]
             self.image_paths = sorted(
                 [
                     path
-                    for path in self.images_dir.glob("**/*")
+                    for path in self.images_root_dir.glob("**/*")
                     if path.suffix.lower() in image_extensions
                 ]
             )
 
             if len(self.image_paths) == 0:
-                raise ValueError(f"No image files found in {self.images_dir}")
+                raise ValueError(f"No image files found in {self.images_root_dir}")
         else:
             # Save this input as the list of image paths we want to iterate over
             self.image_paths = images_dir
             # Calculate the root of the images
-            self.images_dir = Path(os.path.commonpath(self.image_paths))
+            self.images_root_dir = Path(os.path.commonpath(self.image_paths))
 
         self.labels_paths = labels_dir
-        self.tile_metadata = self._get_metadata(image_root=self.images_dir)
+        self.tile_metadata = self._get_metadata(image_root=self.images_root_dir)
 
     def _get_metadata(self, image_root: PATH_TYPE):
         """
@@ -329,8 +329,8 @@ class CustomImageDataset(Dataset):
                 "image_bounds": bounding_box(
                     0,
                     float(img.width),
-                    float(img.height),
                     0,
+                    float(img.height),
                 ),
             }
             if self.labels_paths is not None:
@@ -343,8 +343,8 @@ class CustomImageDataset(Dataset):
                 "bounds": bounding_box(
                     float(x),
                     float(x + self.chip_size),
-                    float(y + self.chip_size),
                     float(y),
+                    float(y + self.chip_size),
                 ),
                 "crs": None,
             }
