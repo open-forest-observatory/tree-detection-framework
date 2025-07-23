@@ -29,7 +29,8 @@ def parse_args():
         "image_dir",
         type=Path,
         help="Directory containing raw images, or nested subdirectories with raw"
-        " images in them. Will read all images recusively from this directory.")
+        " images in them. Will read all images recusively from this directory.",
+    )
     parser.add_argument(
         "out_dir",
         type=Path,
