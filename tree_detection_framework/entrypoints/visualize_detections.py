@@ -7,6 +7,9 @@ from rasterio.errors import NotGeoreferencedWarning
 from tqdm import tqdm
 
 from tree_detection_framework.detection.region_detections import RegionDetections
+from tree_detection_framework.postprocessing.postprocessing import (
+    remove_edge_detections,
+)
 
 # We know we don't care about these warnings from rasterio
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)

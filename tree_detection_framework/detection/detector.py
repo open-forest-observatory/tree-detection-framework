@@ -249,7 +249,7 @@ class Detector:
         # Create a RegionDetectionsSet for each group
         region_detections_sets = []
         keys = []
-        for key, group in groups:
+        for key, group in tqdm(groups, "Building region detection sets"):
             region_detections_sets.append(RegionDetectionsSet([i[0] for i in group]))
             keys.append(key)  # source image names
 

@@ -4,6 +4,7 @@ import warnings
 from pathlib import Path
 
 import torch
+from tqdm import tqdm
 
 from tree_detection_framework.detection.detector import (
     DeepForestDetector,
@@ -13,6 +14,7 @@ from tree_detection_framework.detection.models import DeepForestModule, Detectre
 from tree_detection_framework.detection.SAM2_detector import SAMV2Detector
 from tree_detection_framework.postprocessing.postprocessing import (
     multi_region_NMS,
+    remove_edge_detections,
     remove_out_of_bounds_detections,
 )
 from tree_detection_framework.preprocessing.preprocessing import create_image_dataloader
@@ -59,6 +61,11 @@ def parse_args():
         default=1.0,
         help="Downsample factor for input images (default: 1.0, no downsampling).",
     )
+    parser.add_argument(
+        "--filter-edges",
+        action="store_true",
+        help="If set, filter detections at the edges of tiles.",
+    )
     args = parser.parse_args()
 
     assert args.image_dir.is_dir(), f"image_dir {args.image_dir} is not a directory"
@@ -80,6 +87,7 @@ def main(
     chip_stride: int,
     batch_size: int,
     downsample_factor: float,
+    filter_edges: bool,
 ) -> None:
     """
     Detect trees in raw images using a specified model and save detection results.
@@ -94,11 +102,13 @@ def main(
         batch_size (int): Batch size for inference.
         downsample_factor (float): Downsample factor for input images. 1.0 means no downsampling;
             values >1.0 reduce image size by this factor. Default is 1.0.
+        filter_edges (bool): If True, filter detections at the edges of tiles.
 
     Raises:
         ValueError: If an unknown model_key is provided.
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cpu"
     print(f"Detecting on device: {device}")
 
     # Create dataloader for raw images
@@ -133,9 +143,24 @@ def main(
     detection_sets, files, bounds = detector.predict_raw_drone_images(dataloader)
 
     # For each image, remove detections that extend past the image bounds
-    filtered_sets = remove_out_of_bounds_detections(detection_sets, bounds)
-    # For each image, suppress overlapping detections
-    filtered_sets = [multi_region_NMS(rds) for rds in filtered_sets]
+    filtered_sets = remove_out_of_bounds_detections(
+        detection_sets, bounds, verbose=True
+    )
+    # If requested, remove detections that get too close to the tile boundaries
+    if filter_edges:
+        filtered_sets = [
+            remove_edge_detections(
+                rds,
+                suppression_distance=chip_size / 20,
+                verbose=True,
+            )
+            for rds in tqdm(filtered_sets, desc="Removing edge detections")
+        ]
+    # For each image, suppress overlapping detections. Note that this collapses the
+    # list of RegionDetectionsSet into a list of RegionDetections
+    filtered_sets = [
+        multi_region_NMS(rd) for rd in tqdm(filtered_sets, desc="Multi region NMS")
+    ]
 
     # Save results for each image
     for rds, file in zip(filtered_sets, files):
@@ -155,4 +180,5 @@ if __name__ == "__main__":
         chip_stride=args.chip_stride,
         batch_size=args.batch_size,
         downsample_factor=args.downsample_factor,
+        filter_edges=args.filter_edges,
     )

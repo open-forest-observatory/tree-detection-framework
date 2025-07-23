@@ -8,6 +8,7 @@ from polygone_nms import nms
 from shapely import box
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
+from tqdm import tqdm
 
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
@@ -420,7 +421,9 @@ def suppress_tile_boundary_with_NMS(
 
 
 def remove_out_of_bounds_detections(
-    region_detection_sets: List[RegionDetectionsSet], image_bounds: List
+    region_detection_sets: List[RegionDetectionsSet],
+    image_bounds: List,
+    verbose: bool = False,
 ) -> List[RegionDetectionsSet]:
     """
     Filters out detections that are outside the bounds of a defined region.
@@ -433,6 +436,8 @@ def remove_out_of_bounds_detections(
         image_bounds (List[bounding_box]):
             Each element is a `bounding_box` object derived from the dataloader.
             Length: number of regions in a set * number of RegionDetectionSet objects
+        verbose (bool, optional):
+            If True, displays a progress bar while removing out-of-bounds detections.
 
     Returns:
         List of RegiondetectionSet objects with out-of-bounds predictions filtered out.
@@ -441,7 +446,12 @@ def remove_out_of_bounds_detections(
     region_idx = 0  # To index elements in true_bounds
     list_of_filtered_region_sets = []
 
-    for rds in region_detection_sets:
+    if verbose:
+        iterator = tqdm(region_detection_sets, desc="Removing OOB detections")
+    else:
+        iterator = region_detection_sets
+
+    for rds in iterator:
 
         # Find the number of regions in every set
         num_of_regions_in_a_set = len(rds.get_data_frame())
@@ -491,6 +501,7 @@ def remove_edge_detections(
     detections: RegionDetectionsSet,
     suppression_distance: float,
     retain_method: str = "within",
+    verbose: bool = False,
 ) -> RegionDetectionsSet:
     """Remove detections at the edges of tiles
 
@@ -504,12 +515,19 @@ def remove_edge_detections(
             interior region, "intersects" keeps any that touch the interior region, and "clip" clips
             detections on the boundary so only the portion within the interior is retained. Defaults
             to "within".
+        verbose (bool, optional):
+            If True, displays a progress bar while removing edge detections. Defaults to False.
 
     Returns:
         RegionDetectionsSet: Updated detections
     """
+    if verbose:
+        iterator = tqdm(detections.region_detections, desc="Removing edge detections")
+    else:
+        iterator = detections.region_detections
+
     updated_rd_list = []
-    for rd in detections.region_detections:
+    for rd in iterator:
         # Compute the buffered bounds for this region
         buffered_bounds = rd.get_bounds().buffer(-suppression_distance)
 
