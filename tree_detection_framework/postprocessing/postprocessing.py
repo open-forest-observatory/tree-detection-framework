@@ -1,14 +1,19 @@
 import logging
+from pathlib import Path
 from typing import List, Optional, Union
 
+from affine import Affine
 import geopandas as gpd
 import numpy as np
 from geopandas import GeoDataFrame
+from PIL import Image
 from polygone_nms import nms
+import rasterstats
 from shapely import box
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
 
+from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
@@ -542,3 +547,92 @@ def remove_edge_detections(
     # Create a new RDS
     updated_rds = RegionDetectionsSet(updated_rd_list)
     return updated_rds
+
+
+def remove_masked_detections(
+    region_detection_sets: List[RegionDetectionsSet],
+    image_root: PATH_TYPE,
+    image_paths: List[PATH_TYPE],
+    valid_classes: List[int],
+    mask_root: PATH_TYPE,
+    mask_extension: str = ".png",
+    threshold: float = 0.4,
+) -> List[RegionDetectionsSet]:
+    """
+    Filters out detections that marked as invalid in the given mask images.
+    One example use case is that mask images could be rastered where the
+    certain pixels are marked as "ground" vs. "above ground". Then detections
+    that mostly overlap with the "ground" mask could be removed.
+
+    Args:
+        region_detection_sets (List[RegionDetectionSet]):
+            Each element is a RegionDetectionsSet derived from a specific drone image.
+            Length is the number of raw drone images given to  the dataloader.
+            image_root (PATH_TYPE)
+            image_paths (List[PATH_TYPE])
+            valid_classes (List[int])
+            mask_root (PATH_TYPE)
+            mask_extension (str)
+                Defaults to ".png".
+            threshold (float)
+                Defaults to 0.4.
+
+    Returns:
+        List of RegiondetectionSet objects with masked predictions filtered out.
+    """
+
+    filtered_sets = []
+
+    # Iterate over [0] the path to a specific image and [2] the
+    # RegionDetectionsSet of detections in that image
+    for im_path, rds in zip(image_paths, region_detection_sets):
+
+        # Assuming the mask path relative to the mask root matches the
+        # image path relative to the image root, open the mask file
+        subpath = Path(im_path).relative_to(image_root)
+        mask_path = (mask_root / subpath).with_suffix(mask_extension)
+
+        # Calculate a mask which is 1 where the data is valid, a.k.a.
+        # in the parts of the image we think could contain good detections.
+        # Open the image as grayscale
+        mask_img = Image.open(mask_path).convert("L")
+        # Make the mask integer so that we can do math on the detections.
+        # For example, if a detection is 50+% valid, the mean value within
+        # the polygon will be 0.5+ because the mask is in numbers.
+        mask = np.isin(mask_img, valid_classes).astype(int)
+
+        # Define a transformation from the image space ([0, 0] at the top left,
+        # y increases going down) to rasterstats ([0, 0] at the bottom left,
+        # y increases going up)
+        # transform = Affine.identity()
+        transform = Affine.translation(0, mask.shape[0]) * Affine.scale(1, -1)
+
+        # To save filtered region detections in a particular set
+        filtered_regions = []
+
+        # Iterate over the region detections, which is equivalent to iterating
+        # over the chips that detections were calculated in
+        for idx in range(len(rds.region_detections)):
+            rd = rds.get_region_detections(idx)
+            gdf = rd.get_data_frame()
+
+            # Get the mean value of each detection polygon, as a list of
+            # [{"mean": <value>}, ...]
+            stats = rasterstats.zonal_stats(
+                gdf,
+                mask.astype(int),
+                stats=["mean"],
+                affine=transform,
+            )
+
+            # Get indices that have a greater fraction of good pixels than the
+            # threshold requires.
+            good_indices = [i for i, stat in enumerate(stats) if stat["mean"] > threshold]
+
+            # Subset the RegionDetections object keeping only the valid indices
+            filtered_rd = rd.subset_detections(good_indices)
+            filtered_regions.append(filtered_rd)
+
+        filtered_sets.append(RegionDetectionsSet(filtered_regions))
+
+    return filtered_sets
