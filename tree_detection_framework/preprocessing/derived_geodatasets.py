@@ -34,6 +34,9 @@ logging.basicConfig(
 )
 
 # Define a namedtuple to store bounds of tiles images from the `CustomImageDataset`
+# Note that the y min bounds are reversed from the expected convention. This is because they are
+# measured in pixel coordinates, which start at the top and go down. So this convention matches
+# how the geospatial bounding box is represented.
 bounding_box = namedtuple("bounding_box", ["minx", "maxx", "miny", "maxy"])
 
 
@@ -329,8 +332,8 @@ class CustomImageDataset(Dataset):
                 "image_bounds": bounding_box(
                     0,
                     float(img.width),
-                    0,
                     float(img.height),
+                    0,
                 ),
             }
             if self.labels_paths is not None:
@@ -343,8 +346,8 @@ class CustomImageDataset(Dataset):
                 "bounds": bounding_box(
                     float(x),
                     float(x + self.chip_size),
-                    float(y),
                     float(y + self.chip_size),
+                    float(y),
                 ),
                 "crs": None,
             }

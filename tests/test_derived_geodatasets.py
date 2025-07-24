@@ -102,8 +102,10 @@ class TestCustomImageDataset:
                 (32, 32, chip["bounds"]),
                 (128, 64, chip["metadata"]["image_bounds"]),
             ):
+                # See explanatory comments on derived_geodatasets.bounding_box on why
+                # we are doing miny - maxy
                 assert np.isclose(bounds.maxx - bounds.minx, exp_x)
-                assert np.isclose(bounds.maxy - bounds.miny, exp_y)
+                assert np.isclose(bounds.miny - bounds.maxy, exp_y)
 
         assert count == {"red": 8, "blue": 8}
 
