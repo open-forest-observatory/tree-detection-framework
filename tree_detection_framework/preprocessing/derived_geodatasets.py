@@ -1,4 +1,5 @@
 import logging
+import os.path
 import tempfile
 from collections import defaultdict, namedtuple
 from pathlib import Path
@@ -33,6 +34,9 @@ logging.basicConfig(
 )
 
 # Define a namedtuple to store bounds of tiles images from the `CustomImageDataset`
+# Note that the y min bounds are reversed from the expected convention. This is because they are
+# measured in pixel coordinates, which start at the top and go down. So this convention matches
+# how the geospatial bounding box is represented.
 bounding_box = namedtuple("bounding_box", ["minx", "maxx", "miny", "maxy"])
 
 
@@ -196,59 +200,87 @@ class CustomVectorDataset(VectorDataset):
 class CustomImageDataset(Dataset):
     def __init__(
         self,
-        images_dir: Union[PATH_TYPE, List[str]],
+        images_dir: Union[PATH_TYPE, List[PATH_TYPE]],
         chip_size: int,
         chip_stride: int,
-        labels_dir: Optional[List[str]] = None,
+        labels_dir: Optional[List[PATH_TYPE]] = None,
     ):
         """
         Dataset for creating a dataloader from a folder of individual images, with an option to create tiles.
 
         Args:
-            images_dir (Union[Path, List[str]]): Path to the folder containing image files, or list of paths to image files.
+            images_dir (Union[Path, List[PATH_TYPE]]): Path to a folder containing potentially nested
+                image files, or list of paths to image files. By 'nested' image files, that means that
+                images could reside in arbitrarily nested subdirectories and this dataset should iterate
+                over all of them. E.g.
+                    images_dir/
+                        subdir1/
+                            [images]
+                        subdir2/
+                            [images]
             chip_size (int): Dimension of each image chip (width, height) in pixels.
             chip_stride (int): Stride to take while chipping the images (horizontal, vertical) in pixels.
-            labels_dir (Optional[List[str]]): List of paths to annotation .geojson files corresponding to the images.
+            labels_dir (Optional[List[PATH_TYPE]]): List of paths to annotation .geojson files corresponding to the images.
                 Should have same file name as the image.
         """
         self.chip_size = chip_size
         self.chip_stride = chip_stride
 
         if not isinstance(images_dir, list):
-            self.images_dir = Path(images_dir)
+            self.images_root_dir = Path(images_dir)
             # Get a list of all image paths
             image_extensions = [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]
             self.image_paths = sorted(
                 [
                     path
-                    for path in self.images_dir.glob("*")
+                    for path in self.images_root_dir.glob("**/*")
                     if path.suffix.lower() in image_extensions
                 ]
             )
 
             if len(self.image_paths) == 0:
-                raise ValueError(f"No image files found in {self.images_dir}")
+                raise ValueError(f"No image files found in {self.images_root_dir}")
         else:
+            # Save this input as the list of image paths we want to iterate over
             self.image_paths = images_dir
+            # Calculate the root of the images
+            self.images_root_dir = Path(os.path.commonpath(self.image_paths))
 
         self.labels_paths = labels_dir
-        self.tile_metadata = self._get_metadata()
+        self.tile_metadata = self._get_metadata(image_root=self.images_root_dir)
 
-    def _get_metadata(self):
+    def _get_metadata(self, image_root: PATH_TYPE):
+        """
+        Create a metadata entry for each image. If label paths are provided, check that
+        each maps to an image and include it in the entry.
+
+        Arguments:
+            image_root (PATH_TYPE): Should be the root directory where all images
+                are nested under. We assert that the labels files should have
+                a similar root, and the labels structure beneath that root should
+                match that of the images.
+        """
+
+        # Prepare some necessary structures if labels are provided
+        if self.labels_paths is not None:
+            label_root = Path(os.path.commonpath(self.labels_paths))
+            label_pathset = set([str(path) for path in self.labels_paths])
+
         metadata = []
         for img_path in self.image_paths:
-            # Ensure the label path corresponds to the same file name as the image
+
+            # If label paths were given, ensure the paths corresponds to the same
+            # nested path as each image
             label_path = None
-            if self.labels_paths:
+            if self.labels_paths is not None:
                 # Match the label file by replacing the image extension with `.geojson`
-                expected_label_name = img_path.stem + ".geojson"
-                matching_labels = filter(
-                    lambda label: Path(label).name == expected_label_name,
-                    self.labels_paths,
-                )
-                label_path = next(matching_labels, None)
-                if label_path is None:
-                    raise ValueError(f"Label file not found for image: {img_path}")
+                # and mimicking the directory structure
+                subpath = Path(img_path).relative_to(image_root)
+                label_path = (label_root / subpath).with_suffix(".geojson")
+                if str(label_path) not in label_pathset:
+                    raise ValueError(
+                        f"Label file [{label_path}] not found for image: [{img_path}]"
+                    )
 
             tile_idx = 0  # A unique tile index value within this image, resets for every new image
             with Image.open(img_path) as img:
@@ -260,6 +292,7 @@ class CustomImageDataset(Dataset):
                         # Add metadata for the current tile
                         metadata.append((tile_idx, img_path, label_path, x, y))
                         tile_idx += 1
+
         return metadata
 
     def __len__(self):

@@ -25,12 +25,18 @@ def parse_args():
         description="Detect trees in raw images using a specified model.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("image_dir", type=Path, help="Directory containing raw images.")
+    parser.add_argument(
+        "image_dir",
+        type=Path,
+        help="Directory containing raw images, or nested subdirectories with raw"
+        " images in them. Will read all images recusively from this directory.",
+    )
     parser.add_argument(
         "out_dir",
         type=Path,
         help="Directory to save detection results. Will be created if it does"
-        " not already exist.",
+        " not already exist. The subdirectory structure of image_dir will be"
+        " mirrored, if there is any.",
     )
     parser.add_argument(
         "model_key", type=str, choices=MODEL_KEYS, help=f"Model to use: {MODEL_KEYS}"
@@ -78,8 +84,11 @@ def main(
     Detect trees in raw images using a specified model and save detection results.
 
     Args:
-        image_dir (Path): Directory containing raw images.
-        out_dir (Path): Directory to save detection results. Will be created if it does not already exist.
+        image_dir (Path): Directory containing raw images, or nested subdirectories with raw
+            images in them. Will read all images recusively from this directory.
+        out_dir (Path): Directory to save detection results. Will be created if it does
+            not already exist. The subdirectory structure of image_dir will be mirrored,
+            if there is any.
         model_key (str): Model to use for detection.
         detectree_checkpoints (Path or None): Path to detectree2 checkpoints. Required if model_key is 'detectree2'.
         chip_size (int): Chip size for tiling images.
@@ -127,9 +136,15 @@ def main(
     # For each image, suppress overlapping detections
     filtered_sets = [multi_region_NMS(rds) for rds in filtered_sets]
 
-    # Save results for each image
+    # Save results for each image. We want to replicate the nested subdirectory
+    # structure of the input images
     for rds, file in zip(filtered_sets, files):
-        out_path = out_dir / (Path(file).stem + ".gpkg")
+        # Get the potentially nested path from the root image directory
+        relative_image_path = Path(file).relative_to(image_dir)
+        # Rebuild that same subdirectory structure in the output folder
+        out_path = out_dir / relative_image_path.with_suffix(".gpkg")
+        # Make sure the subdirectory exists and save
+        out_path.parent.mkdir(exist_ok=True, parents=True)
         rds.save(out_path)
     print(f"Detection regions saved to {out_dir}")
 
