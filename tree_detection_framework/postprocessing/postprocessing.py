@@ -627,7 +627,9 @@ def remove_masked_detections(
 
             # Get indices that have a greater fraction of good pixels than the
             # threshold requires.
-            good_indices = [i for i, stat in enumerate(stats) if stat["mean"] > threshold]
+            good_indices = [
+                i for i, stat in enumerate(stats) if stat["mean"] > threshold
+            ]
 
             # Subset the RegionDetections object keeping only the valid indices
             filtered_rd = rd.subset_detections(good_indices)
