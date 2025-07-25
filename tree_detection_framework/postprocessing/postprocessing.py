@@ -666,7 +666,6 @@ def remove_masked_detections(
                 stats=["mean"],
                 affine=transform,
             )
-            print(stats)
 
             # Get indices that have a greater fraction of good pixels than the
             # threshold requires.
