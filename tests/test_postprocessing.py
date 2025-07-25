@@ -71,11 +71,6 @@ def make_mask_image(
     for value, (minx, miny, maxx, maxy) in zip(cycle(valid_classes), corners):
         mask[miny:maxy, minx:maxx] = value
 
-    from matplotlib import pyplot
-
-    pyplot.imshow(mask)
-    pyplot.savefig("/tmp/mask.png")
-
     # Convert to (H, W, 1) and save using PIL
     mask_img = Image.fromarray(mask[:, :, None].astype(np.uint8).squeeze(), mode="L")
     mask_img.save(path)
@@ -140,11 +135,8 @@ class TestRemoveMaskedDetections:
             ]
             # Write the data out as geospatial files and return the file paths
             detection_list = [file_dir / f"image_{i}.{geo_extension}" for i in range(N)]
-            drivers = {".gpkg": "GPKG", ".geojson": "GeoJSON", ".shp": "ESRI Shapefile"}
             for path, gdf in zip(detection_list, detection_data):
-                print("use_rds", use_rds)
-                print("type(gdf)", type(gdf))
-                gdf.to_file(path, driver=drivers[path.suffix])
+                gdf.to_file(path)
 
         # Fake paths for images corresponding to these detections
         image_paths = [file_dir / f"image_{i}.jpg" for i in range(N)]
