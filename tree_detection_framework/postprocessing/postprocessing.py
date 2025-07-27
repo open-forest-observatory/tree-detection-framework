@@ -2,17 +2,17 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Union
 
-import geopandas as gpd
 import numpy as np
-import rasterstats
-from affine import Affine
-from geopandas import GeoDataFrame
 from PIL import Image
-from polygone_nms import nms
 from shapely import box
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
 
+import geopandas as gpd
+import rasterstats
+from affine import Affine
+from geopandas import GeoDataFrame
+from polygone_nms import nms
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
@@ -178,8 +178,7 @@ def update_gdf_to_centroid(gdf: GeoDataFrame) -> GeoDataFrame:
 
 
 def NMS_on_points(
-    detections: Union[RegionDetections, RegionDetectionsSet],
-    threshold_distance: float,
+    detections: Union[RegionDetections, RegionDetectionsSet], threshold_distance: float
 ) -> RegionDetections:
     """
     Run non-max suppression on point data, suppressing points within a thereshold distance of
@@ -295,9 +294,7 @@ def single_region_hole_suppression(
     # Return a new RegionDetections object created using the updated dataframe
     # TODO: Handle cases where the data is in pixels with no transform to geospatial
     return RegionDetections(
-        detection_geometries=None,
-        data=detections_df,
-        CRS=detections.get_CRS(),
+        detection_geometries=None, data=detections_df, CRS=detections.get_CRS()
     )
 
 
@@ -661,10 +658,104 @@ def remove_masked_detections(
             # Get the mean value of each detection polygon, as a list of
             # [{"mean": <value>}, ...]
             stats = rasterstats.zonal_stats(
-                gdf,
-                mask.astype(int)[::-1, ...],
-                stats=["mean"],
-                affine=transform,
+                gdf, mask.astype(int)[::-1, ...], stats=["mean"], affine=transform
+            )
+
+            # Get indices that have a greater fraction of good pixels than the
+            # threshold requires.
+            good_indices = [
+                i for i, stat in enumerate(stats) if stat["mean"] > threshold
+            ]
+
+            if isinstance(rds, RegionDetectionsSet):
+                # Subset the RegionDetections object keeping only the valid indices
+                rd = rds.get_region_detections(idx)
+                filtered_rd = rd.subset_detections(good_indices)
+                filtered_regions.append(filtered_rd)
+            else:
+                # Take a subset of the dataframe rows that we know are valid
+                filtered_regions.append(gdf.iloc[good_indices])
+
+        if isinstance(rds, RegionDetectionsSet):
+            # If we were passed a list of RegionDetectionsSet items, then we want
+            # to recreate that for the output with filtered RDS items
+            filtered_sets.append(RegionDetectionsSet(filtered_regions))
+        else:
+            # Otherwise, if we were passed a list of GDF paths, return a list
+            # of filtered GDF items
+            filtered_sets.extend(filtered_regions)
+
+    return filtered_sets
+
+
+def viewpoint_ellipse_suppression(
+    region_detection_sets: Union[List[RegionDetectionsSet], List[PATH_TYPE]],
+    ellipse: np.ndarray,
+    threshold: float = 0.4,
+) -> List[RegionDetectionsSet]:
+    """
+    Filters out detections that marked as invalid in the given ellipse mask.
+    In general it could be useful to limit detections to the center of the
+    image when high accuracy is required because the lens distortion is highest
+    in the corners of images.
+
+    Args:
+        region_detection_sets (Union[List[RegionDetectionSet], List[PATH_TYPE]])
+            Each element is a RegionDetectionsSet derived from a specific drone image,
+            or a geospatial file containing the detections from a drone image.
+            Length is the number of raw drone images given to  the dataloader.
+        ellipse (np.ndarray)
+            Mask of shape (height, width), dtype bool. The center of the ellipse
+            should be True, indicating those are the detections we wish to keep.
+            In order to be effective, this should be the same size as the images
+            the detections were created from.
+        threshold (float)
+            If the overlap of a given detection polygon with "valid" portions of the
+            mask is greater than the threshold, keep that detection. If not, filter
+            it out. Defaults to 0.4.
+
+    Returns:
+        List of RegiondetectionSet objects with masked predictions filtered out (one per
+        image) OR list of geospatial dataframes (one per image). This is based on the
+        input type of region_detection_sets
+    """
+
+    filtered_sets = []
+
+    # Iterate over the RegionDetectionsSet objects
+    for rds in region_detection_sets:
+
+        # Define a transformation from the image space ([0, 0] at the top left,
+        # y increases going down) to rasterstats ([0, 0] at the bottom left,
+        # y increases going up)
+        # See Affine comment in remove_masked_detections for more details.
+        transform = Affine.translation(0, mask.shape[0]) * Affine.scale(1, -1)
+
+        # To save filtered region detections in a particular set
+        filtered_regions = []
+
+        # We should either have a RegionDetectionsSet class, or a file path
+        # to a dataframe containing the detections
+        if isinstance(rds, RegionDetectionsSet):
+
+            def iterator(rds):
+                for idx in range(len(rds.region_detections)):
+                    rd = rds.get_region_detections(idx)
+                    yield idx, rd.get_data_frame()
+
+        else:
+
+            def iterator(rds):
+                yield 0, gpd.read_file(rds)
+
+        # Iterate over the region detections, which is equivalent to iterating
+        # over the chips that detections were calculated in
+        for idx, gdf in iterator(rds):
+
+            # Get the mean value of each detection polygon, as a list of
+            # [{"mean": <value>}, ...]
+            stats = rasterstats.zonal_stats(
+                gdf, mask.astype(int)[::-1, ...], stats=["mean"], affine=transform
             )
 
             # Get indices that have a greater fraction of good pixels than the

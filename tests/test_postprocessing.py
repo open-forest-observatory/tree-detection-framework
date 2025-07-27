@@ -1,12 +1,12 @@
 from itertools import cycle
 from typing import List, Tuple, Union
 
-import geopandas as gpd
 import numpy as np
 import pytest
 from PIL import Image
 from shapely.geometry import box
 
+import geopandas as gpd
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
@@ -14,7 +14,9 @@ from tree_detection_framework.detection.region_detections import (
 )
 from tree_detection_framework.postprocessing.postprocessing import (
     remove_masked_detections,
+    viewpoint_ellipse_suppression,
 )
+from tree_detection_framework.utils.geometric import ellipse_mask
 
 
 def make_detections(
@@ -37,10 +39,7 @@ def make_detections(
     if return_gdf is True:
         return gdf
     else:
-        return RegionDetections(
-            detection_geometries=None,
-            data=gdf,
-        )
+        return RegionDetections(detection_geometries=None, data=gdf)
 
 
 def make_mask_image(
@@ -77,15 +76,9 @@ def make_mask_image(
 
 
 class TestRemoveMaskedDetections:
-
     @pytest.mark.parametrize(
         "use_rds,geo_extension",
-        (
-            [True, None],
-            [False, ".gpkg"],
-            [False, ".geojson"],
-            [False, ".shp"],
-        ),
+        ([True, None], [False, ".gpkg"], [False, ".geojson"], [False, ".shp"]),
     )
     @pytest.mark.parametrize("flat", (True, False))
     @pytest.mark.parametrize("valid_classes", ([2], [1, 2, 3], [100, 5, 20]))
@@ -146,11 +139,7 @@ class TestRemoveMaskedDetections:
             make_mask_image(
                 path=file_dir / f"image_{i}.png",
                 valid_classes=valid_classes,
-                corners=[
-                    (0, 0, 50, 30),
-                    (50, 30, 100, 60),
-                    (100, 60, 120, 100),
-                ],
+                corners=[(0, 0, 50, 30), (50, 30, 100, 60), (100, 60, 120, 100)],
                 shape=[100, 120],
             )
 
@@ -195,3 +184,88 @@ class TestRemoveMaskedDetections:
                     # per image
                     assert isinstance(rds, gpd.GeoDataFrame)
                     assert set(rds.index) == set(range(max_expected_index + 1))
+
+
+class TestViewpointEllipseSuppression:
+    @pytest.mark.parametrize("ellipse_radius", [10, 30, 50])
+    @pytest.mark.parametrize("flat", (True, False))
+    def test_basic(self, tmp_path, flat, ellipse_radius):
+
+        # Test the following code on N different masks. It doesn't matter that they
+        # are all the same, I just want to make sure that it works on multiple
+        N = 3
+
+        # Test whether this works in a flat directory where the files are directly
+        # present (flat = True) and when given nested subdirectory files (flat = False)
+        if flat is True:
+            file_dir = tmp_path
+        else:
+            file_dir = tmp_path / "mission" / "00" / "folder"
+            file_dir.mkdir(parents=True)
+
+        # Make the detections that we want to filter
+        corners = [
+            (70, 70, 80, 80),  # Always in
+            (50, 70, 60, 80),  # In for [30, 50] radii
+            (90, 70, 100, 80),  # In for [30, 50] radii
+            (70, 50, 80, 60),  # In for [30, 50] radii
+            (70, 90, 80, 100),  # In for [30, 50] radii
+            (110, 70, 120, 80),  # In for [50] radius
+            (30, 70, 40, 80),  # In for [50] radius
+            (70, 110, 80, 120),  # In for [50] radius
+            (70, 30, 80, 40),  # In for [50] radius
+            (0, 10, 0, 10),  # Always out
+            (140, 150, 140, 150),  # Always out
+        ]
+
+        # Test both that the function works when given a list of RDS objects, and also that it
+        # works when given a list of geospatial files.
+        if use_rds is True:
+            detection_list = [
+                RegionDetectionsSet(
+                    region_detections=[
+                        make_detections(corners, return_gdf=False) for _ in range(N)
+                    ]
+                )
+                for _ in range(N)
+            ]
+        else:
+            detection_data = [
+                make_detections(corners, return_gdf=True) for _ in range(N)
+            ]
+            # Write the data out as geospatial files and return the file paths
+            detection_list = [file_dir / f"image_{i}.{geo_extension}" for i in range(N)]
+            for path, gdf in zip(detection_list, detection_data):
+                gdf.to_file(path)
+
+        # Create a variably sized ellipse mask
+        ellipse = ellipse_mask(
+            image_shape=(150, 150),
+            center=(75, 75),
+            axes=(ellipse_radius, ellipse_radius),
+        )
+
+        # Filter the detections. We know that as the threshold goes up we should
+        # get fewer detections remaining
+        filtered_detection_list = viewpoint_ellipse_suppression(
+            region_detection_sets=detection_list, ellipse=ellipse, threshold=0.5
+        )
+
+        # Check that we kept the expected rows. Based on the radius of the
+        # constructed ellipse we know what the kept indices should be.
+        expected_map = {10: [0], 30: [0, 1, 2, 3, 4], 50: [0, 1, 2, 3, 4, 5, 6, 7, 8]}
+        for rds in filtered_detection_list:
+
+            if use_rds is True:
+                # In this case we should have recieved a list of RDS objects, one
+                # per image (and on RD per chip)
+                assert isinstance(rds, RegionDetectionsSet)
+                for rd in rds.region_detections:
+                    assert set(rd.get_data_frame().index) == set(
+                        expected_map[ellipse_radius]
+                    )
+            else:
+                # In this case we should have recieved a list of GDF dataframes, one
+                # per image
+                assert isinstance(rds, gpd.GeoDataFrame)
+                assert set(rds.index) == set(expected_map[ellipse_radius])

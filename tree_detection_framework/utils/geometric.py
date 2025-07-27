@@ -1,6 +1,9 @@
+from typing import Tuple
+
 import cv2
 import numpy as np
 import shapely
+
 from contourpy import contour_generator
 
 
@@ -97,3 +100,43 @@ def mask_to_shapely(
         raise ValueError(
             f"Unsupported backend: {backend}. Choose 'cv2' or 'contourpy'."
         )
+
+
+def ellipse_mask(
+    image_shape: Tuple[int, int],
+    center: Tuple[int, int],
+    axes: Tuple[int, int],
+    angle_rad: float = 0.0,
+):
+    """Return a boolean mask with True inside the specified ellipse.
+
+    Args:
+        image_shape (Tuple[int, int]):
+            (Height, width) tuple for the shape of the mask we want to return
+        center (Tuple[int, int]):
+            (x0, y0) center of the ellipse in x and y (pixels)
+        axes (Tuple[int, int]):
+            (a, b) semi-major and semi-minor axis lengths in pixels
+        angle_rad (float):
+            Rotation angle of the semi-major axis, in radians. CCW from x-axis.
+            Defaults to 0.
+
+    Returns:
+        mask: np.ndarray of shape (H, W), dtype=bool
+    """
+    H, W = image_shape
+    y, x = np.ogrid[:H, :W]
+    x0, y0 = center
+    a, b = axes
+    cos_t, sin_t = np.cos(angle_rad), np.sin(angle_rad)
+
+    # Shift and rotate the coordinates
+    x_shift = x - x0
+    y_shift = y - y0
+
+    x_rot = cos_t * x_shift + sin_t * y_shift
+    y_rot = -sin_t * x_shift + cos_t * y_shift
+
+    # Ellipse equation
+    mask = (x_rot / a) ** 2 + (y_rot / b) ** 2 <= 1
+    return mask.astype(bool)
