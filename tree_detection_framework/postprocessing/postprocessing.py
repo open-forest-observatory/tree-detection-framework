@@ -1,14 +1,19 @@
 import logging
+from pathlib import Path
 from typing import List, Optional, Union
 
 import geopandas as gpd
 import numpy as np
+import rasterstats
+from affine import Affine
 from geopandas import GeoDataFrame
+from PIL import Image
 from polygone_nms import nms
 from shapely import box
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
 
+from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
@@ -542,3 +547,143 @@ def remove_edge_detections(
     # Create a new RDS
     updated_rds = RegionDetectionsSet(updated_rd_list)
     return updated_rds
+
+
+def remove_masked_detections(
+    region_detection_sets: Union[List[RegionDetectionsSet], List[PATH_TYPE]],
+    image_root: PATH_TYPE,
+    image_paths: List[PATH_TYPE],
+    valid_classes: List[int],
+    mask_root: PATH_TYPE,
+    mask_extension: str = ".png",
+    threshold: float = 0.4,
+) -> Union[List[RegionDetectionsSet], List[gpd.GeoDataFrame]]:
+    """
+    Filters out detections that marked as invalid in the given mask images.
+    One example use case is that mask images could be rastered where the
+    certain pixels are marked as "ground" vs. "above ground". Then detections
+    that mostly overlap with the "ground" mask could be removed.
+
+    Args:
+        region_detection_sets (Union[List[RegionDetectionSet], List[PATH_TYPE]])
+            Each element is a RegionDetectionsSet derived from a specific drone image,
+            or a geospatial file containing the detections from a drone image.
+            Length is the number of raw drone images given to  the dataloader.
+        image_root (PATH_TYPE)
+            Path to the root directory for image paths, which should match up with
+            the region_detection_sets. The point is that we want to open up a mask
+            file per RDS, and we assume that the path from image_root → image path
+            is the same as mask_root → mask path, with suffix change.
+        image_paths (List[PATH_TYPE])
+            Path to each image that the RDS objects were created from
+        valid_classes (List[int])
+            Assuming the mask file is an image with pixels as class integers, this is a
+            list of classes that we want to keep. For example, if (0: out of bounds,
+            1: ground, 2: shrubs, 3: trees) and we wanted to keep all foliage, this
+            argument should be [2, 3].
+        mask_root (PATH_TYPE)
+            Path to root directory for mask files, see image_root.
+        mask_extension (str)
+            File extension for mask images. Defaults to ".png".
+        threshold (float)
+            If the overlap of a given detection polygon with "valid" portions of the
+            mask is greater than the threshold, keep that detection. If not, filter
+            it out. Defaults to 0.4.
+
+    Returns:
+        List of RegiondetectionSet objects with masked predictions filtered out (one per
+        image) OR list of geospatial dataframes (one per image). This is based on the
+        input type of region_detection_sets
+    """
+
+    # Input checking
+    if len(image_paths) != len(region_detection_sets):
+        raise ValueError(
+            f"Mismatch between length of given image_paths ({len(image_paths)})"
+            f" and region detection sets ({len(region_detection_sets)})"
+        )
+
+    filtered_sets = []
+
+    # Iterate over the path to a specific image and the detections in that image
+    for im_path, rds in zip(image_paths, region_detection_sets):
+
+        # Assuming the mask path relative to the mask root matches the
+        # image path relative to the image root, open the mask file
+        subpath = Path(im_path).relative_to(image_root)
+        mask_path = (mask_root / subpath).with_suffix(mask_extension)
+
+        # Calculate a mask which is 1 where the data is valid, a.k.a.
+        # in the parts of the image we think could contain good detections.
+        # Open the image as grayscale
+        mask_img = Image.open(mask_path).convert("L")
+        mask = np.isin(mask_img, valid_classes)
+
+        # Define a transformation from the image space ([0, 0] at the top left,
+        # y increases going down) to rasterstats ([0, 0] at the bottom left,
+        # y increases going up)
+        # Note that there is some bizzare and unfortunate interplay between
+        # The transform and the orientation of the mask image. If the mask and gdf
+        # are both defined in pure pixels and the transform is Identity, then
+        # rasterstats complains about negative window sizes. If the transform is
+        # such that Y is in the upper left and increases going down, then the
+        # pixel polygons appear flipped on Y (0:10, 0:10) gives the lower left
+        # corner of the mask, which is incorrect). Only by defining this axis
+        # flipping transform AND inverting the Y axis of the mask with [::-1, ...]
+        # can we get alignment and avoid the negative window error.
+        transform = Affine.translation(0, mask.shape[0]) * Affine.scale(1, -1)
+        # Make the mask integer so that we can do math on the detections.
+        # For example, if a detection is 50+% valid, the mean value within
+        # the polygon will be 0.5+ because the mask is in numbers.
+        mask = mask.astype(int)[::-1, ...]
+
+        # To save filtered region detections in a particular set
+        filtered_regions = []
+
+        # We should either have a RegionDetectionsSet class, or a file path
+        # to a dataframe containing the detections
+        if isinstance(rds, RegionDetectionsSet):
+
+            def iterator(rds):
+                for idx in range(len(rds.region_detections)):
+                    rd = rds.get_region_detections(idx)
+                    yield idx, rd.get_data_frame()
+
+        else:
+
+            def iterator(rds):
+                yield 0, gpd.read_file(rds)
+
+        # Iterate over the region detections, which is equivalent to iterating
+        # over the chips that detections were calculated in
+        for idx, gdf in iterator(rds):
+
+            # Get the mean value of each detection polygon, as a list of
+            # [{"mean": <value>}, ...]
+            stats = rasterstats.zonal_stats(gdf, mask, stats=["mean"], affine=transform)
+
+            # Get indices that have a greater fraction of good pixels than the
+            # threshold requires.
+            good_indices = [
+                i for i, stat in enumerate(stats) if stat["mean"] > threshold
+            ]
+
+            if isinstance(rds, RegionDetectionsSet):
+                # Subset the RegionDetections object keeping only the valid indices
+                rd = rds.get_region_detections(idx)
+                filtered_rd = rd.subset_detections(good_indices)
+                filtered_regions.append(filtered_rd)
+            else:
+                # Take a subset of the dataframe rows that we know are valid
+                filtered_regions.append(gdf.iloc[good_indices])
+
+        if isinstance(rds, RegionDetectionsSet):
+            # If we were passed a list of RegionDetectionsSet items, then we want
+            # to recreate that for the output with filtered RDS items
+            filtered_sets.append(RegionDetectionsSet(filtered_regions))
+        else:
+            # Otherwise, if we were passed a list of GDF paths, return a list
+            # of filtered GDF items
+            filtered_sets.extend(filtered_regions)
+
+    return filtered_sets
