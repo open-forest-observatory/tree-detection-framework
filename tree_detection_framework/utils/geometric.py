@@ -3,7 +3,6 @@ from typing import Tuple
 import cv2
 import numpy as np
 import shapely
-
 from contourpy import contour_generator
 
 
@@ -118,8 +117,8 @@ def ellipse_mask(
         axes (Tuple[int, int]):
             (a, b) semi-major and semi-minor axis lengths in pixels
         angle_rad (float):
-            Rotation angle of the semi-major axis, in radians. CCW from x-axis.
-            Defaults to 0.
+            Rotation angle of the semi-major axis, in radians. CCW from x-axis
+            (a.k.a. right-hand rule out of the image). Defaults to 0.
 
     Returns:
         mask: np.ndarray of shape (H, W), dtype=bool
@@ -128,7 +127,10 @@ def ellipse_mask(
     y, x = np.ogrid[:H, :W]
     x0, y0 = center
     a, b = axes
-    cos_t, sin_t = np.cos(angle_rad), np.sin(angle_rad)
+    # We need to invert the angle because images have Y pointing down
+    # (left-hand reference frame) but for ease of use we are going to
+    # specify the angle as if Y was up as the docstring describes.
+    cos_t, sin_t = np.cos(-angle_rad), np.sin(-angle_rad)
 
     # Shift and rotate the coordinates
     x_shift = x - x0
