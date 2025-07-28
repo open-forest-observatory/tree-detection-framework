@@ -557,7 +557,7 @@ def remove_masked_detections(
     mask_root: PATH_TYPE,
     mask_extension: str = ".png",
     threshold: float = 0.4,
-) -> List[RegionDetectionsSet]:
+) -> Union[List[RegionDetectionsSet], List[gpd.GeoDataFrame]]:
     """
     Filters out detections that marked as invalid in the given mask images.
     One example use case is that mask images could be rastered where the
