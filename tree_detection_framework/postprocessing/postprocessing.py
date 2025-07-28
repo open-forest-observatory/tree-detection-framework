@@ -605,8 +605,7 @@ def remove_masked_detections(
 
     filtered_sets = []
 
-    # Iterate over [0] the path to a specific image and [2] the
-    # RegionDetectionsSet of detections in that image
+    # Iterate over the path to a specific image and the detections in that image
     for im_path, rds in zip(image_paths, region_detection_sets):
 
         # Assuming the mask path relative to the mask root matches the
@@ -618,10 +617,7 @@ def remove_masked_detections(
         # in the parts of the image we think could contain good detections.
         # Open the image as grayscale
         mask_img = Image.open(mask_path).convert("L")
-        # Make the mask integer so that we can do math on the detections.
-        # For example, if a detection is 50+% valid, the mean value within
-        # the polygon will be 0.5+ because the mask is in numbers.
-        mask = np.isin(mask_img, valid_classes).astype(int)
+        mask = np.isin(mask_img, valid_classes)
 
         # Define a transformation from the image space ([0, 0] at the top left,
         # y increases going down) to rasterstats ([0, 0] at the bottom left,
@@ -636,6 +632,10 @@ def remove_masked_detections(
         # flipping transform AND inverting the Y axis of the mask with [::-1, ...]
         # can we get alignment and avoid the negative window error.
         transform = Affine.translation(0, mask.shape[0]) * Affine.scale(1, -1)
+        # Make the mask integer so that we can do math on the detections.
+        # For example, if a detection is 50+% valid, the mean value within
+        # the polygon will be 0.5+ because the mask is in numbers.
+        mask = mask.astype(int)[::-1, ...]
 
         # To save filtered region detections in a particular set
         filtered_regions = []
@@ -660,12 +660,7 @@ def remove_masked_detections(
 
             # Get the mean value of each detection polygon, as a list of
             # [{"mean": <value>}, ...]
-            stats = rasterstats.zonal_stats(
-                gdf,
-                mask.astype(int)[::-1, ...],
-                stats=["mean"],
-                affine=transform,
-            )
+            stats = rasterstats.zonal_stats(gdf, mask, stats=["mean"], affine=transform)
 
             # Get indices that have a greater fraction of good pixels than the
             # threshold requires.
