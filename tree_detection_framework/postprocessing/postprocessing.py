@@ -554,7 +554,7 @@ def remove_maskfile_detections(
     mask_root: PATH_TYPE,
     mask_extension: str = ".png",
     threshold: float = 0.4,
-) -> List[RegionDetectionsSet]:
+) -> Union[List[RegionDetectionsSet], List[gpd.GeoDataFrame]]:
     """
     Filters out detections that marked as invalid in the given mask images.
     One example use case is that mask images could be rastered where the
@@ -673,6 +673,10 @@ def remove_masked_detections(
         # flipping transform AND inverting the Y axis of the mask with [::-1, ...]
         # can we get alignment and avoid the negative window error.
         transform = Affine.translation(0, mask.shape[0]) * Affine.scale(1, -1)
+        # Make the mask integer so that we can do math on the detections.
+        # For example, if a detection is 50+% valid, the mean value within
+        # the polygon will be 0.5+ because the mask is in numbers.
+        mask = mask.astype(int)[::-1, ...]
 
         # To save filtered region detections in a particular set
         filtered_regions = []
@@ -697,12 +701,7 @@ def remove_masked_detections(
 
             # Get the mean value of each detection polygon, as a list of
             # [{"mean": <value>}, ...]
-            # Make the mask integer so that we can do math on the detections.
-            # For example, if a detection is 50+% valid, the mean value within
-            # the polygon will be 0.5+ because the mask is in numbers.
-            stats = rasterstats.zonal_stats(
-                gdf, mask.astype(int)[::-1, ...], stats=["mean"], affine=transform
-            )
+            stats = rasterstats.zonal_stats(gdf, mask, stats=["mean"], affine=transform)
 
             # Get indices that have a greater fraction of good pixels than the
             # threshold requires.
