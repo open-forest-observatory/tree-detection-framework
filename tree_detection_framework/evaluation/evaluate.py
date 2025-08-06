@@ -1,9 +1,12 @@
-from typing import List
+from typing import List, Optional, Union, Callable
 
 import geopandas as gpd
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from shapely.geometry import Polygon
+
+from tree_detection_framework.detection.region_detections import RegionDetectionsSet
+
 
 
 def compute_matched_ious(
@@ -64,3 +67,18 @@ def compute_precision_recall(
     recall = tp / num_gt if num_gt > 0 else 0.0
     precision = tp / num_pd if num_pd > 0 else 0.0
     return precision, recall
+
+# def match_points(
+#     treetop_set_1: RegionDetectionsSet,
+#     treetop_set_2: RegionDetectionsSet,
+#     height_set_1: Optional[Union[np.ndarray, str]] = None,
+#     height_set_2: Optional[Union[np.ndarray, str]] = None,
+#     chm: Optional[np.ndarray] = None,
+#     bboxes: Optional[RegionDetectionsSet] = None,
+#     distance_threshold: Union[float, Callable[[float], float]] = None,
+#     height_threshold: Optional[float] = None,
+#     fillin_method: Optional[str] = None,
+#     use_height_in_distance: Optional[float] = None,
+# ) -> List[int, int, np.ndarray]:
+    
+#     return
