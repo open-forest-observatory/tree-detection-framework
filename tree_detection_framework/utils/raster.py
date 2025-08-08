@@ -181,3 +181,21 @@ def plot_from_dataloader(sample):
         raise ValueError(f"Cannot plot image with {n_channels} channels")
 
     return fig
+
+def get_heights_from_chm(
+        coords: np.ndarray,
+        coords_crs: pyproj.CRS,
+        chm_path: PATH_TYPE,
+) -> np.ndarray:
+    """Extract heights from a CHM for the given coordinates
+
+    Args:
+        coords (np.ndarray): Coordinates in the form of an array of shape (n, 2) where n is the number of points
+        chm_path (PATH_TYPE): Path to the CHM raster file
+
+    Returns:
+        np.ndarray: Heights at the given coordinates
+    """
+    # Check if CHM and coords are in the same CRS. If not, reproject CHM (?)
+    # TODO
+    return
