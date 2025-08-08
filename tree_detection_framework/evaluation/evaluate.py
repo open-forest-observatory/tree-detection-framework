@@ -5,8 +5,8 @@ import matplotlib.collections as mc
 import matplotlib.pyplot as plt
 import numpy as np
 import shapely
-from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
+from scipy.spatial.distance import cdist
 from shapely.geometry import Polygon
 
 from tree_detection_framework.constants import PATH_TYPE
