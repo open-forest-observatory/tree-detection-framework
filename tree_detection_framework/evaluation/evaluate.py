@@ -112,7 +112,8 @@ def match_points(
 
     # Ensure both sets have the same CRS
     if treetop_set_1.get_CRS() != treetop_set_2.get_CRS():
-        raise ValueError("Both treetop sets must have the same CRS.")
+        # Convert set 2 detections to the CRS of set 1
+        treetop_set_2 = reproject_detections(treetop_set_2, treetop_set_1.get_CRS())
 
     if treetop_set_1.detections.crs.is_geographic:
         lat = treetop_set_1.get_bounds()[0].bounds[1]
