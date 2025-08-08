@@ -98,9 +98,13 @@ def match_points(
     Match two sets of treetops.
     """
     if isinstance(treetop_set_1, gpd.GeoDataFrame):
-        treetop_set_1 = RegionDetections(detection_geometries=None, data=treetop_set_1, CRS=treetop_set_1.crs)
+        treetop_set_1 = RegionDetections(
+            detection_geometries=None, data=treetop_set_1, CRS=treetop_set_1.crs
+        )
     if isinstance(treetop_set_2, gpd.GeoDataFrame):
-        treetop_set_2 = RegionDetections(detection_geometries=None, data=treetop_set_2, CRS=treetop_set_2.crs)
+        treetop_set_2 = RegionDetections(
+            detection_geometries=None, data=treetop_set_2, CRS=treetop_set_2.crs
+        )
     if isinstance(treetop_set_1, RegionDetectionsSet):
         treetop_set_1 = treetop_set_1.merge()
     if isinstance(treetop_set_2, RegionDetectionsSet):

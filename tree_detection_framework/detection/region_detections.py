@@ -742,14 +742,16 @@ def reproject_detections(
         RegionDetections: Detections after reprojection.
     """
 
-    # Get the detections in the target CRS 
+    # Get the detections in the target CRS
     projected_detections = region_detections.get_data_frame(CRS=target_crs)
     # Get the bounds in the target CRS
     projected_bounds = region_detections.get_bounds(CRS=target_crs)[0]
 
     # Create a new RegionDetections object with the projected detections
     projected_region_detections = RegionDetections(
-        detection_geometries=None, data=projected_detections, geospatial_prediction_bounds=projected_bounds
+        detection_geometries=None,
+        data=projected_detections,
+        geospatial_prediction_bounds=projected_bounds,
     )
 
     return projected_region_detections
