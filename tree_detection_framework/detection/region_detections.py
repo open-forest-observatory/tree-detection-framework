@@ -751,6 +751,7 @@ def reproject_detections(
     projected_region_detections = RegionDetections(
         detection_geometries=None,
         data=projected_detections,
+        CRS=target_crs,
         geospatial_prediction_bounds=projected_bounds,
     )
 
