@@ -5,6 +5,7 @@ import matplotlib.collections as mc
 import matplotlib.pyplot as plt
 import numpy as np
 import shapely
+from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 from shapely.geometry import Polygon
 
@@ -14,7 +15,7 @@ from tree_detection_framework.detection.region_detections import (
     RegionDetectionsSet,
     reproject_detections,
 )
-from tree_detection_framework.utils.geospatial import cdist, get_projected_CRS
+from tree_detection_framework.utils.geospatial import get_projected_CRS
 from tree_detection_framework.utils.raster import get_heights_from_chm
 
 

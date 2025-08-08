@@ -63,28 +63,3 @@ def to_crs_multiple_geometry_columns(
     # Only return if not inplace, consistent with most other libraries
     if not inplace:
         return data
-
-
-# Taken from here:
-# https://stackoverflow.com/questions/6430091/efficient-distance-calculation-between-n-points-and-a-reference-in-numpy-scipy
-# This is drop-in replacement for scipy.cdist
-def cdist(x, y):
-    """
-    Compute pair-wise distances between points in x and y.
-
-    Parameters:
-        x (ndarray): Numpy array of shape (n_samples_x, n_features).
-        y (ndarray): Numpy array of shape (n_samples_y, n_features).
-
-    Returns:
-        ndarray: Numpy array of shape (n_samples_x, n_samples_y) containing
-        the pair-wise distances between points in x and y.
-    """
-    # Reshape x and y to enable broadcasting
-    x_reshaped = x[:, np.newaxis, :]  # Shape: (n_samples_x, 1, n_features)
-    y_reshaped = y[np.newaxis, :, :]  # Shape: (1, n_samples_y, n_features)
-
-    # Compute pair-wise distances using Euclidean distance formula
-    pairwise_distances = np.sqrt(np.sum((x_reshaped - y_reshaped) ** 2, axis=2))
-
-    return pairwise_distances
