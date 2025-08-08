@@ -2,7 +2,6 @@ import copy
 from typing import List, Optional
 
 import geopandas as gpd
-import numpy as np
 import pyproj
 
 
