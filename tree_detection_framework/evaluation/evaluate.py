@@ -1,18 +1,20 @@
-from typing import List, Optional, Union, Callable, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 import geopandas as gpd
-import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.collections as mc
+import matplotlib.pyplot as plt
+import numpy as np
 import shapely
 from shapely.geometry import Polygon
 
-from tree_detection_framework.detection.region_detections import RegionDetections, RegionDetectionsSet, reproject_detections
+from tree_detection_framework.constants import PATH_TYPE
+from tree_detection_framework.detection.region_detections import (
+    RegionDetections,
+    RegionDetectionsSet,
+    reproject_detections,
+)
 from tree_detection_framework.utils.geospatial import cdist, get_projected_CRS
 from tree_detection_framework.utils.raster import get_heights_from_chm
-
-from tree_detection_framework.constants import PATH_TYPE
-
 
 
 def compute_matched_ious(
