@@ -91,9 +91,8 @@ def match_points(
     distance_threshold: Union[float, Callable[[float], float]] = None,
     fillin_method: Optional[str] = None,
     use_height_in_distance: Optional[float] = None,
-    vis: bool = False
+    vis: bool = False,
 ) -> List[Tuple[int, int, np.ndarray]]:
-    
     """
     Match two sets of treetops.
     """
@@ -105,11 +104,11 @@ def match_points(
         treetop_set_1 = treetop_set_1.merge()
     if isinstance(treetop_set_2, RegionDetectionsSet):
         treetop_set_2 = treetop_set_2.merge()
-    
+
     # Ensure both sets have the same CRS
     if treetop_set_1.get_CRS() != treetop_set_2.get_CRS():
         raise ValueError("Both treetop sets must have the same CRS.")
-    
+
     if treetop_set_1.detections.crs.is_geographic:
         lat = treetop_set_1.get_bounds()[0].bounds[1]
         lon = treetop_set_1.get_bounds()[0].bounds[0]
@@ -170,11 +169,9 @@ def match_points(
         max_d = height1 * search_distance_fun_slope + search_distance_fun_intercept
 
     # Compute which matches fit all three criteria
-    valid_pairs_mask = np.logical_and.reduce([
-    height2 > min_h,
-    height2 < max_h,
-    distance_matrix < max_d
-    ])
+    valid_pairs_mask = np.logical_and.reduce(
+        [height2 > min_h, height2 < max_h, distance_matrix < max_d]
+    )
 
     # Extract valid pair indices and their distances
     valid_idxs_1, valid_idxs_2 = np.where(valid_pairs_mask)
@@ -204,7 +201,7 @@ def match_points(
 
         if len(matched_1) == max_valid_matches:
             break
-        
+
     if vis:
 
         _, ax = plt.subplots(figsize=(6, 6))
@@ -214,8 +211,20 @@ def match_points(
         matched_coords2 = np.array([coords2[i2] for (_, i2, _) in matches])
 
         # Plot only matched points
-        ax.scatter(matched_coords1[:, 0], matched_coords1[:, 1], color="red", s=30, label="Set 1 (matched)")
-        ax.scatter(matched_coords2[:, 0], matched_coords2[:, 1], color="blue", s=30, label="Set 2 (matched)")
+        ax.scatter(
+            matched_coords1[:, 0],
+            matched_coords1[:, 1],
+            color="red",
+            s=30,
+            label="Set 1 (matched)",
+        )
+        ax.scatter(
+            matched_coords2[:, 0],
+            matched_coords2[:, 1],
+            color="blue",
+            s=30,
+            label="Set 2 (matched)",
+        )
 
         # Draw lines connecting matched pairs
         lines = [[coords1[i1], coords2[i2]] for (i1, i2, _) in matches]

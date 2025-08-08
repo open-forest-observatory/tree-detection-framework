@@ -726,6 +726,7 @@ class RegionDetectionsSet:
             raster_vis_downsample=raster_vis_downsample,
         )
 
+
 def reproject_detections(
     region_detections: RegionDetections,
     target_crs: pyproj.CRS,
@@ -747,6 +748,8 @@ def reproject_detections(
     # Convert CRS to the target CRS value
     projected_detections = detections.to_crs(target_crs, inplace=False)
     # Create a new RegionDetections object with the projected detections
-    projected_region_detections = RegionDetections(detection_geometries=None, data=projected_detections)
+    projected_region_detections = RegionDetections(
+        detection_geometries=None, data=projected_detections
+    )
 
     return projected_region_detections

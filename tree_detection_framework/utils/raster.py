@@ -182,10 +182,11 @@ def plot_from_dataloader(sample):
 
     return fig
 
+
 def get_heights_from_chm(
-        coords: np.ndarray,
-        coords_crs: pyproj.CRS,
-        chm_path: PATH_TYPE,
+    coords: np.ndarray,
+    coords_crs: pyproj.CRS,
+    chm_path: PATH_TYPE,
 ) -> np.ndarray:
     """Extract heights from a CHM for the given coordinates
 
