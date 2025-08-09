@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Iterable, List, Optional, Union
 
 import geopandas as gpd
 import numpy as np
@@ -27,7 +27,7 @@ def single_region_NMS(
     min_confidence: float = 0.3,
     intersection_method: str = "IOU",
 ) -> RegionDetections:
-    """Run non-max suppresion on predictions from a single region.
+    """Run non-max suppression on predictions from a single region.
 
     Args:
         detections (RegionDetections):
@@ -101,7 +101,7 @@ def multi_region_NMS(
     min_confidence: float = 0.3,
     intersection_method: str = "IOU",
 ) -> RegionDetections:
-    """Run non-max suppresion on predictions from multiple regions.
+    """Run non-max suppression on predictions from multiple regions.
 
     Args:
         detections (RegionDetectionsSet):
@@ -178,8 +178,7 @@ def update_gdf_to_centroid(gdf: GeoDataFrame) -> GeoDataFrame:
 
 
 def NMS_on_points(
-    detections: Union[RegionDetections, RegionDetectionsSet],
-    threshold_distance: float,
+    detections: Union[RegionDetections, RegionDetectionsSet], threshold_distance: float
 ) -> RegionDetections:
     """
     Run non-max suppression on point data, suppressing points within a thereshold distance of
@@ -295,9 +294,7 @@ def single_region_hole_suppression(
     # Return a new RegionDetections object created using the updated dataframe
     # TODO: Handle cases where the data is in pixels with no transform to geospatial
     return RegionDetections(
-        detection_geometries=None,
-        data=detections_df,
-        CRS=detections.get_CRS(),
+        detection_geometries=None, data=detections_df, CRS=detections.get_CRS()
     )
 
 
@@ -549,7 +546,7 @@ def remove_edge_detections(
     return updated_rds
 
 
-def remove_masked_detections(
+def remove_maskfile_detections(
     region_detection_sets: Union[List[RegionDetectionsSet], List[PATH_TYPE]],
     image_root: PATH_TYPE,
     image_paths: List[PATH_TYPE],
@@ -603,21 +600,65 @@ def remove_masked_detections(
             f" and region detection sets ({len(region_detection_sets)})"
         )
 
+    def mask_iterator():
+        """Helper function to generate the masks from file paths."""
+
+        # Iterate over each path to a specific image
+        for im_path in image_paths:
+
+            # Assuming the mask path relative to the mask root matches the
+            # image path relative to the image root, open the mask file
+            subpath = Path(im_path).relative_to(image_root)
+            mask_path = (mask_root / subpath).with_suffix(mask_extension)
+
+            # Calculate a mask which is True where the data is valid, a.k.a.
+            # in the parts of the image we think could contain good detections.
+            # Open the image as grayscale
+            mask_img = Image.open(mask_path).convert("L")
+            mask = np.isin(mask_img, valid_classes)
+
+            yield mask
+
+    return remove_masked_detections(
+        region_detection_sets=region_detection_sets,
+        mask_iterator=mask_iterator(),
+        threshold=threshold,
+    )
+
+
+def remove_masked_detections(
+    region_detection_sets: Union[List[RegionDetectionsSet], List[PATH_TYPE]],
+    mask_iterator: Iterable[np.ndarray],
+    threshold: float = 0.4,
+) -> List[RegionDetectionsSet]:
+    """
+    Filters out detections that marked as invalid in the given masks.
+
+    Args:
+        region_detection_sets (Union[List[RegionDetectionSet], List[PATH_TYPE]])
+            Each element is a RegionDetectionsSet derived from a specific drone image,
+            or a geospatial file containing the detections from a drone image.
+            Length is the number of raw drone images given to  the dataloader.
+        mask_iterator (Iterable[np.ndarray])
+            Iterator of masks of shape (height, width), dtype bool. Should be the
+            same length as the region_detection_sets. The areas in which we wish to
+            keep detections should be True. In order to be effective, these should be
+            the same size as the images the detections were created from.
+        threshold (float)
+            If the overlap of a given detection polygon with "valid" portions of the
+            mask is greater than the threshold, keep that detection. If not, filter
+            it out. Defaults to 0.4.
+
+    Returns:
+        List of RegiondetectionSet objects with masked predictions filtered out (one per
+        image) OR list of geospatial dataframes (one per image). This is based on the
+        input type of region_detection_sets
+    """
+
     filtered_sets = []
 
-    # Iterate over the path to a specific image and the detections in that image
-    for im_path, rds in zip(image_paths, region_detection_sets):
-
-        # Assuming the mask path relative to the mask root matches the
-        # image path relative to the image root, open the mask file
-        subpath = Path(im_path).relative_to(image_root)
-        mask_path = (mask_root / subpath).with_suffix(mask_extension)
-
-        # Calculate a mask which is 1 where the data is valid, a.k.a.
-        # in the parts of the image we think could contain good detections.
-        # Open the image as grayscale
-        mask_img = Image.open(mask_path).convert("L")
-        mask = np.isin(mask_img, valid_classes)
+    # Iterate over the RegionDetectionsSet objects
+    for rds, mask in zip(region_detection_sets, mask_iterator):
 
         # Define a transformation from the image space ([0, 0] at the top left,
         # y increases going down) to rasterstats ([0, 0] at the bottom left,
