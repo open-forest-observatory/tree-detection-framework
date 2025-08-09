@@ -105,7 +105,7 @@ def check_expected_rds(rds, use_rds, expected_indices):
 
     if use_rds is True:
         # In this case we should have recieved a list of RDS objects, one
-        # per image (and on RD per chip)
+        # per image (and one RD per chip)
         assert isinstance(rds, RegionDetectionsSet)
         for rd in rds.region_detections:
             assert set(rd.get_data_frame().index) == set(expected_indices)
