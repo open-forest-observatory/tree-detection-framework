@@ -311,8 +311,12 @@ def match_points(
 
     if not ignore_height:
         # Extract height values using dataframe column or from CHM if provided
-        height_vals_1 = _fill_in_heights(df1, coords1, height_column_1, fillin_method, chm_path, bboxes)
-        height_vals_2 = _fill_in_heights(df2, coords2, height_column_2, fillin_method, chm_path, bboxes)
+        height_vals_1 = _fill_in_heights(
+            df1, coords1, height_column_1, fillin_method, chm_path, bboxes
+        )
+        height_vals_2 = _fill_in_heights(
+            df2, coords2, height_column_2, fillin_method, chm_path, bboxes
+        )
 
     else:
         height_vals_1, height_vals_2 = None, None
