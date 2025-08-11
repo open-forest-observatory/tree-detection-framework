@@ -244,3 +244,27 @@ def match_points(
         plt.show()
 
     return matches
+
+def assess_matches(matches: List, n_ground_truth: int, n_predictions: int):
+    """
+    Calculate precison, recall and F1 score to evaluate the matches
+    Args:
+        matches (List): List of matched pairs
+        n_ground_truth (int): Number of treetops in ground truth (treetop_set_1)
+        n_predictions (int): Number of treetops in predictions (treetop_set_2)
+
+    Returns:
+        precision, recall, f1_score: floats
+    """
+    n_matches = len(matches)
+    # Precison: how many predicted treetops matched a ground truth trees
+    precision = n_matches / n_predictions if n_predictions > 0 else 0
+    # Recall: how many ground truth treetops got matched
+    recall = n_matches / n_ground_truth if n_ground_truth > 0 else 0
+
+    if precision + recall == 0:
+        f1_score = 0
+    else:
+        f1_score = 2 * (precision * recall) / (precision + recall)
+
+    return precision, recall, f1_score
