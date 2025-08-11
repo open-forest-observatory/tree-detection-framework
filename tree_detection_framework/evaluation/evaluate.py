@@ -8,7 +8,7 @@ import numpy as np
 import shapely
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
-from shapely.geometry import Polygon, Point, box
+from shapely.geometry import Point, Polygon, box
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import (
