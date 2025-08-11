@@ -148,15 +148,12 @@ def _vis_matches(coords1, coords2, matches):
 def match_points(
     treetop_set_1: RegionDetections | RegionDetectionsSet | gpd.GeoDataFrame,
     treetop_set_2: RegionDetections | RegionDetectionsSet | gpd.GeoDataFrame,
-    height1: Optional[str] = None,
-    height2: Optional[str] = None,
+    height_column_1: Optional[str] = None,
+    height_column_2: Optional[str] = None,
     chm_path: Optional[PATH_TYPE] = None,
     bboxes: Optional[RegionDetectionsSet] = None,
-    search_height_proportion: float = 0.5,
-    search_distance_fun_slope: float = 0.1,
-    search_distance_fun_intercept: float = 1.0,
-    height_threshold: Optional[float] = None,
-    distance_threshold: Union[float, Callable[[float], float]] = None,
+    height_threshold: Union[float, Callable[[float], float]] = lambda h: 0.5 * h,
+    distance_threshold: Union[float, Callable[[float], float]] = lambda h: 0.1 * h + 1,
     fillin_method: Optional[str] = None,
     use_height_in_distance: Optional[float] = None,
     vis: bool = False,
@@ -176,28 +173,23 @@ def match_points(
             The reference (ground truth) treetop detections.
         treetop_set_2 : RegionDetections | RegionDetectionsSet | GeoDataFrame
             The predicted treetop detections to be matched against `treetop_set_1`.
-        height1 : str, optional
+        height_column_1 : str, optional
             Column name in `treetop_set_1` containing tree heights. Required unless
             `fillin_method` is provided.
-        height2 : str, optional
+        height_column_2 : str, optional
             Column name in `treetop_set_2` containing tree heights. Required unless
             `fillin_method` is provided.
         chm_path : PATH_TYPE, optional
             Path to a canopy height model (CHM) raster, used when `fillin_method='chm'`.
         bboxes : RegionDetectionsSet, optional
             Bounding boxes for computing height values when `fillin_method='bbox'`.
-        search_height_proportion : float, default=0.5
-            Allowed proportional height difference for matching if `height_threshold`
-            is not set. For example, 0.5 allows +/-50% height difference.
-        search_distance_fun_slope : float, default=0.1
-            Slope parameter for the default distance threshold function:
-            `max_d = height1 * slope + intercept`.
-        search_distance_fun_intercept : float, default=1.0
-            Intercept parameter for the default distance threshold function.
-        height_threshold : float, optional
-            Constant absolute height difference threshold (overrides proportion-based bound).
+        height_threshold : float or callable
+            Max allowed height difference during matching. 
+            - if float provided, it is considered a constant +/- tolerance in meters units
+            - if callable provided, it should accept a heights array and return the tolerance for each point.
+              Default allows +/-50% the treetop's height
         distance_threshold : float or callable, optional
-            Constant value or callable for max allowed horizontal distance. If callable,
+            Constant value or callable for max allowed horizontal distance in meters. If callable,
             it should accept `height1` as input and return distance thresholds.
         fillin_method : ['chm', 'bbox'], optional
             Method to fill in height values if they are not provided via `height1`
@@ -242,12 +234,12 @@ def match_points(
 
     # If height values are not provided, the algorithm only uses distance to find the matches
     ignore_height = False
-    if (height1 is None) and (fillin_method is None):
+    if (height_column_1 is None) and (fillin_method is None):
         logging.info("Not using height values for matching points.")
         ignore_height = True
 
     if not ignore_height:
-        height1, height2 = _prepare_heights(df1, df2, coords1, coords2, height1, height2, fillin_method, chm_path)
+        height1, height2 = _prepare_heights(df1, df2, coords1, coords2, height_column_1, height_column_2, fillin_method, chm_path)
     else:
         height1, height2 = None, None
 
@@ -256,39 +248,29 @@ def match_points(
 
     # Build valid pairs mask
     if ignore_height:
-        # Only use distance
-        if distance_threshold is not None:
-            if callable(distance_threshold):
-                raise ValueError("Distance threshold is height dependent. Please provide a constant value" \
-                                    "or provide heights.")
-            else:
-                # Constant value
-                max_d = distance_threshold
+        # Only use constant distance thresholds if heights are not available
+        if callable(distance_threshold):
+            dummy_height = np.zeros((len(coords1), 1))
+            max_d = distance_threshold(dummy_height)
         else:
-            # Use constant fallback distance threshold
-            max_d = search_distance_fun_intercept
+            max_d = distance_threshold
+
         valid_pairs_mask = distance_matrix < max_d
     else:
-        # Height bounds setup
-        if height_threshold is not None:
-            # Use constant height threshold for matching (override proportion)
+        # Height bounds
+        if callable(height_threshold):
+            min_h = height1 - height_threshold(height1)
+            max_h = height1 + height_threshold(height1)
+        else:
             min_h = height1 - height_threshold
             max_h = height1 + height_threshold
-        else:
-            # Flexible height bounds based on proportion
-            min_h = height1 * (1 - search_height_proportion)
-            max_h = height1 * (1 + search_height_proportion)
 
-        # Distance bounds setup
-        if distance_threshold is not None:
-            if callable(distance_threshold):
-                max_d = distance_threshold(height1)
-            else:
-                max_d = distance_threshold
+        # Distance bounds
+        if callable(distance_threshold):
+            max_d = distance_threshold(height1)
         else:
-            max_d = height1 * search_distance_fun_slope + search_distance_fun_intercept
+            max_d = distance_threshold
 
-        # Compute which matches fit all three criteria
         valid_pairs_mask = np.logical_and.reduce(
             [height2 > min_h, height2 < max_h, distance_matrix < max_d]
         )
