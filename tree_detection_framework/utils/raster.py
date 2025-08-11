@@ -1,8 +1,8 @@
 import tempfile
 from typing import Optional
 
-import matplotlib.pyplot as plt
 import geopandas as gpd
+import matplotlib.pyplot as plt
 import numpy as np
 import pyproj
 import rasterio
