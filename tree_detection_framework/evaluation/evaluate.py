@@ -105,9 +105,7 @@ def _prepare_heights(df1, df2, coords1, coords2, height1 = None, height2 = None,
             "or a 'fillin_method' to sample values from CHM."
         )
     
-    # Return heights by broadcasting h1 across column (N1, 1) and 
-    # broadcasting h2 across rows (1, N2)
-    return np.expand_dims(np.array(h1), axis=1), np.expand_dims(np.array(h2), axis=0)
+    return np.array(h1), np.array(h2)
 
 def _vis_matches(coords1, coords2, matches):
     """Visualize matched points"""
@@ -155,7 +153,7 @@ def match_points(
     height_threshold: Union[float, Callable[[float], float]] = lambda h: 0.5 * h,
     distance_threshold: Union[float, Callable[[float], float]] = lambda h: 0.1 * h + 1,
     fillin_method: Optional[str] = None,
-    use_height_in_distance: Optional[float] = None,
+    use_height_in_distance: Optional[float] = 0,
     vis: bool = False,
 ) -> List[Tuple[int, int, np.ndarray]]:
     """
@@ -197,7 +195,8 @@ def match_points(
             - 'chm' : Sample from CHM raster at each treetop location.
             - 'bbox': Compute height from bounding boxes.
         use_height_in_distance : float, optional
-            #TODO
+            Weight to scale height difference when computing combined distance metric for sorting matches.
+            If 0, height is not included in the sorting distance, but still used for validity checks. Defaults to 0.
         vis : bool, default=False
             If True, plot the matched treetop points and their connecting lines.
     """
@@ -239,54 +238,65 @@ def match_points(
         ignore_height = True
 
     if not ignore_height:
-        height1, height2 = _prepare_heights(df1, df2, coords1, coords2, height_column_1, height_column_2, fillin_method, chm_path)
+        height_vals_1, height_vals_2 = _prepare_heights(df1, df2, coords1, coords2, height_column_1, height_column_2, fillin_method, chm_path)
+
     else:
-        height1, height2 = None, None
+        height_vals_1, height_vals_2 = None, None
 
-    # Create the distance matrix
-    distance_matrix = cdist(coords1, coords2)  # (N1, N2)
+    # Compute XY distance matrix for validity checks
+    distance_matrix_xy = cdist(coords1, coords2)  # (N1, N2)
 
-    # Build valid pairs mask
+    # Compute combined distance matrix for sorting if use_height_in_distance is set
+    if not ignore_height:
+        logging.info("Using height as an additional scaled dimension to compute distance") if use_height_in_distance > 0 else None
+        # Note: if `use_height_in_distance` is zero, height has no effect on the distance
+        # calculation and the result is identical to pure XY distance.
+        coords1_aug = np.hstack([coords1, use_height_in_distance * height_vals_1.reshape(-1, 1)])
+        coords2_aug = np.hstack([coords2, use_height_in_distance * height_vals_2.reshape(-1, 1)])
+        distance_matrix = cdist(coords1_aug, coords2_aug)  # combined XY + scaled height
+        height_vals_1 = np.expand_dims(np.array(height_vals_1), axis=1)  # (N1, 1)
+        height_vals_2 = np.expand_dims(np.array(height_vals_2), axis=0)  # (1, N2)
+    else:
+        distance_matrix = distance_matrix_xy  # just XY distance
+
+    # Build valid pairs mask (based on XY distance and height difference thresholds)
     if ignore_height:
         # Only use constant distance thresholds if heights are not available
         if callable(distance_threshold):
-            dummy_height = np.zeros((len(coords1), 1))
-            max_d = distance_threshold(dummy_height)
-        else:
-            max_d = distance_threshold
-
+            raise ValueError("Provide a constant value for `distance_threshold`.")
+        max_d = distance_threshold
         valid_pairs_mask = distance_matrix < max_d
     else:
         # Height bounds
         if callable(height_threshold):
-            min_h = height1 - height_threshold(height1)
-            max_h = height1 + height_threshold(height1)
+            min_h = height_vals_1 - height_threshold(height_vals_1)
+            max_h = height_vals_1 + height_threshold(height_vals_1)
         else:
-            min_h = height1 - height_threshold
-            max_h = height1 + height_threshold
+            min_h = height_vals_1 - height_threshold
+            max_h = height_vals_1 + height_threshold
 
         # Distance bounds
         if callable(distance_threshold):
-            max_d = distance_threshold(height1)
+            max_d = distance_threshold(height_vals_1)
         else:
             max_d = distance_threshold
 
         valid_pairs_mask = np.logical_and.reduce(
-            [height2 > min_h, height2 < max_h, distance_matrix < max_d]
+            [height_vals_2 > min_h, height_vals_2 < max_h, distance_matrix < max_d]
         )
 
     # Extract valid pair indices and sort by distance
     valid_idxs_1, valid_idxs_2 = np.where(valid_pairs_mask)
     distances = distance_matrix[valid_idxs_1, valid_idxs_2]
+
     if ignore_height:
         dist_height_pairs = np.stack([distances], axis=1)
     else:
-        height_diffs = np.abs(height1[valid_idxs_1, 0] - height2[0, valid_idxs_2])
+        height_diffs = np.abs(height_vals_1[valid_idxs_1, 0] - height_vals_2[0, valid_idxs_2])
         dist_height_pairs = np.stack([distances, height_diffs], axis=1)
 
-    # Return the indices that sort the distances array in ascending order
+    # Sort matches by combined distance metric (which includes height if use_height_in_distance is set)
     sorted_idx = np.argsort(distances)
-    # Reorder the valid indices in ascending order of distance
     valid_idxs_1 = valid_idxs_1[sorted_idx]
     valid_idxs_2 = valid_idxs_2[sorted_idx]
     dist_height_pairs = dist_height_pairs[sorted_idx]
