@@ -100,7 +100,52 @@ def match_points(
     vis: bool = False,
 ) -> List[Tuple[int, int, np.ndarray]]:
     """
-    Match two sets of treetops.
+    Matches treetop detections from two datasets based on spatial proximity
+    and tree height similarity.
+
+    This function attempts to pair each treetop in `treetop_set_1` with at most
+    one treetop in `treetop_set_2` such that:
+      - Horizontal distance is below a maximum threshold.
+      - Height difference is within an allowed range.
+    Matching is greedy, preferring the closest pairs first.
+
+    Args:
+        treetop_set_1 : RegionDetections | RegionDetectionsSet | GeoDataFrame
+            The reference (ground truth) treetop detections.
+        treetop_set_2 : RegionDetections | RegionDetectionsSet | GeoDataFrame
+            The predicted treetop detections to be matched against `treetop_set_1`.
+        height1 : str, optional
+            Column name in `treetop_set_1` containing tree heights. Required unless
+            `fillin_method` is provided.
+        height2 : str, optional
+            Column name in `treetop_set_2` containing tree heights. Required unless
+            `fillin_method` is provided.
+        chm_path : PATH_TYPE, optional
+            Path to a canopy height model (CHM) raster, used when `fillin_method='chm'`.
+        bboxes : RegionDetectionsSet, optional
+            Bounding boxes for computing height values when `fillin_method='bbox'`.
+        search_height_proportion : float, default=0.5
+            Allowed proportional height difference for matching if `height_threshold`
+            is not set. For example, 0.5 allows +/-50% height difference.
+        search_distance_fun_slope : float, default=0.1
+            Slope parameter for the default distance threshold function:
+            `max_d = height1 * slope + intercept`.
+        search_distance_fun_intercept : float, default=1.0
+            Intercept parameter for the default distance threshold function.
+        height_threshold : float, optional
+            Constant absolute height difference threshold (overrides proportion-based bound).
+        distance_threshold : float or callable, optional
+            Constant value or callable for max allowed horizontal distance. If callable,
+            it should accept `height1` as input and return distance thresholds.
+        fillin_method : ['chm', 'bbox'], optional
+            Method to fill in height values if they are not provided via `height1`
+            and `height2`:
+            - 'chm' : Sample from CHM raster at each treetop location.
+            - 'bbox': Compute height from bounding boxes.
+        use_height_in_distance : float, optional
+            #TODO
+        vis : bool, default=False
+            If True, plot the matched treetop points and their connecting lines.
     """
     if isinstance(treetop_set_1, gpd.GeoDataFrame):
         treetop_set_1 = RegionDetections(
@@ -145,7 +190,7 @@ def match_points(
         height1 = get_heights_from_chm(coords1, df1.crs, chm_path)
         height2 = get_heights_from_chm(coords2, df2.crs, chm_path)
     elif fillin_method == "bbox":
-        # TODO: Decide logic to extract height values from bounding boxes
+        # TODO: Decide logic to compute height values from bounding boxes
         pass
     else:
         raise ValueError("Please provide values for 'height1' and 'height2' or a 'fillin_option' to sample values from CHM.")
