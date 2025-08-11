@@ -128,27 +128,67 @@ def _visualize_points(coords1, coords2, matches, mode=2, buffer=5):
     matched_coords2 = np.array([coords2[i2] for (_, i2, _) in matches])
 
     if mode == 1:
-        ax.scatter(matched_coords1[:, 0], matched_coords1[:, 1],
-                   color="red", s=30, label="Set 1 (matched)")
-        ax.scatter(matched_coords2[:, 0], matched_coords2[:, 1],
-                   color="blue", s=30, label="Set 2 (matched)")
+        ax.scatter(
+            matched_coords1[:, 0],
+            matched_coords1[:, 1],
+            color="red",
+            s=30,
+            label="Set 1 (matched)",
+        )
+        ax.scatter(
+            matched_coords2[:, 0],
+            matched_coords2[:, 1],
+            color="blue",
+            s=30,
+            label="Set 2 (matched)",
+        )
 
     elif mode in (2, 3):
-        ax.scatter(coords1[:, 0], coords1[:, 1],
-                   color="lightcoral", s=20, alpha=0.5, label="Set 1 (all)")
-        ax.scatter(coords2[:, 0], coords2[:, 1],
-                   color="lightblue", s=20, alpha=0.5, label="Set 2 (all)")
-        ax.scatter(matched_coords1[:, 0], matched_coords1[:, 1],
-                   color="red", s=30, label="Set 1 (matched)")
-        ax.scatter(matched_coords2[:, 0], matched_coords2[:, 1],
-                   color="blue", s=30, label="Set 2 (matched)")
+        ax.scatter(
+            coords1[:, 0],
+            coords1[:, 1],
+            color="lightcoral",
+            s=20,
+            alpha=0.5,
+            label="Set 1 (all)",
+        )
+        ax.scatter(
+            coords2[:, 0],
+            coords2[:, 1],
+            color="lightblue",
+            s=20,
+            alpha=0.5,
+            label="Set 2 (all)",
+        )
+        ax.scatter(
+            matched_coords1[:, 0],
+            matched_coords1[:, 1],
+            color="red",
+            s=30,
+            label="Set 1 (matched)",
+        )
+        ax.scatter(
+            matched_coords2[:, 0],
+            matched_coords2[:, 1],
+            color="blue",
+            s=30,
+            label="Set 2 (matched)",
+        )
 
         if mode == 3:
             # Determine bounds from smaller set
-            bounds1 = [coords1[:, 0].min(), coords1[:, 0].max(),
-                       coords1[:, 1].min(), coords1[:, 1].max()]
-            bounds2 = [coords2[:, 0].min(), coords2[:, 0].max(),
-                       coords2[:, 1].min(), coords2[:, 1].max()]
+            bounds1 = [
+                coords1[:, 0].min(),
+                coords1[:, 0].max(),
+                coords1[:, 1].min(),
+                coords1[:, 1].max(),
+            ]
+            bounds2 = [
+                coords2[:, 0].min(),
+                coords2[:, 0].max(),
+                coords2[:, 1].min(),
+                coords2[:, 1].max(),
+            ]
             size1 = (bounds1[1] - bounds1[0]) * (bounds1[3] - bounds1[2])
             size2 = (bounds2[1] - bounds2[0]) * (bounds2[3] - bounds2[2])
 
@@ -161,10 +201,15 @@ def _visualize_points(coords1, coords2, matches, mode=2, buffer=5):
             ax.set_ylim(ref_bounds[2] - buffer, ref_bounds[3] + buffer)
 
     # Draw match lines
-    for (i1, i2, _) in matches:
-        ax.plot([coords1[i1, 0], coords2[i2, 0]],
-                [coords1[i1, 1], coords2[i2, 1]],
-                color="black", linestyle="-", linewidth=0.5, alpha=0.5)
+    for i1, i2, _ in matches:
+        ax.plot(
+            [coords1[i1, 0], coords2[i2, 0]],
+            [coords1[i1, 1], coords2[i2, 1]],
+            color="black",
+            linestyle="-",
+            linewidth=0.5,
+            alpha=0.5,
+        )
 
     ax.legend()
     ax.set_title("Matched Points")
