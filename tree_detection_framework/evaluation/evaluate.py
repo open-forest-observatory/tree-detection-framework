@@ -1,4 +1,5 @@
 from typing import Callable, List, Optional, Tuple, Union
+import logging
 
 import geopandas as gpd
 import matplotlib.collections as mc
@@ -18,6 +19,9 @@ from tree_detection_framework.detection.region_detections import (
 from tree_detection_framework.utils.geospatial import get_projected_CRS
 from tree_detection_framework.utils.raster import get_heights_from_chm
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 def compute_matched_ious(
     ground_truth_boxes: List[Polygon], predicted_boxes: List[Polygon]
@@ -134,6 +138,7 @@ def match_points(
         height1 = df1[height1].values
         height2 = df2[height2].values
     elif fillin_method == "chm":
+        logging.info("Extracting treetop heights from CHM")
         # Path to CHM file given. Extract height for the coordinates
         if chm_path is None:
             raise ValueError("CHM path must be provided when fillin_method is 'chm'.")

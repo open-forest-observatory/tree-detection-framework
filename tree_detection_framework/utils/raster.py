@@ -2,6 +2,7 @@ import tempfile
 from typing import Optional
 
 import matplotlib.pyplot as plt
+import geopandas as gpd
 import numpy as np
 import pyproj
 import rasterio
@@ -197,6 +198,25 @@ def get_heights_from_chm(
     Returns:
         np.ndarray: Heights at the given coordinates
     """
-    # Check if CHM and coords are in the same CRS. If not, reproject CHM (?)
-    # TODO
-    return
+    # Open the CHM raster
+    with rasterio.open(chm_path) as src:
+        chm_crs = src.crs
+
+        # Check if the coords and CHM have different CRS values
+        if coords_crs != chm_crs:
+            # Create a GeoSeries for coords so that converting CRS becomes easy
+            points_gs = gpd.GeoSeries(
+                gpd.points_from_xy(coords[:, 0], coords[:, 1]),
+                crs=coords_crs
+            ).to_crs(chm_crs)
+            coords_transformed = np.column_stack([points_gs.x, points_gs.y])
+        else:
+            coords_transformed = coords
+
+        # Sample CHM values at coords
+        heights = np.array([
+            val[0] if val.size > 0 else np.nan
+            for val in src.sample(coords_transformed)
+        ])
+
+    return heights
