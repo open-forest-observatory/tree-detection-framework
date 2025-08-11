@@ -23,6 +23,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 def compute_matched_ious(
     ground_truth_boxes: List[Polygon], predicted_boxes: List[Polygon]
 ) -> List:
@@ -82,7 +83,17 @@ def compute_precision_recall(
     precision = tp / num_pd if num_pd > 0 else 0.0
     return precision, recall
 
-def _prepare_heights(df1, df2, coords1, coords2, height1 = None, height2 = None, fillin_method = None, chm_path = None):
+
+def _prepare_heights(
+    df1,
+    df2,
+    coords1,
+    coords2,
+    height1=None,
+    height2=None,
+    fillin_method=None,
+    chm_path=None,
+):
     """Extracts or computes height arrays for both sets."""
     if height1 is not None and height2 is not None:
         h1 = df1[height1].values
@@ -98,19 +109,20 @@ def _prepare_heights(df1, df2, coords1, coords2, height1 = None, height2 = None,
     elif fillin_method == "bbox":
         # TODO: Decide logic to compute height values from bounding boxes
         raise NotImplementedError()
-    
+
     else:
         raise ValueError(
             "Please provide values for 'height1' and 'height2' "
             "or a 'fillin_method' to sample values from CHM."
         )
-    
+
     return np.array(h1), np.array(h2)
+
 
 def _vis_matches(coords1, coords2, matches):
     """Visualize matched points"""
     # TODO: Support plotting all points
-    
+
     _, ax = plt.subplots(figsize=(6, 6))
 
     # Extract matched coordinates only
@@ -142,6 +154,7 @@ def _vis_matches(coords1, coords2, matches):
     ax.legend()
     ax.set_title("Matched Points")
     plt.show()
+
 
 def match_points(
     treetop_set_1: RegionDetections | RegionDetectionsSet | gpd.GeoDataFrame,
@@ -182,7 +195,7 @@ def match_points(
         bboxes : RegionDetectionsSet, optional
             Bounding boxes for computing height values when `fillin_method='bbox'`.
         height_threshold : float or callable
-            Max allowed height difference during matching. 
+            Max allowed height difference during matching.
             - if float provided, it is considered a constant +/- tolerance in meters units
             - if callable provided, it should accept a heights array and return the tolerance for each point.
               Default allows +/-50% the treetop's height
@@ -238,7 +251,16 @@ def match_points(
         ignore_height = True
 
     if not ignore_height:
-        height_vals_1, height_vals_2 = _prepare_heights(df1, df2, coords1, coords2, height_column_1, height_column_2, fillin_method, chm_path)
+        height_vals_1, height_vals_2 = _prepare_heights(
+            df1,
+            df2,
+            coords1,
+            coords2,
+            height_column_1,
+            height_column_2,
+            fillin_method,
+            chm_path,
+        )
 
     else:
         height_vals_1, height_vals_2 = None, None
@@ -248,11 +270,21 @@ def match_points(
 
     # Compute combined distance matrix for sorting if use_height_in_distance is set
     if not ignore_height:
-        logging.info("Using height as an additional scaled dimension to compute distance") if use_height_in_distance > 0 else None
+        (
+            logging.info(
+                "Using height as an additional scaled dimension to compute distance"
+            )
+            if use_height_in_distance > 0
+            else None
+        )
         # Note: if `use_height_in_distance` is zero, height has no effect on the distance
         # calculation and the result is identical to pure XY distance.
-        coords1_aug = np.hstack([coords1, use_height_in_distance * height_vals_1.reshape(-1, 1)])
-        coords2_aug = np.hstack([coords2, use_height_in_distance * height_vals_2.reshape(-1, 1)])
+        coords1_aug = np.hstack(
+            [coords1, use_height_in_distance * height_vals_1.reshape(-1, 1)]
+        )
+        coords2_aug = np.hstack(
+            [coords2, use_height_in_distance * height_vals_2.reshape(-1, 1)]
+        )
         distance_matrix = cdist(coords1_aug, coords2_aug)  # combined XY + scaled height
         height_vals_1 = np.expand_dims(np.array(height_vals_1), axis=1)  # (N1, 1)
         height_vals_2 = np.expand_dims(np.array(height_vals_2), axis=0)  # (1, N2)
@@ -292,7 +324,9 @@ def match_points(
     if ignore_height:
         dist_height_pairs = np.stack([distances], axis=1)
     else:
-        height_diffs = np.abs(height_vals_1[valid_idxs_1, 0] - height_vals_2[0, valid_idxs_2])
+        height_diffs = np.abs(
+            height_vals_1[valid_idxs_1, 0] - height_vals_2[0, valid_idxs_2]
+        )
         dist_height_pairs = np.stack([distances, height_diffs], axis=1)
 
     # Sort matches by combined distance metric (which includes height if use_height_in_distance is set)
@@ -320,6 +354,7 @@ def match_points(
         _vis_matches(coords1, coords2, matches)
 
     return matches
+
 
 def assess_matches(matches: List, n_ground_truth: int, n_predictions: int):
     """
