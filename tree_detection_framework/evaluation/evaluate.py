@@ -148,8 +148,7 @@ def match_points(
         # TODO: Decide logic to extract height values from bounding boxes
         pass
     else:
-        height1 = None
-        height2 = None
+        raise ValueError("Please provide values for 'height1' and 'height2' or a 'fillin_option' to sample values from CHM.")
 
     coords1 = np.array(coords1)
     coords2 = np.array(coords2)
