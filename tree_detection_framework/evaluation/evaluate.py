@@ -8,7 +8,7 @@ import numpy as np
 import shapely
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point, box
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import (
@@ -113,44 +113,59 @@ def _prepare_heights(
     else:
         raise ValueError(
             "Please provide values for 'height1' and 'height2' "
-            "or a 'fillin_method' to sample values from CHM."
+            "or a 'fillin_method' to derive heights from an alternative source."
         )
 
     return np.array(h1), np.array(h2)
 
 
-def _vis_matches(coords1, coords2, matches):
-    """Visualize matched points"""
-    # TODO: Support plotting all points
+def _visualize_points(coords1, coords2, matches, mode=2, buffer=5):
+    """Visualize matched points between two coordinate sets."""
+    _, ax = plt.subplots()
 
-    _, ax = plt.subplots(figsize=(6, 6))
-
-    # Extract matched coordinates only
+    # Matched coordinates
     matched_coords1 = np.array([coords1[i1] for (i1, _, _) in matches])
     matched_coords2 = np.array([coords2[i2] for (_, i2, _) in matches])
 
-    # Plot only matched points
-    ax.scatter(
-        matched_coords1[:, 0],
-        matched_coords1[:, 1],
-        color="red",
-        s=30,
-        label="Set 1 (matched)",
-    )
-    ax.scatter(
-        matched_coords2[:, 0],
-        matched_coords2[:, 1],
-        color="blue",
-        s=30,
-        label="Set 2 (matched)",
-    )
+    if mode == 1:
+        ax.scatter(matched_coords1[:, 0], matched_coords1[:, 1],
+                   color="red", s=30, label="Set 1 (matched)")
+        ax.scatter(matched_coords2[:, 0], matched_coords2[:, 1],
+                   color="blue", s=30, label="Set 2 (matched)")
 
-    # Draw lines connecting matched pairs
-    lines = [[coords1[i1], coords2[i2]] for (i1, i2, _) in matches]
-    lc = mc.LineCollection(lines, colors="black", linewidths=0.8)
-    ax.add_collection(lc)
+    elif mode in (2, 3):
+        ax.scatter(coords1[:, 0], coords1[:, 1],
+                   color="lightcoral", s=20, alpha=0.5, label="Set 1 (all)")
+        ax.scatter(coords2[:, 0], coords2[:, 1],
+                   color="lightblue", s=20, alpha=0.5, label="Set 2 (all)")
+        ax.scatter(matched_coords1[:, 0], matched_coords1[:, 1],
+                   color="red", s=30, label="Set 1 (matched)")
+        ax.scatter(matched_coords2[:, 0], matched_coords2[:, 1],
+                   color="blue", s=30, label="Set 2 (matched)")
 
-    ax.set_aspect("equal", adjustable="datalim")
+        if mode == 3:
+            # Determine bounds from smaller set
+            bounds1 = [coords1[:, 0].min(), coords1[:, 0].max(),
+                       coords1[:, 1].min(), coords1[:, 1].max()]
+            bounds2 = [coords2[:, 0].min(), coords2[:, 0].max(),
+                       coords2[:, 1].min(), coords2[:, 1].max()]
+            size1 = (bounds1[1] - bounds1[0]) * (bounds1[3] - bounds1[2])
+            size2 = (bounds2[1] - bounds2[0]) * (bounds2[3] - bounds2[2])
+
+            if size1 < size2:
+                ref_bounds = bounds1
+            else:
+                ref_bounds = bounds2
+
+            ax.set_xlim(ref_bounds[0] - buffer, ref_bounds[1] + buffer)
+            ax.set_ylim(ref_bounds[2] - buffer, ref_bounds[3] + buffer)
+
+    # Draw match lines
+    for (i1, i2, _) in matches:
+        ax.plot([coords1[i1, 0], coords2[i2, 0]],
+                [coords1[i1, 1], coords2[i2, 1]],
+                color="black", linestyle="-", linewidth=0.5, alpha=0.5)
+
     ax.legend()
     ax.set_title("Matched Points")
     plt.show()
@@ -168,6 +183,7 @@ def match_points(
     fillin_method: Optional[str] = None,
     use_height_in_distance: Optional[float] = 0,
     vis: bool = False,
+    vis_mode: int = 3,
 ) -> List[Tuple[int, int, np.ndarray]]:
     """
     Matches treetop detections from two datasets based on spatial proximity
@@ -212,6 +228,10 @@ def match_points(
             If 0, height is not included in the sorting distance, but still used for validity checks. Defaults to 0.
         vis : bool, default=False
             If True, plot the matched treetop points and their connecting lines.
+        vis_mode : int, default = 3
+            1 - Show only matched points
+            2 - Show all points from both sets, highlighting matches
+            3 - Same as mode 2, but crop the plot to the smaller set's bounds + buffer
     """
     if isinstance(treetop_set_1, gpd.GeoDataFrame):
         treetop_set_1 = RegionDetections(
@@ -351,7 +371,7 @@ def match_points(
             break
 
     if vis:
-        _vis_matches(coords1, coords2, matches)
+        _visualize_points(coords1, coords2, matches, mode=vis_mode)
 
     return matches
 
