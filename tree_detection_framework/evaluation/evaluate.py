@@ -84,27 +84,23 @@ def compute_precision_recall(
     return precision, recall
 
 
-def _prepare_heights(
-    df1,
-    df2,
-    coords1,
-    coords2,
-    height1=None,
-    height2=None,
+def _fill_in_heights(
+    df,
+    coords,
+    height_column=None,
     fillin_method=None,
     chm_path=None,
+    bboxes=None,
 ):
-    """Extracts or computes height arrays for both sets."""
-    if height1 is not None and height2 is not None:
-        h1 = df1[height1].values
-        h2 = df2[height2].values
+    """Extracts or computes height arrays for a set of coordinates"""
+    if height_column is not None:
+        return df[height_column].values
 
-    elif fillin_method == "chm":
+    if fillin_method == "chm":
         logging.info("Extracting treetop heights from CHM")
         if chm_path is None:
             raise ValueError("CHM path must be provided when fillin_method is 'chm'.")
-        h1 = get_heights_from_chm(coords1, df1.crs, chm_path)
-        h2 = get_heights_from_chm(coords2, df2.crs, chm_path)
+        return get_heights_from_chm(coords, df.crs, chm_path)
 
     elif fillin_method == "bbox":
         # TODO: Decide logic to compute height values from bounding boxes
@@ -115,8 +111,6 @@ def _prepare_heights(
             "Please provide values for 'height1' and 'height2' "
             "or a 'fillin_method' to derive heights from an alternative source."
         )
-
-    return np.array(h1), np.array(h2)
 
 
 def _visualize_points(coords1, coords2, matches, mode=2, buffer=5):
@@ -316,16 +310,9 @@ def match_points(
         ignore_height = True
 
     if not ignore_height:
-        height_vals_1, height_vals_2 = _prepare_heights(
-            df1,
-            df2,
-            coords1,
-            coords2,
-            height_column_1,
-            height_column_2,
-            fillin_method,
-            chm_path,
-        )
+        # Extract height values using dataframe column or from CHM if provided
+        height_vals_1 = _fill_in_heights(df1, coords1, height_column_1, fillin_method, chm_path, bboxes)
+        height_vals_2 = _fill_in_heights(df2, coords2, height_column_2, fillin_method, chm_path, bboxes)
 
     else:
         height_vals_1, height_vals_2 = None, None
