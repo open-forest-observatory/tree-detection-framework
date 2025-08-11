@@ -82,6 +82,68 @@ def compute_precision_recall(
     precision = tp / num_pd if num_pd > 0 else 0.0
     return precision, recall
 
+def _prepare_heights(df1, df2, coords1, coords2, height1 = None, height2 = None, fillin_method = None, chm_path = None):
+    """Extracts or computes height arrays for both sets."""
+    if height1 is not None and height2 is not None:
+        h1 = df1[height1].values
+        h2 = df2[height2].values
+
+    elif fillin_method == "chm":
+        logging.info("Extracting treetop heights from CHM")
+        if chm_path is None:
+            raise ValueError("CHM path must be provided when fillin_method is 'chm'.")
+        h1 = get_heights_from_chm(coords1, df1.crs, chm_path)
+        h2 = get_heights_from_chm(coords2, df2.crs, chm_path)
+
+    elif fillin_method == "bbox":
+        # TODO: Decide logic to compute height values from bounding boxes
+        raise NotImplementedError()
+    
+    else:
+        raise ValueError(
+            "Please provide values for 'height1' and 'height2' "
+            "or a 'fillin_method' to sample values from CHM."
+        )
+    
+    # Return heights by broadcasting h1 across column (N1, 1) and 
+    # broadcasting h2 across rows (1, N2)
+    return np.expand_dims(np.array(h1), axis=1), np.expand_dims(np.array(h2), axis=0)
+
+def _vis_matches(coords1, coords2, matches):
+    """Visualize matched points"""
+    # TODO: Support plotting all points
+    
+    _, ax = plt.subplots(figsize=(6, 6))
+
+    # Extract matched coordinates only
+    matched_coords1 = np.array([coords1[i1] for (i1, _, _) in matches])
+    matched_coords2 = np.array([coords2[i2] for (_, i2, _) in matches])
+
+    # Plot only matched points
+    ax.scatter(
+        matched_coords1[:, 0],
+        matched_coords1[:, 1],
+        color="red",
+        s=30,
+        label="Set 1 (matched)",
+    )
+    ax.scatter(
+        matched_coords2[:, 0],
+        matched_coords2[:, 1],
+        color="blue",
+        s=30,
+        label="Set 2 (matched)",
+    )
+
+    # Draw lines connecting matched pairs
+    lines = [[coords1[i1], coords2[i2]] for (i1, i2, _) in matches]
+    lc = mc.LineCollection(lines, colors="black", linewidths=0.8)
+    ax.add_collection(lc)
+
+    ax.set_aspect("equal", adjustable="datalim")
+    ax.legend()
+    ax.set_title("Matched Points")
+    plt.show()
 
 def match_points(
     treetop_set_1: RegionDetections | RegionDetectionsSet | gpd.GeoDataFrame,
@@ -178,63 +240,67 @@ def match_points(
     coords1 = shapely.get_coordinates(df1.geometry)
     coords2 = shapely.get_coordinates(df2.geometry)
 
-    # Extract height arrays
-    if height1 is not None and height2 is not None:
-        height1 = df1[height1].values
-        height2 = df2[height2].values
-    elif fillin_method == "chm":
-        logging.info("Extracting treetop heights from CHM")
-        # Path to CHM file given. Extract height for the coordinates
-        if chm_path is None:
-            raise ValueError("CHM path must be provided when fillin_method is 'chm'.")
-        height1 = get_heights_from_chm(coords1, df1.crs, chm_path)
-        height2 = get_heights_from_chm(coords2, df2.crs, chm_path)
-    elif fillin_method == "bbox":
-        # TODO: Decide logic to compute height values from bounding boxes
-        pass
+    # If height values are not provided, the algorithm only uses distance to find the matches
+    ignore_height = False
+    if (height1 is None) and (fillin_method is None):
+        logging.info("Not using height values for matching points.")
+        ignore_height = True
+
+    if not ignore_height:
+        height1, height2 = _prepare_heights(df1, df2, coords1, coords2, height1, height2, fillin_method, chm_path)
     else:
-        raise ValueError("Please provide values for 'height1' and 'height2' or a 'fillin_option' to sample values from CHM.")
+        height1, height2 = None, None
 
-    coords1 = np.array(coords1)
-    coords2 = np.array(coords2)
-    height1 = np.expand_dims(np.array(height1), axis=1)  # (N1, 1)
-    height2 = np.expand_dims(np.array(height2), axis=0)  # (1, N2)
-
+    # Create the distance matrix
     distance_matrix = cdist(coords1, coords2)  # (N1, N2)
 
-    # Height bounds setup
-    if height_threshold is not None:
-        # Use constant height threshold for matching (override proportion)
-        min_h = height1 - height_threshold
-        max_h = height1 + height_threshold
-    else:
-        # Flexible height bounds based on proportion
-        min_h = height1 * (1 - search_height_proportion)
-        max_h = height1 * (1 + search_height_proportion)
-
-    # Distance bounds setup
-    if distance_threshold is not None:
-        # If a callable is given, use it on height1 to calculate distance threshold array
-        if callable(distance_threshold):
-            max_d = distance_threshold(height1)
+    # Build valid pairs mask
+    if ignore_height:
+        # Only use distance
+        if distance_threshold is not None:
+            if callable(distance_threshold):
+                raise ValueError("Distance threshold is height dependent. Please provide a constant value" \
+                                    "or provide heights.")
+            else:
+                # Constant value
+                max_d = distance_threshold
         else:
-            # Constant distance threshold override
-            max_d = distance_threshold
+            # Use constant fallback distance threshold
+            max_d = search_distance_fun_intercept
+        valid_pairs_mask = distance_matrix < max_d
     else:
-        # Use flexible distance threshold as function of height
-        max_d = height1 * search_distance_fun_slope + search_distance_fun_intercept
+        # Height bounds setup
+        if height_threshold is not None:
+            # Use constant height threshold for matching (override proportion)
+            min_h = height1 - height_threshold
+            max_h = height1 + height_threshold
+        else:
+            # Flexible height bounds based on proportion
+            min_h = height1 * (1 - search_height_proportion)
+            max_h = height1 * (1 + search_height_proportion)
 
-    # Compute which matches fit all three criteria
-    valid_pairs_mask = np.logical_and.reduce(
-        [height2 > min_h, height2 < max_h, distance_matrix < max_d]
-    )
+        # Distance bounds setup
+        if distance_threshold is not None:
+            if callable(distance_threshold):
+                max_d = distance_threshold(height1)
+            else:
+                max_d = distance_threshold
+        else:
+            max_d = height1 * search_distance_fun_slope + search_distance_fun_intercept
 
-    # Extract valid pair indices and their distances
+        # Compute which matches fit all three criteria
+        valid_pairs_mask = np.logical_and.reduce(
+            [height2 > min_h, height2 < max_h, distance_matrix < max_d]
+        )
+
+    # Extract valid pair indices and sort by distance
     valid_idxs_1, valid_idxs_2 = np.where(valid_pairs_mask)
     distances = distance_matrix[valid_idxs_1, valid_idxs_2]
-    # Calculate absolute height differences for the valid pairs
-    height_diffs = np.abs(height1[valid_idxs_1, 0] - height2[0, valid_idxs_2])
-    dist_height_pairs = np.stack([distances, height_diffs], axis=1)
+    if ignore_height:
+        dist_height_pairs = np.stack([distances], axis=1)
+    else:
+        height_diffs = np.abs(height1[valid_idxs_1, 0] - height2[0, valid_idxs_2])
+        dist_height_pairs = np.stack([distances, height_diffs], axis=1)
 
     # Return the indices that sort the distances array in ascending order
     sorted_idx = np.argsort(distances)
@@ -243,7 +309,7 @@ def match_points(
     valid_idxs_2 = valid_idxs_2[sorted_idx]
     dist_height_pairs = dist_height_pairs[sorted_idx]
 
-    # Compute the most possible pairs, which is the min of num of set 1 and set 2 trees
+    # Greedy matching
     max_valid_matches = min(distance_matrix.shape)
     matched_1 = []
     matched_2 = []
@@ -259,38 +325,7 @@ def match_points(
             break
 
     if vis:
-
-        _, ax = plt.subplots(figsize=(6, 6))
-
-        # Extract matched coordinates only
-        matched_coords1 = np.array([coords1[i1] for (i1, _, _) in matches])
-        matched_coords2 = np.array([coords2[i2] for (_, i2, _) in matches])
-
-        # Plot only matched points
-        ax.scatter(
-            matched_coords1[:, 0],
-            matched_coords1[:, 1],
-            color="red",
-            s=30,
-            label="Set 1 (matched)",
-        )
-        ax.scatter(
-            matched_coords2[:, 0],
-            matched_coords2[:, 1],
-            color="blue",
-            s=30,
-            label="Set 2 (matched)",
-        )
-
-        # Draw lines connecting matched pairs
-        lines = [[coords1[i1], coords2[i2]] for (i1, i2, _) in matches]
-        lc = mc.LineCollection(lines, colors="black", linewidths=0.8)
-        ax.add_collection(lc)
-
-        ax.set_aspect("equal", adjustable="datalim")
-        ax.legend()
-        ax.set_title("Matched Points")
-        plt.show()
+        _vis_matches(coords1, coords2, matches)
 
     return matches
 
