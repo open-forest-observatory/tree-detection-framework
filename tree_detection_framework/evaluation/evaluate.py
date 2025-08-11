@@ -23,6 +23,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 def compute_matched_ious(
     ground_truth_boxes: List[Polygon], predicted_boxes: List[Polygon]
 ) -> List:
@@ -193,7 +194,9 @@ def match_points(
         # TODO: Decide logic to compute height values from bounding boxes
         pass
     else:
-        raise ValueError("Please provide values for 'height1' and 'height2' or a 'fillin_option' to sample values from CHM.")
+        raise ValueError(
+            "Please provide values for 'height1' and 'height2' or a 'fillin_option' to sample values from CHM."
+        )
 
     coords1 = np.array(coords1)
     coords2 = np.array(coords2)
@@ -293,6 +296,7 @@ def match_points(
         plt.show()
 
     return matches
+
 
 def assess_matches(matches: List, n_ground_truth: int, n_predictions: int):
     """
