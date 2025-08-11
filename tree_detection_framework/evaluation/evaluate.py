@@ -1,5 +1,5 @@
-from typing import Callable, List, Optional, Tuple, Union
 import logging
+from typing import Callable, List, Optional, Tuple, Union
 
 import geopandas as gpd
 import matplotlib.collections as mc
