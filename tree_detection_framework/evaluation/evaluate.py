@@ -113,8 +113,18 @@ def _fill_in_heights(
         )
 
 
-def _visualize_points(coords1, coords2, matches, mode=2, buffer=5):
-    """Visualize matched points between two coordinate sets."""
+def _visualize_points(coords1, coords2, matches, mode=3, buffer=5):
+    """Visualize matched points between two coordinate sets.
+    Args:
+        coords1 (np.ndarray): point coordinates from set 1
+        coords2 (np.ndarray): point coordinates from set 2
+        matches (List[tuple]): indices from set 1, set 2, and height/distance data for the matches
+        mode (int): Ways to visulaize the points
+            - 1: Show only matched points
+            - 2: Show all points from both sets, highlighting matches
+            - 3: Same as mode 2, but crop the plot to the smaller set's bounds + buffer 
+        buffer (int): Used in mode 3 while cropping the smaller set's bounds
+    """
     _, ax = plt.subplots()
 
     # Matched coordinates
@@ -271,9 +281,9 @@ def match_points(
         vis : bool, default=False
             If True, plot the matched treetop points and their connecting lines.
         vis_mode : int, default = 3
-            1 - Show only matched points
-            2 - Show all points from both sets, highlighting matches
-            3 - Same as mode 2, but crop the plot to the smaller set's bounds + buffer
+            - 1: Show only matched points
+            - 2: Show all points from both sets, highlighting matches
+            - 3: Same as mode 2, but crop the plot to the smaller set's bounds + buffer 
     """
     if isinstance(treetop_set_1, gpd.GeoDataFrame):
         treetop_set_1 = RegionDetections(
