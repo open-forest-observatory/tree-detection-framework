@@ -98,8 +98,16 @@ class TestMatchPoints:
             {},
             {"height_column_1": "height", "height_column_2": "height"},
             {"fillin_method": "chm", "chm_path": "temporary"},
-            {"height_column_1": "height", "fillin_method": "chm", "chm_path": "temporary"},
-            {"height_column_2": "height", "fillin_method": "chm", "chm_path": "temporary"},
+            {
+                "height_column_1": "height",
+                "fillin_method": "chm",
+                "chm_path": "temporary",
+            },
+            {
+                "height_column_2": "height",
+                "fillin_method": "chm",
+                "chm_path": "temporary",
+            },
         ],
     )
     def test_basic_match(
@@ -168,7 +176,7 @@ class TestMatchPoints:
             (1.0, []),
             (lambda h: h, [(2, 2, 2.0), (1, 1, 5.0)]),
             (lambda h: 0.1 * h, [(1, 1, 5.0)]),
-        ]
+        ],
     )
     def test_distance_threshold(self, type1, type2, distance_threshold, expected):
         """
@@ -214,7 +222,7 @@ class TestMatchPoints:
             (lambda h: h, [(2, 2, 1.0), (1, 1, 2.0), (0, 0, 3.0)]),
             (lambda h: 0.5 * h, [(2, 2, 1.0), (1, 1, 2.0)]),
             (lambda h: 0.2 * h, [(2, 2, 1.0)]),
-        ]
+        ],
     )
     def test_height_threshold(self, type1, type2, height_threshold, expected):
         """
@@ -251,14 +259,16 @@ class TestMatchPoints:
         "use_height_in_distance,expected",
         [
             (0.0, [(0, 0, 4.0)]),
-            (0.01, [(0, 0,  np.sqrt(16 + 0.64))]),
+            (0.01, [(0, 0, np.sqrt(16 + 0.64))]),
             # When the scale factor is height enough, we start matching to the farther
             # tree that is a better height match
             (1.0, [(1, 0, np.sqrt(25 + 25))]),
             (2.0, [(1, 0, np.sqrt(25 + 100))]),
-        ]
+        ],
     )
-    def test_use_height_in_distance(self, type1, type2, use_height_in_distance, expected):
+    def test_use_height_in_distance(
+        self, type1, type2, use_height_in_distance, expected
+    ):
         """
         When using height in the similarity distance, trees close in (x, y) but mismatched
         in height should be disfavored.
@@ -303,7 +313,7 @@ class TestMatchPoints:
                 {"fillin_method": "chm", "chm_path": 100.0},
                 [(1, 0, 5), (2, 1, 5)],
             ),
-        ]
+        ],
     )
     def test_fillin_chm(self, tmp_path, kwargs, expected):
         """The CHM values should fill into the height and affect matching."""
@@ -362,7 +372,9 @@ class TestMatchPoints:
                 **kwargs,
             )
 
-    @pytest.mark.parametrize("distance_threshold", [lambda x: 0.2 * x + 2, lambda x: x, lambda x: 2])
+    @pytest.mark.parametrize(
+        "distance_threshold", [lambda x: 0.2 * x + 2, lambda x: x, lambda x: 2]
+    )
     def test_threshold_error(self, distance_threshold):
         """
         If no height source is given and distance_threshold is callable (a.k.a. depends
@@ -380,7 +392,7 @@ class TestMatchPoints:
         [
             ("bbox", NotImplementedError),
             ("unknown", ValueError),
-        ]
+        ],
     )
     def test_fillin_error(self, method, error):
         """Invalid fillin methods should be rejected."""
