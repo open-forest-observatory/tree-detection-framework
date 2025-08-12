@@ -146,6 +146,11 @@ class RegionDetections:
             data=data, geometry=detection_geometries, crs=CRS
         )
 
+        # If no bounds are provided, compute them from the detections if possible
+        if geospatial_prediction_bounds is None and len(self.detections) > 0:
+            geospatial_prediction_bounds = self.detections.total_bounds
+            geospatial_prediction_bounds = shapely.box(*geospatial_prediction_bounds)
+
         # Create a one-length geoseries for the bounds
         self.prediction_bounds_in_CRS = gpd.GeoSeries(
             data=[geospatial_prediction_bounds], crs=CRS
@@ -720,3 +725,34 @@ class RegionDetectionsSet:
             raster_file=raster_file,
             raster_vis_downsample=raster_vis_downsample,
         )
+
+
+def reproject_detections(
+    region_detections: RegionDetections,
+    target_crs: pyproj.CRS,
+) -> RegionDetections:
+    """
+    Reprojects the RegionDetections object to a target CRS.
+
+    Args:
+        region_detections (RegionDetections): The detections to reproject.
+        target_crs (pyproj.CRS): The target CRS to reproject to.
+
+    Returns:
+        RegionDetections: Detections after reprojection.
+    """
+
+    # Get the detections in the target CRS
+    projected_detections = region_detections.get_data_frame(CRS=target_crs)
+    # Get the bounds in the target CRS
+    projected_bounds = region_detections.get_bounds(CRS=target_crs)[0]
+
+    # Create a new RegionDetections object with the projected detections
+    projected_region_detections = RegionDetections(
+        detection_geometries=None,
+        data=projected_detections,
+        CRS=target_crs,
+        geospatial_prediction_bounds=projected_bounds,
+    )
+
+    return projected_region_detections

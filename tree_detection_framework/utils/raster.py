@@ -1,6 +1,7 @@
 import tempfile
 from typing import Optional
 
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import pyproj
@@ -181,3 +182,42 @@ def plot_from_dataloader(sample):
         raise ValueError(f"Cannot plot image with {n_channels} channels")
 
     return fig
+
+
+def get_heights_from_chm(
+    coords: np.ndarray,
+    coords_crs: pyproj.CRS,
+    chm_path: PATH_TYPE,
+) -> np.ndarray:
+    """Extract heights from a CHM for the given coordinates
+
+    Args:
+        coords (np.ndarray): Coordinates in the form of an array of shape (n, 2) where n is the number of points
+        chm_path (PATH_TYPE): Path to the CHM raster file
+
+    Returns:
+        np.ndarray: Heights at the given coordinates
+    """
+    # Open the CHM raster
+    with rasterio.open(chm_path) as src:
+        chm_crs = src.crs
+
+        # Check if the coords and CHM have different CRS values
+        if coords_crs != chm_crs:
+            # Create a GeoSeries for coords so that converting CRS becomes easy
+            points_gs = gpd.GeoSeries(
+                gpd.points_from_xy(coords[:, 0], coords[:, 1]), crs=coords_crs
+            ).to_crs(chm_crs)
+            coords_transformed = np.column_stack([points_gs.x, points_gs.y])
+        else:
+            coords_transformed = coords
+
+        # Sample CHM values at coords
+        heights = np.array(
+            [
+                val[0] if val.size > 0 else np.nan
+                for val in src.sample(coords_transformed)
+            ]
+        )
+
+    return heights
