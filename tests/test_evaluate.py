@@ -83,20 +83,20 @@ class TestMatchPoints:
             assert len(match) == 3
             assert isinstance(match[0], (int, np.integer))
             assert isinstance(match[1], (int, np.integer))
-            # assert isinstance(match[2], float)  # TODO: Uncomment
+            assert isinstance(match[2], float)
             # All elements (indices and distance) should be non-negative
-            # assert np.all(np.array(match) >= 0)  # TODO: Uncomment
+            assert np.all(np.array(match) >= 0)
 
     @pytest.mark.parametrize("type1", INPUT_TYPES)
     @pytest.mark.parametrize("type2", INPUT_TYPES)
-    @pytest.mark.parametrize("height_threshold", [2.0, None])
-    @pytest.mark.parametrize("distance_threshold", [lambda x: 0.2 * x + 2, 2.0, None])
-    @pytest.mark.parametrize("use_height_in_distance", [1.0, None])
+    @pytest.mark.parametrize("height_threshold", [lambda x: 0.5 * x, 2.0, np.inf])
+    @pytest.mark.parametrize("distance_threshold", [lambda x: 0.2 * x + 2, 2.0, np.inf])
+    @pytest.mark.parametrize("use_height_in_distance", [1.0, 0.0])
     @pytest.mark.parametrize(
         "add_kwargs",
         [
-            # {},  $ TODO: Uncomment
-            {"height1": "height", "height2": "height"},
+            {},
+            {"height_column_1": "height", "height_column_2": "height"},
             {"fillin_method": "chm", "chm_path": "temporary"},
         ],
     )
@@ -114,6 +114,10 @@ class TestMatchPoints:
         In all argument combinations, we should have a three matches
         with no distance.
         """
+
+        # Avoid certain combinations
+        if len(add_kwargs) == 0 and callable(distance_threshold):
+            return
 
         # Points with the same location and height
         set1 = make_inputs(
@@ -145,4 +149,4 @@ class TestMatchPoints:
         for expected_indices, match in zip(([0, 1], [1, 0], [2, 2]), matches):
             idx1, idx2, distance = match
             assert [idx1, idx2] == expected_indices
-            # assert np.isclose(distance, 0.0)  # TODO: Uncomment
+            assert np.isclose(distance, 0.0)

@@ -220,7 +220,7 @@ def match_points(
     height_threshold: Union[float, Callable[[float], float]] = lambda h: 0.5 * h,
     distance_threshold: Union[float, Callable[[float], float]] = lambda h: 0.1 * h + 1,
     fillin_method: Optional[str] = None,
-    use_height_in_distance: Optional[float] = 0,
+    use_height_in_distance: Optional[float] = 0.0,
     vis: bool = False,
     vis_mode: int = 3,
 ) -> List[Tuple[int, int, np.ndarray]]:
@@ -240,23 +240,26 @@ def match_points(
         treetop_set_2 : RegionDetections | RegionDetectionsSet | GeoDataFrame
             The predicted treetop detections to be matched against `treetop_set_1`.
         height_column_1 : str, optional
-            Column name in `treetop_set_1` containing tree heights. Required unless
-            `fillin_method` is provided.
+            Column name in `treetop_set_1` containing tree heights. If this is None and
+            `fillin_method` is not provided, height will not be used.
         height_column_2 : str, optional
-            Column name in `treetop_set_2` containing tree heights. Required unless
-            `fillin_method` is provided.
+            Column name in `treetop_set_2` containing tree heights. If this is None and
+            `fillin_method` is not provided, height will not be used.
         chm_path : PATH_TYPE, optional
             Path to a canopy height model (CHM) raster, used when `fillin_method='chm'`.
         bboxes : RegionDetectionsSet, optional
             Bounding boxes for computing height values when `fillin_method='bbox'`.
         height_threshold : float or callable
             Max allowed height difference during matching.
-            - if float provided, it is considered a constant +/- tolerance in meters units
-            - if callable provided, it should accept a heights array and return the tolerance for each point.
-              Default allows +/-50% the treetop's height
+            - If float provided, it is considered a constant +/- tolerance in meters. Pass in
+              np.inf to disable
+            - If callable provided, it should accept a heights array and return the tolerance for
+              each point. Default allows +/-50% the reference treetop's height
         distance_threshold : float or callable, optional
-            Constant value or callable for max allowed horizontal distance in meters. If callable,
-            it should accept `height1` as input and return distance thresholds.
+            Max allowed horizontal distance for a match in meters.
+            - If float provided, it is a constant value. Pass in np.inf to disable
+            - If callable is provided, it should accept a heights array and return distance
+              thresholds.
         fillin_method : ['chm', 'bbox'], optional
             Method to fill in height values if they are not provided via `height1`
             and `height2`:
@@ -352,8 +355,7 @@ def match_points(
         # Only use constant distance thresholds if heights are not available
         if callable(distance_threshold):
             raise ValueError("Provide a constant value for `distance_threshold`.")
-        max_d = distance_threshold
-        valid_pairs_mask = distance_matrix < max_d
+        valid_pairs_mask = distance_matrix < distance_threshold
     else:
         # Height bounds
         if callable(height_threshold):
@@ -377,19 +379,11 @@ def match_points(
     valid_idxs_1, valid_idxs_2 = np.where(valid_pairs_mask)
     distances = distance_matrix[valid_idxs_1, valid_idxs_2]
 
-    if ignore_height:
-        dist_height_pairs = np.stack([distances], axis=1)
-    else:
-        height_diffs = np.abs(
-            height_vals_1[valid_idxs_1, 0] - height_vals_2[0, valid_idxs_2]
-        )
-        dist_height_pairs = np.stack([distances, height_diffs], axis=1)
-
     # Sort matches by combined distance metric (which includes height if use_height_in_distance is set)
     sorted_idx = np.argsort(distances)
     valid_idxs_1 = valid_idxs_1[sorted_idx]
     valid_idxs_2 = valid_idxs_2[sorted_idx]
-    dist_height_pairs = dist_height_pairs[sorted_idx]
+    matching_distance = distances[sorted_idx]
 
     # Greedy matching
     max_valid_matches = min(distance_matrix.shape)
@@ -397,7 +391,7 @@ def match_points(
     matched_2 = []
     matches = []
 
-    for i1, i2, d_h in zip(valid_idxs_1, valid_idxs_2, dist_height_pairs):
+    for i1, i2, d_h in zip(valid_idxs_1, valid_idxs_2, matching_distance):
         if i1 not in matched_1 and i2 not in matched_2:
             matches.append((i1, i2, d_h))
             matched_1.append(i1)
