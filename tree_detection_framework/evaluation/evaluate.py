@@ -8,7 +8,7 @@ import numpy as np
 import shapely
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon, box
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import (
@@ -84,21 +84,145 @@ def compute_precision_recall(
     return precision, recall
 
 
+def _fill_in_heights(
+    df,
+    coords,
+    height_column=None,
+    fillin_method=None,
+    chm_path=None,
+    bboxes=None,
+):
+    """Extracts or computes height arrays for a set of coordinates"""
+    if height_column is not None:
+        return df[height_column].values
+
+    if fillin_method == "chm":
+        logging.info("Extracting treetop heights from CHM")
+        if chm_path is None:
+            raise ValueError("CHM path must be provided when fillin_method is 'chm'.")
+        return get_heights_from_chm(coords, df.crs, chm_path)
+
+    elif fillin_method == "bbox":
+        # TODO: Decide logic to compute height values from bounding boxes
+        raise NotImplementedError()
+
+    else:
+        raise ValueError(
+            "Please provide values for 'height1' and 'height2' "
+            "or a 'fillin_method' to derive heights from an alternative source."
+        )
+
+
+def _visualize_points(coords1, coords2, matches, mode=2, buffer=5):
+    """Visualize matched points between two coordinate sets."""
+    _, ax = plt.subplots()
+
+    # Matched coordinates
+    matched_coords1 = np.array([coords1[i1] for (i1, _, _) in matches])
+    matched_coords2 = np.array([coords2[i2] for (_, i2, _) in matches])
+
+    if mode == 1:
+        ax.scatter(
+            matched_coords1[:, 0],
+            matched_coords1[:, 1],
+            color="red",
+            s=30,
+            label="Set 1 (matched)",
+        )
+        ax.scatter(
+            matched_coords2[:, 0],
+            matched_coords2[:, 1],
+            color="blue",
+            s=30,
+            label="Set 2 (matched)",
+        )
+
+    elif mode in (2, 3):
+        ax.scatter(
+            coords1[:, 0],
+            coords1[:, 1],
+            color="lightcoral",
+            s=20,
+            alpha=0.5,
+            label="Set 1 (all)",
+        )
+        ax.scatter(
+            coords2[:, 0],
+            coords2[:, 1],
+            color="lightblue",
+            s=20,
+            alpha=0.5,
+            label="Set 2 (all)",
+        )
+        ax.scatter(
+            matched_coords1[:, 0],
+            matched_coords1[:, 1],
+            color="red",
+            s=30,
+            label="Set 1 (matched)",
+        )
+        ax.scatter(
+            matched_coords2[:, 0],
+            matched_coords2[:, 1],
+            color="blue",
+            s=30,
+            label="Set 2 (matched)",
+        )
+
+        if mode == 3:
+            # Determine bounds from smaller set
+            bounds1 = [
+                coords1[:, 0].min(),
+                coords1[:, 0].max(),
+                coords1[:, 1].min(),
+                coords1[:, 1].max(),
+            ]
+            bounds2 = [
+                coords2[:, 0].min(),
+                coords2[:, 0].max(),
+                coords2[:, 1].min(),
+                coords2[:, 1].max(),
+            ]
+            size1 = (bounds1[1] - bounds1[0]) * (bounds1[3] - bounds1[2])
+            size2 = (bounds2[1] - bounds2[0]) * (bounds2[3] - bounds2[2])
+
+            if size1 < size2:
+                ref_bounds = bounds1
+            else:
+                ref_bounds = bounds2
+
+            ax.set_xlim(ref_bounds[0] - buffer, ref_bounds[1] + buffer)
+            ax.set_ylim(ref_bounds[2] - buffer, ref_bounds[3] + buffer)
+
+    # Draw match lines
+    for i1, i2, _ in matches:
+        ax.plot(
+            [coords1[i1, 0], coords2[i2, 0]],
+            [coords1[i1, 1], coords2[i2, 1]],
+            color="black",
+            linestyle="-",
+            linewidth=0.5,
+            alpha=0.5,
+        )
+
+    ax.legend()
+    ax.set_title("Matched Points")
+    plt.show()
+
+
 def match_points(
     treetop_set_1: RegionDetections | RegionDetectionsSet | gpd.GeoDataFrame,
     treetop_set_2: RegionDetections | RegionDetectionsSet | gpd.GeoDataFrame,
-    height1: Optional[str] = None,
-    height2: Optional[str] = None,
+    height_column_1: Optional[str] = None,
+    height_column_2: Optional[str] = None,
     chm_path: Optional[PATH_TYPE] = None,
     bboxes: Optional[RegionDetectionsSet] = None,
-    search_height_proportion: float = 0.5,
-    search_distance_fun_slope: float = 0.1,
-    search_distance_fun_intercept: float = 1.0,
-    height_threshold: Optional[float] = None,
-    distance_threshold: Union[float, Callable[[float], float]] = None,
+    height_threshold: Union[float, Callable[[float], float]] = lambda h: 0.5 * h,
+    distance_threshold: Union[float, Callable[[float], float]] = lambda h: 0.1 * h + 1,
     fillin_method: Optional[str] = None,
-    use_height_in_distance: Optional[float] = None,
+    use_height_in_distance: Optional[float] = 0,
     vis: bool = False,
+    vis_mode: int = 3,
 ) -> List[Tuple[int, int, np.ndarray]]:
     """
     Matches treetop detections from two datasets based on spatial proximity
@@ -115,28 +239,23 @@ def match_points(
             The reference (ground truth) treetop detections.
         treetop_set_2 : RegionDetections | RegionDetectionsSet | GeoDataFrame
             The predicted treetop detections to be matched against `treetop_set_1`.
-        height1 : str, optional
+        height_column_1 : str, optional
             Column name in `treetop_set_1` containing tree heights. Required unless
             `fillin_method` is provided.
-        height2 : str, optional
+        height_column_2 : str, optional
             Column name in `treetop_set_2` containing tree heights. Required unless
             `fillin_method` is provided.
         chm_path : PATH_TYPE, optional
             Path to a canopy height model (CHM) raster, used when `fillin_method='chm'`.
         bboxes : RegionDetectionsSet, optional
             Bounding boxes for computing height values when `fillin_method='bbox'`.
-        search_height_proportion : float, default=0.5
-            Allowed proportional height difference for matching if `height_threshold`
-            is not set. For example, 0.5 allows +/-50% height difference.
-        search_distance_fun_slope : float, default=0.1
-            Slope parameter for the default distance threshold function:
-            `max_d = height1 * slope + intercept`.
-        search_distance_fun_intercept : float, default=1.0
-            Intercept parameter for the default distance threshold function.
-        height_threshold : float, optional
-            Constant absolute height difference threshold (overrides proportion-based bound).
+        height_threshold : float or callable
+            Max allowed height difference during matching.
+            - if float provided, it is considered a constant +/- tolerance in meters units
+            - if callable provided, it should accept a heights array and return the tolerance for each point.
+              Default allows +/-50% the treetop's height
         distance_threshold : float or callable, optional
-            Constant value or callable for max allowed horizontal distance. If callable,
+            Constant value or callable for max allowed horizontal distance in meters. If callable,
             it should accept `height1` as input and return distance thresholds.
         fillin_method : ['chm', 'bbox'], optional
             Method to fill in height values if they are not provided via `height1`
@@ -144,9 +263,14 @@ def match_points(
             - 'chm' : Sample from CHM raster at each treetop location.
             - 'bbox': Compute height from bounding boxes.
         use_height_in_distance : float, optional
-            #TODO
+            Weight to scale height difference when computing combined distance metric for sorting matches.
+            If 0, height is not included in the sorting distance, but still used for validity checks. Defaults to 0.
         vis : bool, default=False
             If True, plot the matched treetop points and their connecting lines.
+        vis_mode : int, default = 3
+            1 - Show only matched points
+            2 - Show all points from both sets, highlighting matches
+            3 - Same as mode 2, but crop the plot to the smaller set's bounds + buffer
     """
     if isinstance(treetop_set_1, gpd.GeoDataFrame):
         treetop_set_1 = RegionDetections(
@@ -179,74 +303,95 @@ def match_points(
     coords1 = shapely.get_coordinates(df1.geometry)
     coords2 = shapely.get_coordinates(df2.geometry)
 
-    # Extract height arrays
-    if height1 is not None and height2 is not None:
-        height1 = df1[height1].values
-        height2 = df2[height2].values
-    elif fillin_method == "chm":
-        logging.info("Extracting treetop heights from CHM")
-        # Path to CHM file given. Extract height for the coordinates
-        if chm_path is None:
-            raise ValueError("CHM path must be provided when fillin_method is 'chm'.")
-        height1 = get_heights_from_chm(coords1, df1.crs, chm_path)
-        height2 = get_heights_from_chm(coords2, df2.crs, chm_path)
-    elif fillin_method == "bbox":
-        # TODO: Decide logic to compute height values from bounding boxes
-        pass
-    else:
-        raise ValueError(
-            "Please provide values for 'height1' and 'height2' or a 'fillin_option' to sample values from CHM."
+    # If height values are not provided, the algorithm only uses distance to find the matches
+    ignore_height = False
+    if (height_column_1 is None) and (fillin_method is None):
+        logging.info("Not using height values for matching points.")
+        ignore_height = True
+
+    if not ignore_height:
+        # Extract height values using dataframe column or from CHM if provided
+        height_vals_1 = _fill_in_heights(
+            df1, coords1, height_column_1, fillin_method, chm_path, bboxes
+        )
+        height_vals_2 = _fill_in_heights(
+            df2, coords2, height_column_2, fillin_method, chm_path, bboxes
         )
 
-    coords1 = np.array(coords1)
-    coords2 = np.array(coords2)
-    height1 = np.expand_dims(np.array(height1), axis=1)  # (N1, 1)
-    height2 = np.expand_dims(np.array(height2), axis=0)  # (1, N2)
-
-    distance_matrix = cdist(coords1, coords2)  # (N1, N2)
-
-    # Height bounds setup
-    if height_threshold is not None:
-        # Use constant height threshold for matching (override proportion)
-        min_h = height1 - height_threshold
-        max_h = height1 + height_threshold
     else:
-        # Flexible height bounds based on proportion
-        min_h = height1 * (1 - search_height_proportion)
-        max_h = height1 * (1 + search_height_proportion)
+        height_vals_1, height_vals_2 = None, None
 
-    # Distance bounds setup
-    if distance_threshold is not None:
-        # If a callable is given, use it on height1 to calculate distance threshold array
+    # Compute XY distance matrix for validity checks
+    distance_matrix_xy = cdist(coords1, coords2)  # (N1, N2)
+
+    # Compute combined distance matrix for sorting if use_height_in_distance is set
+    if not ignore_height:
+        (
+            logging.info(
+                "Using height as an additional scaled dimension to compute distance"
+            )
+            if use_height_in_distance > 0
+            else None
+        )
+        # Note: if `use_height_in_distance` is zero, height has no effect on the distance
+        # calculation and the result is identical to pure XY distance.
+        coords1_aug = np.hstack(
+            [coords1, use_height_in_distance * height_vals_1.reshape(-1, 1)]
+        )
+        coords2_aug = np.hstack(
+            [coords2, use_height_in_distance * height_vals_2.reshape(-1, 1)]
+        )
+        distance_matrix = cdist(coords1_aug, coords2_aug)  # combined XY + scaled height
+        height_vals_1 = np.expand_dims(np.array(height_vals_1), axis=1)  # (N1, 1)
+        height_vals_2 = np.expand_dims(np.array(height_vals_2), axis=0)  # (1, N2)
+    else:
+        distance_matrix = distance_matrix_xy  # just XY distance
+
+    # Build valid pairs mask (based on XY distance and height difference thresholds)
+    if ignore_height:
+        # Only use constant distance thresholds if heights are not available
         if callable(distance_threshold):
-            max_d = distance_threshold(height1)
-        else:
-            # Constant distance threshold override
-            max_d = distance_threshold
+            raise ValueError("Provide a constant value for `distance_threshold`.")
+        max_d = distance_threshold
+        valid_pairs_mask = distance_matrix < max_d
     else:
-        # Use flexible distance threshold as function of height
-        max_d = height1 * search_distance_fun_slope + search_distance_fun_intercept
+        # Height bounds
+        if callable(height_threshold):
+            min_h = height_vals_1 - height_threshold(height_vals_1)
+            max_h = height_vals_1 + height_threshold(height_vals_1)
+        else:
+            min_h = height_vals_1 - height_threshold
+            max_h = height_vals_1 + height_threshold
 
-    # Compute which matches fit all three criteria
-    valid_pairs_mask = np.logical_and.reduce(
-        [height2 > min_h, height2 < max_h, distance_matrix < max_d]
-    )
+        # Distance bounds
+        if callable(distance_threshold):
+            max_d = distance_threshold(height_vals_1)
+        else:
+            max_d = distance_threshold
 
-    # Extract valid pair indices and their distances
+        valid_pairs_mask = np.logical_and.reduce(
+            [height_vals_2 > min_h, height_vals_2 < max_h, distance_matrix < max_d]
+        )
+
+    # Extract valid pair indices and sort by distance
     valid_idxs_1, valid_idxs_2 = np.where(valid_pairs_mask)
     distances = distance_matrix[valid_idxs_1, valid_idxs_2]
-    # Calculate absolute height differences for the valid pairs
-    height_diffs = np.abs(height1[valid_idxs_1, 0] - height2[0, valid_idxs_2])
-    dist_height_pairs = np.stack([distances, height_diffs], axis=1)
 
-    # Return the indices that sort the distances array in ascending order
+    if ignore_height:
+        dist_height_pairs = np.stack([distances], axis=1)
+    else:
+        height_diffs = np.abs(
+            height_vals_1[valid_idxs_1, 0] - height_vals_2[0, valid_idxs_2]
+        )
+        dist_height_pairs = np.stack([distances, height_diffs], axis=1)
+
+    # Sort matches by combined distance metric (which includes height if use_height_in_distance is set)
     sorted_idx = np.argsort(distances)
-    # Reorder the valid indices in ascending order of distance
     valid_idxs_1 = valid_idxs_1[sorted_idx]
     valid_idxs_2 = valid_idxs_2[sorted_idx]
     dist_height_pairs = dist_height_pairs[sorted_idx]
 
-    # Compute the most possible pairs, which is the min of num of set 1 and set 2 trees
+    # Greedy matching
     max_valid_matches = min(distance_matrix.shape)
     matched_1 = []
     matched_2 = []
@@ -262,38 +407,7 @@ def match_points(
             break
 
     if vis:
-
-        _, ax = plt.subplots(figsize=(6, 6))
-
-        # Extract matched coordinates only
-        matched_coords1 = np.array([coords1[i1] for (i1, _, _) in matches])
-        matched_coords2 = np.array([coords2[i2] for (_, i2, _) in matches])
-
-        # Plot only matched points
-        ax.scatter(
-            matched_coords1[:, 0],
-            matched_coords1[:, 1],
-            color="red",
-            s=30,
-            label="Set 1 (matched)",
-        )
-        ax.scatter(
-            matched_coords2[:, 0],
-            matched_coords2[:, 1],
-            color="blue",
-            s=30,
-            label="Set 2 (matched)",
-        )
-
-        # Draw lines connecting matched pairs
-        lines = [[coords1[i1], coords2[i2]] for (i1, i2, _) in matches]
-        lc = mc.LineCollection(lines, colors="black", linewidths=0.8)
-        ax.add_collection(lc)
-
-        ax.set_aspect("equal", adjustable="datalim")
-        ax.legend()
-        ax.set_title("Matched Points")
-        plt.show()
+        _visualize_points(coords1, coords2, matches, mode=vis_mode)
 
     return matches
 
