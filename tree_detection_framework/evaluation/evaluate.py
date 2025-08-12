@@ -122,7 +122,7 @@ def _visualize_points(coords1, coords2, matches, mode=3, buffer=5):
         mode (int): Ways to visulaize the points
             - 1: Show only matched points
             - 2: Show all points from both sets, highlighting matches
-            - 3: Same as mode 2, but crop the plot to the smaller set's bounds + buffer 
+            - 3: Same as mode 2, but crop the plot to the smaller set's bounds + buffer
         buffer (int): Used in mode 3 while cropping the smaller set's bounds
     """
     _, ax = plt.subplots()
@@ -283,7 +283,7 @@ def match_points(
         vis_mode : int, default = 3
             - 1: Show only matched points
             - 2: Show all points from both sets, highlighting matches
-            - 3: Same as mode 2, but crop the plot to the smaller set's bounds + buffer 
+            - 3: Same as mode 2, but crop the plot to the smaller set's bounds + buffer
     """
     if isinstance(treetop_set_1, gpd.GeoDataFrame):
         treetop_set_1 = RegionDetections(
