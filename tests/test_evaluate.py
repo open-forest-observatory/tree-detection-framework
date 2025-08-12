@@ -98,6 +98,8 @@ class TestMatchPoints:
             {},
             {"height_column_1": "height", "height_column_2": "height"},
             {"fillin_method": "chm", "chm_path": "temporary"},
+            {"height_column_1": "height", "fillin_method": "chm", "chm_path": "temporary"},
+            {"height_column_2": "height", "fillin_method": "chm", "chm_path": "temporary"},
         ],
     )
     def test_basic_match(
@@ -136,9 +138,13 @@ class TestMatchPoints:
         for key, value in add_kwargs.items():
             kwargs[key] = value
         # Special case the CHM since it requires the tmp_path fixture and can't be
-        # built before the function
+        # built before the function. Mimic the existing heights
         if "chm_path" in kwargs:
-            kwargs["chm_path"] = create_test_chm_tif(tmp_path)
+            kwargs["chm_path"] = create_test_chm_tif(
+                tmp_path,
+                height_values=np.array([[10, 20, 5]]),
+                bounds=(-1, -1, 31, 1),
+            )
 
         # Call match_points
         matches = match_points(set1, set2, **kwargs)
@@ -150,3 +156,237 @@ class TestMatchPoints:
             idx1, idx2, distance = match
             assert [idx1, idx2] == expected_indices
             assert np.isclose(distance, 0.0)
+
+    @pytest.mark.parametrize("type1", INPUT_TYPES)
+    @pytest.mark.parametrize("type2", INPUT_TYPES)
+    @pytest.mark.parametrize(
+        "distance_threshold,expected",
+        [
+            (np.inf, [(2, 2, 2.0), (1, 1, 5.0), (0, 0, 10.0)]),
+            (6.0, [(2, 2, 2.0), (1, 1, 5.0)]),
+            (3.0, [(2, 2, 2.0)]),
+            (1.0, []),
+            (lambda h: h, [(2, 2, 2.0), (1, 1, 5.0)]),
+            (lambda h: 0.1 * h, [(1, 1, 5.0)]),
+        ]
+    )
+    def test_distance_threshold(self, type1, type2, distance_threshold, expected):
+        """
+        The distance threshold, whether it's a constant or a function, should remove
+        the expected matches from consideration.
+        """
+
+        # Make an obvious set of matches with varying heights
+        # 0(S)
+        #
+        #          1(L)
+        #                   2(M)
+        # 0(S)     1(L)     2(M)
+        matches = match_points(
+            make_inputs(
+                type1,
+                points=[Point(0, 0), Point(10, 0), Point(20, 0)],
+                heights=[1, 100, 10],
+            ),
+            make_inputs(
+                type2,
+                points=[Point(0, 10), Point(10, 5), Point(20, 2)],
+                heights=[1, 100, 10],
+            ),
+            height_column_1="height",
+            height_column_2="height",
+            height_threshold=np.inf,
+            distance_threshold=distance_threshold,
+        )
+
+        assert len(matches) == len(expected)
+        assert np.allclose(matches, expected)
+
+    @pytest.mark.parametrize("type1", INPUT_TYPES)
+    @pytest.mark.parametrize("type2", INPUT_TYPES)
+    @pytest.mark.parametrize(
+        "height_threshold,expected",
+        [
+            (np.inf, [(2, 2, 1.0), (1, 1, 2.0), (0, 0, 3.0)]),
+            (50, [(2, 2, 1.0), (1, 1, 2.0)]),
+            (15, [(2, 2, 1.0)]),
+            (1, []),
+            (lambda h: h, [(2, 2, 1.0), (1, 1, 2.0), (0, 0, 3.0)]),
+            (lambda h: 0.5 * h, [(2, 2, 1.0), (1, 1, 2.0)]),
+            (lambda h: 0.2 * h, [(2, 2, 1.0)]),
+        ]
+    )
+    def test_height_threshold(self, type1, type2, height_threshold, expected):
+        """
+        The height threshold, whether it's a constant or a function, should remove
+        the expected matches from consideration.
+        """
+
+        # Make an obvious set of matches with mismatched heights
+        # 0(L)    1(L)     2(M)
+        # 0(S)    1(M)     2(M)
+        matches = match_points(
+            make_inputs(
+                type1,
+                points=[Point(0, 0), Point(10, 0), Point(20, 0)],
+                heights=[100, 100, 60],
+            ),
+            make_inputs(
+                type2,
+                points=[Point(0, 3), Point(10, 2), Point(20, 1)],
+                heights=[1, 60, 50],
+            ),
+            height_column_1="height",
+            height_column_2="height",
+            height_threshold=height_threshold,
+            distance_threshold=5,
+        )
+
+        assert len(matches) == len(expected)
+        assert np.allclose(matches, expected)
+
+    @pytest.mark.parametrize("type1", INPUT_TYPES)
+    @pytest.mark.parametrize("type2", INPUT_TYPES)
+    @pytest.mark.parametrize(
+        "use_height_in_distance,expected",
+        [
+            (0.0, [(0, 0, 4.0)]),
+            (0.01, [(0, 0,  np.sqrt(16 + 0.64))]),
+            # When the scale factor is height enough, we start matching to the farther
+            # tree that is a better height match
+            (1.0, [(1, 0, np.sqrt(25 + 25))]),
+            (2.0, [(1, 0, np.sqrt(25 + 100))]),
+        ]
+    )
+    def test_use_height_in_distance(self, type1, type2, use_height_in_distance, expected):
+        """
+        When using height in the similarity distance, trees close in (x, y) but mismatched
+        in height should be disfavored.
+        """
+
+        # Make an obvious distance match and a competing obvious height match
+        # 0(s) 1(L)
+        # 0(L)
+        matches = match_points(
+            make_inputs(
+                type1,
+                points=[Point(0, 4), Point(3, 4)],
+                heights=[20, 95],
+            ),
+            make_inputs(
+                type2,
+                points=[Point(0, 0)],
+                heights=[100],
+            ),
+            height_column_1="height",
+            height_column_2="height",
+            height_threshold=np.inf,
+            distance_threshold=np.inf,
+            use_height_in_distance=use_height_in_distance,
+        )
+
+        assert len(matches) == len(expected)
+        assert np.allclose(matches, expected)
+
+    @pytest.mark.parametrize(
+        "kwargs,expected",
+        [
+            (
+                {"height_column_2": "height"},
+                [(0, 0, np.sqrt(25 + 25)), (3, 1, np.sqrt(25 + 25))],
+            ),
+            (
+                {"fillin_method": "chm", "chm_path": 10.0},
+                [(0, 0, 5), (3, 1, 5)],
+            ),
+            (
+                {"fillin_method": "chm", "chm_path": 100.0},
+                [(1, 0, 5), (2, 1, 5)],
+            ),
+        ]
+    )
+    def test_fillin_chm(self, tmp_path, kwargs, expected):
+        """The CHM values should fill into the height and affect matching."""
+
+        # Special case the CHM since it requires the tmp_path fixture and can't be
+        # built before the function. Mimic the existing heights
+        if "chm_path" in kwargs:
+            kwargs["chm_path"] = create_test_chm_tif(
+                tmp_path,
+                height_values=np.array([[kwargs["chm_path"]]]),
+                bounds=(-1, -10, 11, 10),
+            )
+
+        # Make an obvious large match and an obvious small match
+        # A0(s)   A2[L]
+        # B0(s)   B0(s)
+        # A1(L)   A3[s]
+        matches = match_points(
+            make_inputs(
+                "GeoDataFrame",
+                points=[Point(0, 5), Point(0, -5), Point(10, 5), Point(10, -5)],
+                heights=[10, 100, 100, 10],
+            ),
+            make_inputs(
+                "GeoDataFrame",
+                points=[Point(0, 0), Point(10, 0)],
+                heights=[5, 5],
+            ),
+            height_column_1="height",
+            height_threshold=np.inf,
+            distance_threshold=np.inf,
+            use_height_in_distance=1.0,
+            **kwargs,
+        )
+
+        assert len(matches) == len(expected)
+        assert np.allclose(matches, expected)
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"height_column_1": "height"},
+            {"height_column_2": "height"},
+            {"fillin_method": "chm"},
+        ],
+    )
+    def test_height_error(self, kwargs):
+        """
+        Either no height sources should be given, or two heights. One source should
+        raise an error. Also can't fill from CHM with no chm_path.
+        """
+        with pytest.raises(ValueError):
+            match_points(
+                make_inputs("GeoDataFrame", points=[Point(0, 0)], heights=[10]),
+                make_inputs("GeoDataFrame", points=[Point(0, 0)], heights=[10]),
+                **kwargs,
+            )
+
+    @pytest.mark.parametrize("distance_threshold", [lambda x: 0.2 * x + 2, lambda x: x, lambda x: 2])
+    def test_threshold_error(self, distance_threshold):
+        """
+        If no height source is given and distance_threshold is callable (a.k.a. depends
+        on height data), that should raise an error.
+        """
+        with pytest.raises(ValueError):
+            match_points(
+                make_inputs("GeoDataFrame", points=[Point(0, 0)], heights=[10]),
+                make_inputs("GeoDataFrame", points=[Point(0, 0)], heights=[10]),
+                distance_threshold=distance_threshold,
+            )
+
+    @pytest.mark.parametrize(
+        "method,error",
+        [
+            ("bbox", NotImplementedError),
+            ("unknown", ValueError),
+        ]
+    )
+    def test_fillin_error(self, method, error):
+        """Invalid fillin methods should be rejected."""
+        with pytest.raises(error):
+            match_points(
+                make_inputs("GeoDataFrame", points=[Point(0, 0)], heights=[10]),
+                make_inputs("GeoDataFrame", points=[Point(0, 0)], heights=[10]),
+                fillin_method=method,
+            )
