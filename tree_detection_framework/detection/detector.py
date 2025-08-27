@@ -3,6 +3,7 @@ from abc import abstractmethod
 from itertools import groupby
 from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
 
+import pandas as pd
 import geopandas as gpd
 import lightning
 import numpy as np
@@ -754,6 +755,9 @@ class GeometricTreeCrownDetector(Detector):
             if treetop_ids_provided:
                 columns.append("treetop_unique_ID")
             empty_gdf = gpd.GeoDataFrame(columns=columns, geometry="tree_crown")
+            if treetop_ids_provided:
+                # Ensure the column exists as empty
+                empty_gdf["treetop_unique_ID"] = pd.Series(dtype=str)
             return empty_gdf, []
 
         # Unpack the list of (point, ID, height) tuples into separate lists
@@ -800,6 +804,11 @@ class GeometricTreeCrownDetector(Detector):
         crown_gdf = gpd.GeoDataFrame(
             crowns, geometry="tree_crown", columns=["tree_crown", "treetop_height", "treetop_unique_ID"]
         )
+
+        # Ensure the treetop_unique_ID column exists even if no treetop IDs were provided
+        if treetop_ids_provided and "treetop_unique_ID" not in crown_gdf.columns:
+            crown_gdf["treetop_unique_ID"] = pd.Series(dtype=str)
+
         # Simplify by tolerance value to get smoother crown polygons
         crown_gdf["tree_crown"] = crown_gdf["tree_crown"].simplify(
             tolerance=self.simplify_tolerance, preserve_topology=True
