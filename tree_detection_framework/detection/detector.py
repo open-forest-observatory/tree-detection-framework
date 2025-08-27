@@ -802,7 +802,9 @@ class GeometricTreeCrownDetector(Detector):
 
         # Create a gdf for the output
         crown_gdf = gpd.GeoDataFrame(
-            crowns, geometry="tree_crown", columns=["tree_crown", "treetop_height", "treetop_unique_ID"]
+            crowns,
+            geometry="tree_crown",
+            columns=["tree_crown", "treetop_height", "treetop_unique_ID"],
         )
 
         # Ensure the treetop_unique_ID column exists even if no treetop IDs were provided
