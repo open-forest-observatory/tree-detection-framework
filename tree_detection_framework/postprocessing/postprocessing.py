@@ -630,7 +630,7 @@ def remove_masked_detections(
     region_detection_sets: Union[List[RegionDetectionsSet], List[PATH_TYPE]],
     mask_iterator: Iterable[np.ndarray],
     threshold: float = 0.4,
-) -> List[RegionDetectionsSet]:
+) -> Union[List[RegionDetectionsSet], List[gpd.GeoDataFrame]]:
     """
     Filters out detections that marked as invalid in the given masks.
 

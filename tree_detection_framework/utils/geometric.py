@@ -115,7 +115,7 @@ def ellipse_mask(
         center (Tuple[int, int]):
             (x0, y0) center of the ellipse in x and y (pixels)
         axes (Tuple[int, int]):
-            (a, b) semi-major and semi-minor axis lengths in pixels
+            (a, b) x and y axis lengths (before rotation) in pixels
         angle_rad (float):
             Rotation angle of the semi-major axis, in radians. CCW from x-axis
             (a.k.a. right-hand rule out of the image). Defaults to 0.
