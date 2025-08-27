@@ -52,6 +52,7 @@ def show_filtered_detections(
             return detection.merge().detections
         else:
             return gpd.read_file(detection)
+
     gdf1 = to_gdf(detection1)
     gdf2 = to_gdf(detection2)
 
@@ -91,6 +92,7 @@ def show_filtered_detections(
     def to_ndarray(overlay):
         combo = Image.alpha_composite(image, overlay)
         return np.asarray(combo.convert("RGB"))
+
     return (
         to_ndarray(detection_overlay),
         to_ndarray(mask_overlay),

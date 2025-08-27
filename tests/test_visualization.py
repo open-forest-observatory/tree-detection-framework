@@ -53,7 +53,7 @@ class TestShowFilteredDetections:
             {
                 0: (np.array(colormaps["tab20"](0)) * 255).astype(np.uint8),
                 1: (np.array(colormaps["tab20"](1)) * 255).astype(np.uint8),
-            }
+            },
         ],
     )
     def test_basic_functionality(self, tmp_path, mask_dtype, mask_colormap):
