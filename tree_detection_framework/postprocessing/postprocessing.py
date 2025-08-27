@@ -705,7 +705,9 @@ def remove_masked_detections(
             else:
                 # Get the mean value of each detection polygon, as a list of
                 # [{"mean": <value>}, ...]
-                stats = rasterstats.zonal_stats(gdf, mask, stats=["mean"], affine=transform)
+                stats = rasterstats.zonal_stats(
+                    gdf, mask, stats=["mean"], affine=transform
+                )
                 # Get indices that have a greater fraction of good pixels than the
                 # threshold requires.
                 good_indices = [
