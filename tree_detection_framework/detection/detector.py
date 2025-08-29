@@ -755,9 +755,6 @@ class GeometricTreeCrownDetector(Detector):
             if treetop_ids_provided:
                 columns.append("treetop_unique_ID")
             empty_gdf = gpd.GeoDataFrame(columns=columns, geometry="tree_crown")
-            if treetop_ids_provided:
-                # Ensure the column exists as empty
-                empty_gdf["treetop_unique_ID"] = pd.Series(dtype=str)
             return empty_gdf, []
 
         # Unpack the list of (point, ID, height) tuples into separate lists
