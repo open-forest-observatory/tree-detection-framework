@@ -1,4 +1,5 @@
 from typing import Optional, Tuple, Union
+import warnings
 
 import geopandas as gpd
 import numpy as np
@@ -68,7 +69,11 @@ def show_filtered_detections(
         elif row.geometry.geom_type == "MultiPolygon":
             polygons = list(row.geometry.geoms)
         else:
-            raise NotImplementedError(f"Can't handle {type(row.geometry)}")
+            warnings.warn(
+                f"show_filtered_detections found geometry {type(row.geometry)}"
+                " and was unable to display it",
+                category=UserWarning,
+            )
         for poly in polygons:
             # Convert polygon to pixel coordinates
             coords = list(poly.exterior.coords)
