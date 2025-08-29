@@ -6,7 +6,6 @@ from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Tuple, Unio
 import geopandas as gpd
 import lightning
 import numpy as np
-import pandas as pd
 import pyproj
 import rasterio
 import shapely
