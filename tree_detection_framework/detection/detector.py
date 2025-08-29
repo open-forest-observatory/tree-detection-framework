@@ -807,10 +807,6 @@ class GeometricTreeCrownDetector(Detector):
             columns=["tree_crown", "treetop_height", "treetop_unique_ID"],
         )
 
-        # Ensure the treetop_unique_ID column exists even if no treetop IDs were provided
-        if treetop_ids_provided and "treetop_unique_ID" not in crown_gdf.columns:
-            crown_gdf["treetop_unique_ID"] = pd.Series(dtype=str)
-
         # Simplify by tolerance value to get smoother crown polygons
         crown_gdf["tree_crown"] = crown_gdf["tree_crown"].simplify(
             tolerance=self.simplify_tolerance, preserve_topology=True
