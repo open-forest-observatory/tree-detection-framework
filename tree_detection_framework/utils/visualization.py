@@ -1,5 +1,5 @@
-from typing import Optional, Tuple, Union
 import warnings
+from typing import Optional, Tuple, Union
 
 import geopandas as gpd
 import numpy as np
