@@ -630,7 +630,7 @@ def remove_masked_detections(
     region_detection_sets: Union[List[RegionDetectionsSet], List[PATH_TYPE]],
     mask_iterator: Iterable[np.ndarray],
     threshold: float = 0.4,
-) -> List[RegionDetectionsSet]:
+) -> Union[List[RegionDetectionsSet], List[gpd.GeoDataFrame]]:
     """
     Filters out detections that marked as invalid in the given masks.
 
@@ -699,15 +699,20 @@ def remove_masked_detections(
         # over the chips that detections were calculated in
         for idx, gdf in iterator(rds):
 
-            # Get the mean value of each detection polygon, as a list of
-            # [{"mean": <value>}, ...]
-            stats = rasterstats.zonal_stats(gdf, mask, stats=["mean"], affine=transform)
-
-            # Get indices that have a greater fraction of good pixels than the
-            # threshold requires.
-            good_indices = [
-                i for i, stat in enumerate(stats) if stat["mean"] > threshold
-            ]
+            if len(gdf) == 0:
+                # Catch the case when there are no initial detections
+                good_indices = []
+            else:
+                # Get the mean value of each detection polygon, as a list of
+                # [{"mean": <value>}, ...]
+                stats = rasterstats.zonal_stats(
+                    gdf, mask, stats=["mean"], affine=transform
+                )
+                # Get indices that have a greater fraction of good pixels than the
+                # threshold requires.
+                good_indices = [
+                    i for i, stat in enumerate(stats) if stat["mean"] > threshold
+                ]
 
             if isinstance(rds, RegionDetectionsSet):
                 # Subset the RegionDetections object keeping only the valid indices
