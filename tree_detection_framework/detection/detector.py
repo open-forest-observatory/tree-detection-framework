@@ -798,8 +798,11 @@ class GeometricTreeCrownDetector(Detector):
 
         # Create a gdf for the output
         crown_gdf = gpd.GeoDataFrame(
-            crowns, geometry="tree_crown", columns=["tree_crown", "treetop_height"]
+            crowns,
+            geometry="tree_crown",
+            columns=["tree_crown", "treetop_height", "treetop_unique_ID"],
         )
+
         # Simplify by tolerance value to get smoother crown polygons
         crown_gdf["tree_crown"] = crown_gdf["tree_crown"].simplify(
             tolerance=self.simplify_tolerance, preserve_topology=True
