@@ -113,7 +113,9 @@ def _fill_in_heights(
         )
 
 
-def _visualize_points(coords1, coords2, matches, mode=3, buffer=5):
+def _visualize_points(
+    coords1, coords2, matches, mode=3, buffer=5, heights1=None, heights2=None
+):
     """Visualize matched points between two coordinate sets.
     Args:
         coords1 (np.ndarray): point coordinates from set 1
@@ -126,6 +128,9 @@ def _visualize_points(coords1, coords2, matches, mode=3, buffer=5):
         buffer (int): Used in mode 3 while cropping the smaller set's bounds
     """
     _, ax = plt.subplots()
+
+    heights1 = np.squeeze(heights1)
+    heights2 = np.squeeze(heights2)
 
     # Matched coordinates
     matched_coords1 = np.array([coords1[i1] for (i1, _, _) in matches])
@@ -148,11 +153,25 @@ def _visualize_points(coords1, coords2, matches, mode=3, buffer=5):
         )
 
     elif mode in (2, 3):
+        if heights1 is not None and heights2 is not None:
+            max_height = np.max(np.concatenate((heights1, heights2)))
+            matched_heights1 = np.array([heights1[i1] for (i1, _, _) in matches])
+            matched_heights2 = np.array([heights2[i2] for (_, i2, _) in matches])
+            s1 = 5 + heights1 * 25 / max_height
+            s2 = 5 + heights2 * 25 / max_height
+            s3 = 5 + matched_heights1 * 25 / max_height
+            s4 = 5 + matched_heights2 * 25 / max_height
+        else:
+            s1 = 20
+            s2 = 20
+            s3 = 30
+            s4 = 30
+
         ax.scatter(
             coords1[:, 0],
             coords1[:, 1],
             color="lightcoral",
-            s=20,
+            s=s1,
             alpha=0.5,
             label="Set 1 (all)",
         )
@@ -160,7 +179,7 @@ def _visualize_points(coords1, coords2, matches, mode=3, buffer=5):
             coords2[:, 0],
             coords2[:, 1],
             color="lightblue",
-            s=20,
+            s=s2,
             alpha=0.5,
             label="Set 2 (all)",
         )
@@ -168,14 +187,14 @@ def _visualize_points(coords1, coords2, matches, mode=3, buffer=5):
             matched_coords1[:, 0],
             matched_coords1[:, 1],
             color="red",
-            s=30,
+            s=s3,
             label="Set 1 (matched)",
         )
         ax.scatter(
             matched_coords2[:, 0],
             matched_coords2[:, 1],
             color="blue",
-            s=30,
+            s=s4,
             label="Set 2 (matched)",
         )
 
@@ -411,7 +430,14 @@ def match_points(
             break
 
     if vis:
-        _visualize_points(coords1, coords2, matches, mode=vis_mode)
+        _visualize_points(
+            coords1,
+            coords2,
+            matches,
+            mode=vis_mode,
+            heights1=height_vals_1,
+            heights2=height_vals_2,
+        )
 
     return matches
 
