@@ -11,7 +11,7 @@ WORKDIR /app
 COPY . /app
 
 # Install the module dependencies with poetry without creating a virtual environment
-RUN poetry config virtualenvs.create false && /root/.local/bin/poetry install
+RUN /root/.local/bin/poetry config virtualenvs.create false && /root/.local/bin/poetry install
 
 RUN python -c "import tree_detection_framework; print(tree_detection_framework)"
 
