@@ -14,6 +14,9 @@ COPY . /app
 RUN /root/.local/bin/poetry install
 
 RUN python -c "import tree_detection_framework; print(tree_detection_framework)"
+
+# Install git
+RUN  apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 # Install deepforest dependencies
 RUN pip install git+https://github.com/facebookresearch/detectron2.git
 
