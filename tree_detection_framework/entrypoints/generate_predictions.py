@@ -9,6 +9,7 @@ from tree_detection_framework.constants import BOUNDARY_TYPE, PATH_TYPE
 from tree_detection_framework.detection.detector import (
     DeepForestDetector,
     Detectree2Detector,
+    GeometricDetector,
 )
 from tree_detection_framework.detection.models import DeepForestModule, Detectree2Module
 from tree_detection_framework.postprocessing.postprocessing import multi_region_NMS
@@ -43,7 +44,7 @@ def generate_predictions(
             Stride of the chip. May be pixels or meters, based on `use_units_meters`. If used,
             `chip_overlap_percentage` should not be set. Defaults to None.
         tree_detection_model (str):
-            Selected model for detecting trees.
+            Selected model for detecting trees. One of "deepforest", "detectree2", or "geometric".
         chip_overlap_percentage (Optional[float], optional):
             Percent overlap of the chip from 0-100. If used, `chip_stride` should not be set.
             Defaults to None.
@@ -99,7 +100,7 @@ def generate_predictions(
         df_module.to(
             torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         )
-        lightning_detector = DeepForestDetector(df_module)
+        detector = DeepForestDetector(df_module)
 
     elif tree_detection_model == "detectree2":
 
@@ -111,18 +112,24 @@ def generate_predictions(
         param_dict = {"update_model": trained_model}
 
         dtree2_module = Detectree2Module(param_dict)
-        lightning_detector = Detectree2Detector(dtree2_module)
+        detector = Detectree2Detector(dtree2_module)
+
+    elif tree_detection_model == "geometric":
+        # Create a geometric detector which is applicable to CHM inputs using the default parameters
+        detector = GeometricDetector()
 
     else:
         raise ValueError(
-            """Please enter a valid tree detection model. Currently supported models are: 
+            """Please enter a valid tree detection model. Currently supported models are:
                 1. deepforest
-                2. detectree2"""
+                2. detectree2
+                3. geometric
+                """
         )
 
     # Get predictions by invoking the tree_detection_model
     logging.info("Getting tree detections")
-    outputs = lightning_detector.predict(dataloader)
+    outputs = detector.predict(dataloader)
 
     if run_nms is True:
         logging.info("Running non-max suppression")
