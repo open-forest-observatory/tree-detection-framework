@@ -1,8 +1,8 @@
 # Base python image
 FROM python:3.10.19-slim
-
+# Install git, gcc/g++, and curl
+RUN  apt-get update && apt-get install -y git build-essentials curl && rm -rf /var/lib/apt/lists/*
 # Install poetry
-RUN apt-get update && apt-get install -y curl
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
 # Set the container workdir
@@ -15,8 +15,6 @@ RUN /root/.local/bin/poetry config virtualenvs.create false && /root/.local/bin/
 
 RUN python -c "import tree_detection_framework; print(tree_detection_framework)"
 
-# Install git
-RUN  apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 # Install deepforest dependencies
 RUN pip install git+https://github.com/facebookresearch/detectron2.git
 
