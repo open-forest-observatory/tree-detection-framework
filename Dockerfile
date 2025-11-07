@@ -1,7 +1,7 @@
 # Base python image
 FROM python:3.10.19-slim
 # Install git, gcc/g++, and curl
-RUN  apt-get update && apt-get install -y git build-essentials curl && rm -rf /var/lib/apt/lists/*
+RUN  apt-get update && apt-get install -y git build-essential curl && rm -rf /var/lib/apt/lists/*
 # Install poetry
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
