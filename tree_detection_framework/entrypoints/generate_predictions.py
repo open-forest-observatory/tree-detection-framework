@@ -185,10 +185,10 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="{}",
         help=(
-            "A json-formatted string specifying named argument overrides to the detector constructor. " + \
-            "Note that string arguments should be double quoted so the whole string should be " + \
-            "surrounded in single quotes"
-        )
+            "A json-formatted string specifying named argument overrides to the detector constructor. "
+            + "Note that string arguments should be double quoted so the whole string should be "
+            + "surrounded in single quotes"
+        ),
     )
 
     try:
