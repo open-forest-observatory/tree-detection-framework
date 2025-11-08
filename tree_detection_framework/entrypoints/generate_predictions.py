@@ -1,7 +1,7 @@
 import argparse
+import json
 import logging
 from typing import Optional
-import json
 
 import pyproj
 import torch
