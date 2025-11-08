@@ -1,6 +1,7 @@
 import argparse
 import logging
 from typing import Optional
+import json
 
 import pyproj
 import torch
@@ -32,6 +33,7 @@ def generate_predictions(
     iou_threshold: Optional[float] = 0.3,
     min_confidence: Optional[float] = 0.3,
     batch_size: int = 1,
+    detector_kwargs: dict = {},
 ):
     """
     Entrypoint script to generate tree detections for a raster dataset input. Supports visualizing and saving predictions.
@@ -71,6 +73,8 @@ def generate_predictions(
             Prediction score threshold for detections to be included.
         batch_size (int, optional):
             Number of images to load in a batch. Defaults to 1.
+        detector_kwargs (dict, optional):
+            Optional keywork arguments to be unpacked for the detector constructor.
     """
 
     # Create the dataloader by passing folder path to raster data.
@@ -100,7 +104,7 @@ def generate_predictions(
         df_module.to(
             torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         )
-        detector = DeepForestDetector(df_module)
+        detector = DeepForestDetector(df_module, **detector_kwargs)
 
     elif tree_detection_model == "detectree2":
 
@@ -112,11 +116,11 @@ def generate_predictions(
         param_dict = {"update_model": trained_model}
 
         dtree2_module = Detectree2Module(param_dict)
-        detector = Detectree2Detector(dtree2_module)
+        detector = Detectree2Detector(dtree2_module, **detector_kwargs)
 
     elif tree_detection_model == "geometric":
         # Create a geometric detector which is applicable to CHM inputs using the default parameters
-        detector = GeometricDetector()
+        detector = GeometricDetector(**detector_kwargs)
 
     else:
         raise ValueError(
@@ -176,6 +180,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iou-threshold", type=float, default=0.3)
     parser.add_argument("--min-confidence", type=float, default=0.3)
     parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument(
+        "--detector-kwargs",
+        type=str,
+        default="{}",
+        help=(
+            "A json-formatted string specifying named argument overrides to the detector constructor. " + \
+            "Note that string arguments should be double quoted so the whole string should be " + \
+            "surrounded in single quotes"
+        )
+    )
 
     try:
         args = parser.parse_args()
@@ -184,6 +198,9 @@ def parse_args() -> argparse.Namespace:
         print("\nError: Missing required arguments.")
         parser.print_help()
         raise e
+
+    # You cannot pass an dict on the command line so we convert the string representation into one here
+    args.detector_kwargs = json.loads(args.detector_kwargs)
 
     return args
 
