@@ -110,6 +110,8 @@ And move into this repo
 mv checkpoints ../tree-detection-framework 
 ```
 
+## Docker
+An alternative approach to a local installation is using the pre-built docker image. At this point, this image only supports the dependencies for the DeepForest and geometric detectors. The [packages](david-paired-photogrammetry/default-run) tab of the repository provides the command to pull the image.
 
 ## Use
 The module code is in the `tree_detection_framework` folder. Once installed using the `poetry`

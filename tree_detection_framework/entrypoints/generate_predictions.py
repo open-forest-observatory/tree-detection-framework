@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 from typing import Optional
 
@@ -9,6 +10,7 @@ from tree_detection_framework.constants import BOUNDARY_TYPE, PATH_TYPE
 from tree_detection_framework.detection.detector import (
     DeepForestDetector,
     Detectree2Detector,
+    GeometricDetector,
 )
 from tree_detection_framework.detection.models import DeepForestModule, Detectree2Module
 from tree_detection_framework.postprocessing.postprocessing import multi_region_NMS
@@ -31,6 +33,7 @@ def generate_predictions(
     iou_threshold: Optional[float] = 0.3,
     min_confidence: Optional[float] = 0.3,
     batch_size: int = 1,
+    detector_kwargs: dict = {},
 ):
     """
     Entrypoint script to generate tree detections for a raster dataset input. Supports visualizing and saving predictions.
@@ -43,7 +46,7 @@ def generate_predictions(
             Stride of the chip. May be pixels or meters, based on `use_units_meters`. If used,
             `chip_overlap_percentage` should not be set. Defaults to None.
         tree_detection_model (str):
-            Selected model for detecting trees.
+            Selected model for detecting trees. One of "deepforest", "detectree2", or "geometric".
         chip_overlap_percentage (Optional[float], optional):
             Percent overlap of the chip from 0-100. If used, `chip_stride` should not be set.
             Defaults to None.
@@ -70,6 +73,8 @@ def generate_predictions(
             Prediction score threshold for detections to be included.
         batch_size (int, optional):
             Number of images to load in a batch. Defaults to 1.
+        detector_kwargs (dict, optional):
+            Optional keywork arguments to be unpacked for the detector constructor.
     """
 
     # Create the dataloader by passing folder path to raster data.
@@ -99,7 +104,7 @@ def generate_predictions(
         df_module.to(
             torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         )
-        lightning_detector = DeepForestDetector(df_module)
+        detector = DeepForestDetector(df_module, **detector_kwargs)
 
     elif tree_detection_model == "detectree2":
 
@@ -111,18 +116,24 @@ def generate_predictions(
         param_dict = {"update_model": trained_model}
 
         dtree2_module = Detectree2Module(param_dict)
-        lightning_detector = Detectree2Detector(dtree2_module)
+        detector = Detectree2Detector(dtree2_module, **detector_kwargs)
+
+    elif tree_detection_model == "geometric":
+        # Create a geometric detector which is applicable to CHM inputs using the default parameters
+        detector = GeometricDetector(**detector_kwargs)
 
     else:
         raise ValueError(
-            """Please enter a valid tree detection model. Currently supported models are: 
+            """Please enter a valid tree detection model. Currently supported models are:
                 1. deepforest
-                2. detectree2"""
+                2. detectree2
+                3. geometric
+                """
         )
 
     # Get predictions by invoking the tree_detection_model
     logging.info("Getting tree detections")
-    outputs = lightning_detector.predict(dataloader)
+    outputs = detector.predict(dataloader)
 
     if run_nms is True:
         logging.info("Running non-max suppression")
@@ -169,6 +180,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iou-threshold", type=float, default=0.3)
     parser.add_argument("--min-confidence", type=float, default=0.3)
     parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument(
+        "--detector-kwargs",
+        type=str,
+        default="{}",
+        help=(
+            "A json-formatted string specifying named argument overrides to the detector constructor. "
+            + "Note that string arguments should be double quoted so the whole string should be "
+            + "surrounded in single quotes"
+        ),
+    )
 
     try:
         args = parser.parse_args()
@@ -177,6 +198,9 @@ def parse_args() -> argparse.Namespace:
         print("\nError: Missing required arguments.")
         parser.print_help()
         raise e
+
+    # You cannot pass an dict on the command line so we convert the string representation into one here
+    args.detector_kwargs = json.loads(args.detector_kwargs)
 
     return args
 
