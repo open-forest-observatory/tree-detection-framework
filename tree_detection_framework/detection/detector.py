@@ -1045,9 +1045,9 @@ class GeometricDetector(GeometricTreeTopDetector, GeometricTreeCrownDetector):
 
     def __init__(
         self,
-        a: float = 0.00901,
-        b: float = 0,
-        c: float = 2.52503,
+        a: float = 0.0,
+        b: float = 0.0325,
+        c: float = 0.25,
         min_ht: int = 5,
         approach: str = "watershed",
         radius_factor: float = 0.6,
