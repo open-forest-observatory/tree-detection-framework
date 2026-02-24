@@ -1,5 +1,6 @@
 import tempfile
 from typing import Optional
+from pathlib import Path
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -127,22 +128,37 @@ def show_raster(
 
     # If the CRS is set, ensure the data matches it
     if CRS is not None:
-        # Create a temporary file to write to
-        temp_output_filename = tempfile.NamedTemporaryFile(suffix=".tif")
-        # Get the name of this file
-        temp_name = temp_output_filename.name
-        # Reproject the raster. If the CRS was the same as requested, the original raster path will
-        # be returned. Otherwise, the reprojected raster will be written to the temp file and that
-        # path will be returned.
-        raster_file_path = reproject_raster(
-            input_file=raster_file_path, output_file=temp_name, dst_crs=CRS
-        )
+        # Create a temporary file to write to. Note that the underlying file will persist since
+        # delete = False.
+        with tempfile.NamedTemporaryFile(
+            suffix=".tif", delete=False
+        ) as temp_output_file:
+            # Reproject the raster. If the CRS was the same as requested, the original raster path will
+            # be returned. Otherwise, the reprojected raster will be written to the temp file and that
+            # path will be returned.
+            raster_file_path = reproject_raster(
+                input_file=raster_file_path,
+                output_file=temp_output_file,
+                dst_crs=CRS,
+            )
+            # Extract the name for use later
+            print(raster_file_path)
+            # raster_file_path = raster_file_path.name
+            print(raster_file_path)
     # Load the downsampled image
-    img, _, transform = load_downsampled_raster_data(
+    img, dataset, transform = load_downsampled_raster_data(
         raster_file_path, downsample_factor=downsample_factor
     )
+
     # Plot the image
     rio.plot.show(source=img, transform=transform, ax=plt_ax)
+
+    if CRS is not None:
+        # If we created a temporary file, we must first close the rasterio dataset and then delete
+        # the file on disk
+        dataset.close()
+        # Clean up the temporary file if we created one for reprojection
+        Path(raster_file_path).unlink()
 
 
 def plot_from_dataloader(sample):
