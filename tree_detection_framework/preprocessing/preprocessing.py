@@ -311,7 +311,9 @@ def create_intersection_dataloader(
 
     # Create an intersection dataset that combines the datasets
     # Attributes such as resolution will be taken from the first dataset
-    intersection_data = IntersectionDataset(vector_data, raster_data)  # Switched raster and vector temporarily for Emerald Point CHM
+    intersection_data = IntersectionDataset(
+        vector_data, raster_data
+    )  # Switched raster and vector temporarily for Emerald Point CHM
 
     # Create a sampler to generate contiguous tiles of the input dataset
     sampler = UnboundedGridGeoSampler(
