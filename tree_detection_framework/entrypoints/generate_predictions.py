@@ -139,7 +139,7 @@ def generate_predictions(
         logging.info("Running non-max suppression")
         # Run non-max suppression on the detected regions
         outputs = multi_region_NMS(
-            outputs, iou_theshold=iou_threshold, min_confidence=min_confidence
+            outputs, threshold=iou_threshold, min_confidence=min_confidence
         )
 
     if predictions_save_path:
