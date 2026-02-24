@@ -479,9 +479,9 @@ class GeometricTreeTopDetector(Detector):
 
     def __init__(
         self,
-        a: float = 0.00901,
-        b: float = 0,
-        c: float = 2.52503,
+        a: float = 0.25,
+        b: float = 0.0325,
+        c: float = 0,
         min_ht: int = 5,
         filter_shape: str = "circle",
         confidence_feature: str = "distance",
@@ -489,9 +489,9 @@ class GeometricTreeTopDetector(Detector):
     ):
         """Detector to detect treetops for CHM data. Implementation of the variable window filter algorithm of Popescu and Wynne (2004).
         Args:
-           a (float, optional): Coefficient for the quadratic term in the radius calculation. Defaults to 0.00901.
-           b (float, optional): Coefficient for the linear term in the radius calculation. Defaults to 0.
-           c (float, optional): Constant term in the radius calculation. Defaults to 2.52503.
+           a (float, optional): Coefficient for the quadratic term in the radius calculation. Defaults to 0.25.
+           b (float, optional): Coefficient for the linear term in the radius calculation. Defaults to 0.0325.
+           c (float, optional): Constant term in the radius calculation. Defaults to 0.
            min_ht (int, optional): Minimum height for a pixel to be considered as a tree. Defaults to 5.
            filter_shape (str, optional): Shape of the filter to use for local maxima detection.
                Choose from "circle", "square", "none". Defaults to "circle". Defaults to "circle".
