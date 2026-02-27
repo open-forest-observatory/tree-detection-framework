@@ -139,13 +139,13 @@ def parse_args():
         help="Where to save the detected tree crowns.",
     )
     parser.add_argument(
-        "--chip_size",
+        "--chip-size",
         type=int,
         default=CHIP_SIZE,
         help=f"The size of the chip in pixels. Defaults to {CHIP_SIZE}.",
     )
     parser.add_argument(
-        "--chip_stride",
+        "--chip-stride",
         type=int,
         default=CHIP_STRIDE,
         help=f"The stride of the sliding chip window in pixels. Defaults to {CHIP_STRIDE}.",
