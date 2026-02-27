@@ -1,5 +1,6 @@
-from pathlib import Path
 import argparse
+import json
+from pathlib import Path
 
 from tree_detection_framework.detection.detector import (
     GeometricTreeCrownDetector,
@@ -14,7 +15,6 @@ from tree_detection_framework.preprocessing.preprocessing import (
     create_intersection_dataloader,
 )
 
-
 CHIP_SIZE = 2000
 CHIP_STRIDE = 1900
 RESOLUTION = 0.2
@@ -27,6 +27,8 @@ def detect_trees_two_stage(
     chip_size: int = CHIP_SIZE,
     chip_stride: int = CHIP_STRIDE,
     resolution: float = RESOLUTION,
+    tree_top_detector_kwargs: dict = {},
+    crown_segmentation_kwargs: dict = {},
 ):
     """Detect trees geometrically and save the detected tree tops and tree crowns.
 
@@ -41,10 +43,16 @@ def detect_trees_two_stage(
             The size of the chip in pixels. Defaults to CHIP_SIZE.
         chip_stride (int, optional):
             The stride of the sliding chip window in pixels. Defaults to CHIP_STRIDE.
-        output_resolution (float, optional):
+        resolution (float, optional):
             The spatial resolution that the CHM is resampled to. Defaults to OUTPUT_RESOLUTION.
+        tree_top_detector_kwargs (dict, optional):
+            Keyword arguments to pass to the tree top detector. Defaults to {}.
+        crown_segmentation_kwargs (dict, optional):
+            Keyword arguments to pass to the crown segmentation approach. Defaults to {}.
     """
     # Stage 1: Create a dataloader for the raster data and detect the tree-tops
+    # TODO, consider a larger window for tree detection to reduce boundary artificts, while still
+    # keeping the watershed step fast.
     dataloader = create_dataloader(
         raster_folder_path=CHM_file,
         chip_size=chip_size,
@@ -54,7 +62,7 @@ def detect_trees_two_stage(
 
     # Create the detector for variable window maximum detection
     treetop_detector = GeometricTreeTopDetector(
-        a=0, b=0.0325, c=0.25, confidence_feature="distance"
+        confidence_feature="distance", **tree_top_detector_kwargs
     )
 
     # Generate tree top predictions
@@ -64,6 +72,9 @@ def detect_trees_two_stage(
 
     # Compute the suppresion distance so that each tile only contributes detections from its "core"
     # area. If there is only one tile, no suppression is needed.
+
+    # TODO, a better alternative would be to suppress only overlapping regions of tiles,
+    # such as the approach started here: https://github.com/open-forest-observatory/tree-detection-framework/pull/130
     suppression_distance = (
         0 if len(dataloader) == 1 else (chip_size - chip_stride) * resolution / 2
     )
@@ -88,7 +99,9 @@ def detect_trees_two_stage(
 
     # Create the crown detector, which is seeded by the tree top points detected in the last step
     # The score metric is how far from the edge the detection is, which prioritizes central detections
-    treecrown_detector = GeometricTreeCrownDetector(confidence_feature="distance")
+    treecrown_detector = GeometricTreeCrownDetector(
+        confidence_feature="distance", **crown_segmentation_kwargs
+    )
 
     # Predict the crowns
     treecrown_detections = treecrown_detector.predict(raster_vector_dataloader)
@@ -143,7 +156,25 @@ def parse_args():
         default=RESOLUTION,
         help=f"The spatial resolution that the CHM is resampled to. Defaults to {RESOLUTION}.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--tree-top-detector-kwargs",
+        type=str,
+        default="{}",
+        help="A JSON string of keyword arguments to pass to the tree top detector.",
+    )
+    parser.add_argument(
+        "--crown-segmentation-kwargs",
+        type=str,
+        default="{}",
+        help="A JSON string of keyword arguments to pass to the crown segmentation approach.",
+    )
+    args = parser.parse_args()
+
+    # You can't parse a dictionary with argparse, so we use json to convert the string
+    args.tree_top_detector_kwargs = json.loads(args.tree_top_detector_kwargs)
+    args.crown_segmentation_kwargs = json.loads(args.crown_segmentation_kwargs)
+
+    return args
 
 
 if __name__ == "__main__":
@@ -155,4 +186,6 @@ if __name__ == "__main__":
         chip_size=args.chip_size,
         chip_stride=args.chip_stride,
         resolution=args.resolution,
+        tree_top_detector_kwargs=args.tree_top_detector_kwargs,
+        crown_segmentation_kwargs=args.crown_segmentation_kwargs,
     )
