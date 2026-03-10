@@ -1,6 +1,9 @@
 import argparse
 import json
 from pathlib import Path
+from typing import Optional
+
+import kornia.augmentation as K
 
 from tree_detection_framework.detection.detector import (
     GeometricTreeCrownDetector,
@@ -27,6 +30,7 @@ def detect_trees_two_stage(
     chip_size: int = CHIP_SIZE,
     chip_stride: int = CHIP_STRIDE,
     resolution: float = RESOLUTION,
+    raster_blur_sigma: Optional[float] = None,
     tree_top_detector_kwargs: dict = {},
     crown_segmentation_kwargs: dict = {},
 ):
@@ -45,19 +49,44 @@ def detect_trees_two_stage(
             The stride of the sliding chip window in pixels. Defaults to CHIP_STRIDE.
         resolution (float, optional):
             The spatial resolution that the CHM is resampled to. Defaults to OUTPUT_RESOLUTION.
+        raster_blur_sigma (float, optional):
+            The standard deviation of the 2D gaussian kernel, in meters. Defaults to None, no smoothing.
         tree_top_detector_kwargs (dict, optional):
             Keyword arguments to pass to the tree top detector. Defaults to {}.
         crown_segmentation_kwargs (dict, optional):
             Keyword arguments to pass to the crown segmentation approach. Defaults to {}.
     """
     # Stage 1: Create a dataloader for the raster data and detect the tree-tops
+
+    if raster_blur_sigma is not None and raster_blur_sigma != 0:
+        # Add a blurring operation to avoid spurious tree top detections
+        # Compute the kernel sigma in pixels
+        kernel_sigma_pixels = raster_blur_sigma / resolution
+        # Set the kernel size and three sigmas, which captures the vast majority of the probability density
+        kernel_size = int(3 * kernel_sigma_pixels)
+
+        # Create a gaussian blur operation. The kernel sigma is normally random, but we set the upper and lower
+        # values to be identical. The probability is 1.0 so it's always applied.
+        raster_transforms = K.AugmentationSequential(
+            K.RandomGaussianBlur(
+                kernel_size=kernel_size,
+                sigma=(kernel_sigma_pixels, kernel_sigma_pixels),
+                p=1.0,
+            ),
+            data_keys=None,
+        )
+    else:
+        raster_transforms = None
+
     # TODO, consider a larger window for tree detection to reduce boundary artificts, while still
-    # keeping the watershed step fast.
+    # keeping the watershed step fast. Counterpoint: in large rasters, the NMS step becomes extremely
+    # expensive and the bottleneck, so additional duplicated regions may further slow that step.
     dataloader = create_dataloader(
         raster_folder_path=CHM_file,
         chip_size=chip_size,
         chip_stride=chip_stride,
         resolution=resolution,
+        raster_transforms=raster_transforms,
     )
 
     # Create the detector for variable window maximum detection
@@ -157,6 +186,11 @@ def parse_args():
         help=f"The spatial resolution that the CHM is resampled to. Defaults to {RESOLUTION}.",
     )
     parser.add_argument(
+        "--raster-blur-sigma",
+        type=float,
+        help=f"The sigma in meters for a 2D Gaussian smoothing kernel. If unset, no smoothing occurs.",
+    )
+    parser.add_argument(
         "--tree-top-detector-kwargs",
         type=str,
         default="{}",
@@ -186,6 +220,7 @@ if __name__ == "__main__":
         chip_size=args.chip_size,
         chip_stride=args.chip_stride,
         resolution=args.resolution,
+        raster_blur_sigma=args.raster_blur_sigma,
         tree_top_detector_kwargs=args.tree_top_detector_kwargs,
         crown_segmentation_kwargs=args.crown_segmentation_kwargs,
     )
