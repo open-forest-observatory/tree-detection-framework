@@ -2,6 +2,7 @@ import argparse
 import json
 from pathlib import Path
 from typing import Optional
+from math import ceil
 
 import kornia.augmentation as K
 
@@ -63,8 +64,8 @@ def detect_trees_two_stage(
         # Add a blurring operation to avoid spurious tree top detections
         # Compute the kernel sigma in pixels
         kernel_sigma_pixels = raster_blur_sigma / resolution
-        # Set the kernel size and three sigmas, which captures the vast majority of the probability density
-        kernel_size = int(3 * kernel_sigma_pixels)
+        # Set the kernel size at over two sigmas, which captures the vast majority of the probability density
+        kernel_size = 2 * ceil(kernel_sigma_pixels) + 1
 
         # Create a gaussian blur operation. The kernel sigma is normally random, but we set the upper and lower
         # values to be identical. The probability is 1.0 so it's always applied. The wrapper ensures that
