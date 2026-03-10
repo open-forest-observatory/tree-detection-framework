@@ -17,6 +17,7 @@ from tree_detection_framework.preprocessing.preprocessing import (
     create_dataloader,
     create_intersection_dataloader,
 )
+from tree_detection_framework.preprocessing.utils import KorniaTransformWrapper
 
 CHIP_SIZE = 2000
 CHIP_STRIDE = 1900
@@ -66,14 +67,16 @@ def detect_trees_two_stage(
         kernel_size = int(3 * kernel_sigma_pixels)
 
         # Create a gaussian blur operation. The kernel sigma is normally random, but we set the upper and lower
-        # values to be identical. The probability is 1.0 so it's always applied.
-        raster_transforms = K.AugmentationSequential(
-            K.RandomGaussianBlur(
-                kernel_size=kernel_size,
-                sigma=(kernel_sigma_pixels, kernel_sigma_pixels),
-                p=1.0,
-            ),
-            data_keys=None,
+        # values to be identical. The probability is 1.0 so it's always applied. The wrapper ensures that
+        # the shape of singleton batches is maintained.
+        raster_transforms = KorniaTransformWrapper(
+            K.AugmentationSequential(
+                K.RandomGaussianBlur(
+                    kernel_size=kernel_size,
+                    sigma=(kernel_sigma_pixels, kernel_sigma_pixels),
+                    p=1.0,
+                ),
+            )
         )
     else:
         raster_transforms = None
