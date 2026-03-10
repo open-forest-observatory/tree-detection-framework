@@ -1,8 +1,8 @@
 import argparse
 import json
+from math import ceil
 from pathlib import Path
 from typing import Optional
-from math import ceil
 
 import kornia.augmentation as K
 
