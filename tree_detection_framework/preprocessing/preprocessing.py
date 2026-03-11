@@ -140,6 +140,7 @@ def create_dataloader(
     vector_label_folder_path: Optional[PATH_TYPE] = None,
     vector_label_attribute: Optional[str] = None,
     batch_size: int = 1,
+    raster_transforms=None,
 ) -> DataLoader:
     """
     Create a tiled dataloader using torchgeo. Contains raster data data and optionally vector labels
@@ -172,6 +173,8 @@ def create_dataloader(
             Attribute to read from the vector data, such as the class or instance ID. Defaults to None.
         batch_size (int, optional):
             Number of images to load in a batch. Defaults to 1.
+        raster_transforms (transform object (ex. kornia.ImageSequential)):
+            A list of transforms to apply to the raster data samples.
 
     Returns:
         DataLoader:
@@ -183,7 +186,9 @@ def create_dataloader(
     # 2. TODO: float or uint8 images
     # match with the param dict from the model, else error out
     # Stores image data
-    raster_dataset = CustomRasterDataset(paths=raster_folder_path, res=resolution)
+    raster_dataset = CustomRasterDataset(
+        paths=raster_folder_path, res=resolution, transforms=raster_transforms
+    )
 
     # Stores label data
     vector_dataset = (
