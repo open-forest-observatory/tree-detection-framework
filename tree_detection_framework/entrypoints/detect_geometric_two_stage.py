@@ -1,10 +1,7 @@
 import argparse
 import json
-from math import ceil
 from pathlib import Path
 from typing import Optional
-
-import kornia.augmentation as K
 
 from tree_detection_framework.detection.detector import (
     GeometricTreeCrownDetector,
@@ -18,7 +15,7 @@ from tree_detection_framework.preprocessing.preprocessing import (
     create_dataloader,
     create_intersection_dataloader,
 )
-from tree_detection_framework.preprocessing.utils import KorniaTransformWrapper
+from tree_detection_framework.preprocessing.utils import create_guassian_blur_transform
 
 CHIP_SIZE = 2000
 CHIP_STRIDE = 1900
@@ -64,23 +61,13 @@ def detect_trees_two_stage(
         # Add a blurring operation to avoid spurious tree top detections
         # Compute the kernel sigma in pixels
         kernel_sigma_pixels = raster_blur_sigma / resolution
-        # Set the kernel size at over two sigmas, which captures the vast majority of the probability density
-        kernel_size = 2 * ceil(kernel_sigma_pixels) + 1
 
-        # Create a gaussian blur operation. The kernel sigma is normally random, but we set the upper and lower
-        # values to be identical. The probability is 1.0 so it's always applied. The wrapper ensures that
-        # the shape of singleton batches is maintained.
-        raster_transforms = KorniaTransformWrapper(
-            K.AugmentationSequential(
-                K.RandomGaussianBlur(
-                    kernel_size=kernel_size,
-                    sigma=(kernel_sigma_pixels, kernel_sigma_pixels),
-                    p=1.0,
-                ),
-            )
+        # Create the gaussian blur transform object
+        raster_transform = create_guassian_blur_transform(
+            kernel_sigma_pixels=kernel_sigma_pixels
         )
     else:
-        raster_transforms = None
+        raster_transform = None
 
     # TODO, consider a larger window for tree detection to reduce boundary artificts, while still
     # keeping the watershed step fast. Counterpoint: in large rasters, the NMS step becomes extremely
@@ -90,7 +77,7 @@ def detect_trees_two_stage(
         chip_size=chip_size,
         chip_stride=chip_stride,
         resolution=resolution,
-        raster_transforms=raster_transforms,
+        raster_transforms=raster_transform,
     )
 
     # Create the detector for variable window maximum detection
