@@ -1,5 +1,6 @@
-import kornia.augmentation as K
 from math import ceil
+
+import kornia.augmentation as K
 
 
 class KorniaTransformWrapper:
