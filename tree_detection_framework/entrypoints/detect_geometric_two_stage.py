@@ -25,7 +25,7 @@ RESOLUTION = 0.2
 def detect_trees_two_stage(
     CHM_file: Path,
     tree_tops_save_path: Path,
-    tree_crowns_save_path: Path,
+    tree_crowns_save_path: Optional[Path] = None,
     chip_size: int = CHIP_SIZE,
     chip_stride: int = CHIP_STRIDE,
     resolution: float = RESOLUTION,
@@ -40,8 +40,8 @@ def detect_trees_two_stage(
             Path to a CHM file to detect trees from
         tree_tops_save_path (Path):
             Where to save the detected tree tops.
-        tree_crowns_save_path (Path):
-            Where to save the detected tree crowns.
+        tree_crowns_save_path (Path, optional):
+            Where to save the detected tree crowns. If not provided, no crowns will be detected. Defaults to None.
         chip_size (int, optional):
             The size of the chip in pixels. Defaults to CHIP_SIZE.
         chip_stride (int, optional):
@@ -108,6 +108,10 @@ def detect_trees_two_stage(
     tree_tops_save_path.parent.mkdir(parents=True, exist_ok=True)
     treetop_detections.save(tree_tops_save_path)
 
+    # Break early if no tree crowns are requested
+    if tree_crowns_save_path is None:
+        return
+
     # Stage 2: Combine raster and vector data (from the tree-top detector) to create a new dataloader
     raster_vector_dataloader = create_intersection_dataloader(
         raster_data=CHM_file,
@@ -154,9 +158,9 @@ def parse_args():
         help="Where to save the detected tree tops.",
     )
     parser.add_argument(
-        "tree_crowns_save_path",
+        "--tree-crowns-save-path",
         type=Path,
-        help="Where to save the detected tree crowns.",
+        help="Where to save the detected tree crowns. If not provided, no crowns will be detected.",
     )
     parser.add_argument(
         "--chip-size",
