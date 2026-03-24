@@ -270,20 +270,32 @@ def _chm_max_points(
  
     return points, heights
 
-def _visualize_points(coords1, coords2, matches, mode=3, buffer=5):
+def _visualize_points(coords1, coords2, matches, mode=3, buffer=5, polygons2=None):
     """Visualize matched points between two coordinate sets.
     Args:
         coords1 (np.ndarray): point coordinates from set 1
         coords2 (np.ndarray): point coordinates from set 2
         matches (List[tuple]): indices from set 1, set 2, and height/distance data for the matches
-        mode (int): Ways to visulaize the points
+        mode (int): Ways to visualize the points
             - 1: Show only matched points
             - 2: Show all points from both sets, highlighting matches
             - 3: Same as mode 2, but crop the plot to the smaller set's bounds + buffer
         buffer (int): Used in mode 3 while cropping the smaller set's bounds
+        polygons2 (gpd.GeoSeries, optional): Crown polygon geometries for set 2. If provided,
+            polygon outlines are drawn underneath the scatter points.
     """
     _, ax = plt.subplots()
-
+ 
+    # Draw crown polygons underneath points if provided
+    if polygons2 is not None:
+        polygons2.plot(
+            ax=ax,
+            facecolor="lightblue",
+            edgecolor="steelblue",
+            linewidth=0.5,
+            alpha=0.3,
+        )
+ 
     # Matched coordinates
     matched_coords1 = np.array([coords1[i1] for (i1, _, _) in matches])
     matched_coords2 = np.array([coords2[i2] for (_, i2, _) in matches])
@@ -568,7 +580,8 @@ def match_points(
             break
 
     if vis:
-        _visualize_points(coords1, coords2, matches, mode=vis_mode)
+        polygons2 = df2["crown_geometry"] if "crown_geometry" in df2.columns else None
+        _visualize_points(coords1, coords2, matches, mode=vis_mode, polygons2=polygons2)
 
     return matches
 
