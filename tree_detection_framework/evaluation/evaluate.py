@@ -1,17 +1,17 @@
 import logging
 import warnings
-from typing import Callable, List, Optional, Tuple, Union, Literal
+from typing import Callable, List, Literal, Optional, Tuple, Union
 
 import geopandas as gpd
 import matplotlib.collections as mc
 import matplotlib.pyplot as plt
 import numpy as np
+import rasterio
 import shapely
+from rasterio.mask import mask
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
 from shapely.geometry import Point, Polygon, box
-import rasterio
-from rasterio.mask import mask
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import (
