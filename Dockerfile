@@ -1,14 +1,18 @@
-# Base python image
-FROM python:3.10.19-slim
-# Install git, gcc/g++, and curl for downloading and compiling
+# CUDA base image
+FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
+# Install Python, git, gcc/g++, and curl for downloading and compiling
 # Also install libgl1 and libglib2.0-0 for cv2/albumentations dependency
 RUN apt-get update && \
     apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-dev \
     git \
     build-essential \
     curl \
     libgl1 \
     libglib2.0-0 && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
     rm -rf /var/lib/apt/lists/*
 # Install poetry
 RUN curl -sSL https://install.python-poetry.org | python3 -
