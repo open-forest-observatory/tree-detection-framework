@@ -751,7 +751,7 @@ def filter_by_chm(outputs: Union[RegionDetections, RegionDetectionsSet], chm_pat
         RegionDetections
             RegionDetections with detections below the CHM threshold removed.
     """
-    # Resolve the GeoDataFrame and track input type
+    
     if isinstance(outputs, RegionDetectionsSet):
         region_detections = outputs.merge()
     elif isinstance(outputs, RegionDetections):
@@ -785,12 +785,13 @@ def filter_by_chm(outputs: Union[RegionDetections, RegionDetectionsSet], chm_pat
                 else:
                     # Convert the shapely geometry into a geojson-like dict collection expected by rasterio's mask()
                     geom_geojson = [mapping(geom)]
-                    # Clips the CHM raster to the shape's bounding extent and masks out all pixels that fall outside the geometry, filling them with np.nan
+                    # Clips the CHM raster to the shape's bounding extent and masks out all pixels that fall 
+                    # outside the geometry, filling them with np.nan
                     out_image, _ = mask(src, geom_geojson, crop=True, nodata=np.nan)
                     data = out_image[0].astype(float)  # cast all values to float
 
                     # Take the maximum CHM value within the shape, ignoring np.nan values. 
-                    # If all values are np.nan (e.g. if the shape falls completely outside the raster bounds), set height to 0.
+                    # If all values are np.nan (e.g. if the shape falls completely outside raster bounds), set height to 0.
                     height = float(np.nanmax(data)) if not np.all(np.isnan(data)) else 0.0
 
             except Exception:
