@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyproj
 import rasterio
-import rasterio as rio
 import rasterio.features
 import rasterio.plot
 from rasterio.warp import Resampling, calculate_default_transform, reproject
@@ -24,11 +23,11 @@ def load_downsampled_raster_data(dataset_filename: PATH_TYPE, downsample_factor:
 
     Returns:
         np.array: The downsampled array in the rasterio (c, h, w) convention
-        rio.DatasetReader: The reader with the transform updated
-        rio.Transform: The updated transform
+        rasterio.DatasetReader: The reader with the transform updated
+        rasterio.Transform: The updated transform
     """
     # Open the dataset handler. Note that this doesn't read into memory.
-    dataset = rio.open(dataset_filename)
+    dataset = rasterio.open(dataset_filename)
 
     # resample data to target shape
     data = dataset.read(
@@ -37,7 +36,7 @@ def load_downsampled_raster_data(dataset_filename: PATH_TYPE, downsample_factor:
             int(dataset.height / downsample_factor),
             int(dataset.width / downsample_factor),
         ),
-        resampling=rio.enums.Resampling.bilinear,
+        resampling=rasterio.enums.Resampling.bilinear,
     )
 
     # scale image transform
@@ -143,7 +142,7 @@ def show_raster(
         raster_file_path, downsample_factor=downsample_factor
     )
     # Plot the image
-    rio.plot.show(source=img, transform=transform, ax=plt_ax)
+    rasterio.plot.show(source=img, transform=transform, ax=plt_ax)
 
 
 def plot_from_dataloader(sample):
@@ -257,3 +256,69 @@ def get_valid_raster_region(raster_file: PATH_TYPE) -> gpd.GeoDataFrame:
     bounds_gdf = bounds_gdf.dissolve()
 
     return bounds_gdf
+
+
+def plot_ortho_chm_overlay(
+    ortho_path: str,
+    chm_path: str,
+    chm_alpha: float = 0.5,
+    chm_cmap: str = "viridis",
+    chm_vmin: Optional[float] = None,
+    chm_vmax: Optional[float] = None,
+    figsize: tuple = (10, 10),
+    title: str = "CHM Overlay on Ortho",
+) -> plt.Figure:
+    """
+    Plot a CHM raster overlaid on an ortho image, locked to the ortho's extent.
+
+    Args:
+        ortho_path: Path to the orthophoto raster (RGB).
+        chm_path:   Path to the CHM raster.
+        chm_alpha:  Transparency of the CHM overlay. Defaults to 0.5.
+        chm_cmap:   Colormap for the CHM. Defaults to "viridis".
+        chm_vmin:   Min value for CHM colormap scaling. Defaults to CHM min.
+        chm_vmax:   Max value for CHM colormap scaling. Defaults to CHM max.
+        figsize:    Figure size. Defaults to (10, 10).
+        title:      Plot title. Defaults to "CHM Overlay on Ortho".
+
+    Returns:
+        matplotlib Figure object.
+    """
+    with rasterio.open(ortho_path) as ortho_src:
+        ortho_img = ortho_src.read([1, 2, 3]).transpose(1, 2, 0)
+        ortho_bounds = ortho_src.bounds
+
+    with rasterio.open(chm_path) as chm_src:
+        chm_img = chm_src.read(1).astype(float)
+        chm_bounds = chm_src.bounds
+        nodata = chm_src.nodata
+
+    # Mask nodata values so they render as transparent
+    if nodata is not None:
+        chm_img[chm_img == nodata] = np.nan
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    ax.imshow(
+        ortho_img,
+        extent=[ortho_bounds.left, ortho_bounds.right, ortho_bounds.bottom, ortho_bounds.top],
+    )
+    chm_plot = ax.imshow(
+        chm_img,
+        extent=[chm_bounds.left, chm_bounds.right, chm_bounds.bottom, chm_bounds.top],
+        alpha=chm_alpha,
+        cmap=chm_cmap,
+        vmin=chm_vmin,
+        vmax=chm_vmax,
+    )
+
+    # Lock axes to ortho extent
+    ax.set_xlim(ortho_bounds.left, ortho_bounds.right)
+    ax.set_ylim(ortho_bounds.bottom, ortho_bounds.top)
+
+    fig.colorbar(chm_plot, ax=ax, label="Canopy Height (m)")
+    ax.set_title(title)
+
+    plt.close(fig)  # Prevents Jupyter auto-display
+
+    return fig  # Caller can do display(fig) if needed
