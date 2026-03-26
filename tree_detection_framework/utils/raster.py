@@ -301,7 +301,12 @@ def plot_ortho_chm_overlay(
 
     ax.imshow(
         ortho_img,
-        extent=[ortho_bounds.left, ortho_bounds.right, ortho_bounds.bottom, ortho_bounds.top],
+        extent=[
+            ortho_bounds.left,
+            ortho_bounds.right,
+            ortho_bounds.bottom,
+            ortho_bounds.top,
+        ],
     )
     chm_plot = ax.imshow(
         chm_img,

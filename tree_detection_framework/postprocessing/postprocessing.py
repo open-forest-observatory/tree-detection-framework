@@ -759,7 +759,9 @@ def filter_by_chm(
     elif isinstance(outputs, RegionDetections):
         region_detections = outputs
     else:
-        raise TypeError(f"Expected RegionDetections or RegionDetectionsSet, got {type(outputs)}")
+        raise TypeError(
+            f"Expected RegionDetections or RegionDetectionsSet, got {type(outputs)}"
+        )
 
     detections_gdf = region_detections.get_data_frame()
 
@@ -810,7 +812,7 @@ def filter_by_chm(
                         src,
                         geom_geojson,
                         crop=True,  # only read bounding region
-                        nodata=np.nan  # ensures masked + nodata pixels become NaN
+                        nodata=np.nan,  # ensures masked + nodata pixels become NaN
                     )
                     data = out_image[0].astype(float)
 
@@ -833,8 +835,6 @@ def filter_by_chm(
     # Keep detections if:
     # - height >= threshold OR
     # - no CHM data (NaN) throughout geometry (can't rule out that it's a tree just because CHM is missing)
-    keep_inds = np.where(
-        (chm_heights >= min_height) | np.isnan(chm_heights)
-    )[0]
+    keep_inds = np.where((chm_heights >= min_height) | np.isnan(chm_heights))[0]
 
     return region_detections.subset_detections(keep_inds)
