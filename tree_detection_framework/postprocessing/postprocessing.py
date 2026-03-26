@@ -733,25 +733,28 @@ def remove_masked_detections(
     return filtered_sets
 
 
-def filter_by_chm(outputs: Union[RegionDetections, RegionDetectionsSet], chm_path: str, min_height: float = 2.0) -> RegionDetections:
+def filter_by_chm(
+    outputs: Union["RegionDetections", "RegionDetectionsSet"],
+    chm_path: str,
+    min_height: float = 10.0,
+) -> "RegionDetections":
     """
-    Filter tree detections by canopy height model (CHM) values. Supports point,
-    bounding box, and polygon geometries. For points, samples the CHM at the
-    point location. For polygons/boxes, takes the max CHM value within the shape.
+    Filter tree detections by canopy height model (CHM) values.
+
+    A detection is kept if:
+        - max CHM value within geometry >= min_height, OR
+        - no valid CHM data exists for that geometry
 
     Args:
-        outputs Union[RegionDetections, RegionDetectionsSet]
-            RegionDetections or RegionDetectionsSet object.
-        chm_path (str)
-            Path to the CHM raster file.
-        min_height (float)
-            Minimum CHM height (in meters) to retain a detection.
+        outputs (Union[RegionDetections, RegionDetectionsSet]):
+            The detections to filter
+        chm_path (str): Path to the canopy height model raster file
+        min_height (float): Minimum height threshold for filtering detections
 
     Returns:
-        RegionDetections
-            RegionDetections with detections below the CHM threshold removed.
+        RegionDetections: Filtered detections that meet the height criteria
     """
-    
+
     if isinstance(outputs, RegionDetectionsSet):
         region_detections = outputs.merge()
     elif isinstance(outputs, RegionDetections):
@@ -761,48 +764,78 @@ def filter_by_chm(outputs: Union[RegionDetections, RegionDetectionsSet], chm_pat
 
     detections_gdf = region_detections.get_data_frame()
 
-    # Open the CHM raster file
     with rasterio.open(chm_path) as src:
         chm_crs = src.crs
+        nodata = src.nodata  # value used in raster to represent missing data
 
-        # Reproject detections to CHM CRS for sampling only
+        # Reproject detections to match CHM CRS if needed
         if detections_gdf.crs != chm_crs:
             sampling_gdf = detections_gdf.to_crs(chm_crs)
         else:
             sampling_gdf = detections_gdf
 
-        nodata = src.nodata
         chm_heights = []
 
-        for geom in sampling_gdf.geometry:
-            try:
-                # For points, sample the CHM value at the point location
-                if geom.geom_type == "Point":
-                    row, col = src.index(geom.x, geom.y)
-                    value = src.read(1)[row, col]  # Read the CHM value at the point location
-                    height = float(value) if (nodata is None or value != nodata) else 0.0
+        # Find geometry type; note: this assumes all geometries are the same type
+        geom_type = sampling_gdf.geometry.iloc[0].geom_type
 
-                else:
-                    # Convert the shapely geometry into a geojson-like dict collection expected by rasterio's mask()
+        # 1. POINT CASE: sample CHM directly at point locations
+        if geom_type == "Point":
+            # Extract (x, y) coordinates for all points
+            coords = [(geom.x, geom.y) for geom in sampling_gdf.geometry]
+
+            # Batch sampling of raster values at point locations
+            # Handles out-of-bounds safely by returning nodata value
+            samples = np.array(list(src.sample(coords))).squeeze()
+
+            # Identify which samples are valid CHM values
+            if nodata is not None:
+                valid_mask = samples != nodata
+            else:
+                valid_mask = ~np.isnan(samples)
+
+            # Assign heights:
+            # - valid values -> actual CHM height
+            # - invalid/nodata -> np.nan (treated as "no CHM data")
+            chm_heights = np.where(valid_mask, samples, np.nan)
+
+        # 2. POLYGON / BBOX CASE: extract max CHM within geometry
+        else:
+            for geom in sampling_gdf.geometry:
+                try:
+                    # Convert shapely geometry -> GeoJSON format for rasterio
                     geom_geojson = [mapping(geom)]
-                    # Clips the CHM raster to the shape's bounding extent and masks out all pixels that fall 
-                    # outside the geometry, filling them with np.nan
-                    out_image, _ = mask(src, geom_geojson, crop=True, nodata=np.nan)
-                    data = out_image[0].astype(float)  # cast all values to float
 
-                    # Take the maximum CHM value within the shape, ignoring np.nan values. 
-                    # If all values are np.nan (e.g. if the shape falls completely outside raster bounds), set height to 0.
-                    height = float(np.nanmax(data)) if not np.all(np.isnan(data)) else 0.0
+                    # Mask raster to geometry extent
+                    out_image, _ = mask(
+                        src,
+                        geom_geojson,
+                        crop=True,  # only read bounding region
+                        nodata=np.nan  # ensures masked + nodata pixels become NaN
+                    )
+                    data = out_image[0].astype(float)
 
-            except Exception:
-                # If the geometry falls outside the CHM extent
-                height = 0.0
+                    # If all pixels are NaN -> no valid CHM data
+                    if np.all(np.isnan(data)):
+                        height = np.nan
+                    else:
+                        # Take max height within polygon (ignores NaNs)
+                        height = float(np.nanmax(data))
 
-            chm_heights.append(height)
+                except ValueError:
+                    # Raised when geometry has no overlap with raster
+                    # -> treat as no CHM data
+                    height = np.nan
 
-    chm_heights = np.array(chm_heights)
+                chm_heights.append(height)
 
-    # Get indices of detections that pass the height threshold
-    keep_inds = sorted(np.where(chm_heights >= min_height)[0].tolist())
+        chm_heights = np.array(chm_heights)
+
+    # Keep detections if:
+    # - height >= threshold OR
+    # - no CHM data (NaN) throughout geometry (can't rule out that it's a tree just because CHM is missing)
+    keep_inds = np.where(
+        (chm_heights >= min_height) | np.isnan(chm_heights)
+    )[0]
 
     return region_detections.subset_detections(keep_inds)
