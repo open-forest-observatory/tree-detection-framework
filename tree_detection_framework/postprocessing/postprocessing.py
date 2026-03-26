@@ -4,17 +4,16 @@ from typing import Iterable, List, Optional, Union
 
 import geopandas as gpd
 import numpy as np
+import rasterio
 import rasterstats
 from affine import Affine
 from geopandas import GeoDataFrame
 from PIL import Image
 from polygone_nms import nms
-from shapely import box
-from shapely.geometry import MultiPolygon, Polygon
-from shapely.ops import unary_union
-import rasterio
 from rasterio.mask import mask
-from shapely.geometry import mapping
+from shapely import box
+from shapely.geometry import MultiPolygon, Polygon, mapping
+from shapely.ops import unary_union
 
 from tree_detection_framework.constants import PATH_TYPE
 from tree_detection_framework.detection.region_detections import (
