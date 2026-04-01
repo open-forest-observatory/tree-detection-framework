@@ -148,7 +148,6 @@ def ellipse_mask(
 
 
 def ordered_voronoi(points):
-    gpd.GeoDataFrame(geometry=[points]).plot()
     voronoi = shapely.voronoi_polygons(points)
 
     ordered_voronoi = []
@@ -161,7 +160,7 @@ def ordered_voronoi(points):
 
 
 def split_overlapping_region(
-    poly1: shapely.Polygon, poly2: shapely.Polygon, epsilon: float = 1e-6
+    poly1: shapely.Polygon, poly2: shapely.Polygon, epsilon: float = 1e-6, vis=False
 ):
     # Compute the intersection between the two polygons
     intersection = shapely.intersection(poly1, poly2)
@@ -194,7 +193,10 @@ def split_overlapping_region(
 
     merged = voronoi_gdf.dissolve("IDs")
     merged["IDs"] = merged.index
-    merged.plot("IDs")
+    if vis:
+        ax = merged.plot("IDs")
+        ax.set_title("Voronoi tessellation colored by original polygon")
+        plt.show()
 
     poly1_merged = merged.iloc[0, :].geometry
     poly2_merged = merged.iloc[1, :].geometry
@@ -202,7 +204,11 @@ def split_overlapping_region(
     poly1_clipped = poly1.intersection(poly1_merged)
     poly2_clipped = poly2.intersection(poly2_merged)
 
-    f, ax = plt.subplots()
-    plotting.plot_polygon(poly1_clipped, ax=ax, color="b")
-    plotting.plot_polygon(poly2_clipped, ax=ax, color="r")
-    plt.show()
+    if vis:
+        _, ax = plt.subplots()
+        plotting.plot_polygon(poly1_clipped, ax=ax, color="b")
+        plotting.plot_polygon(poly2_clipped, ax=ax, color="r")
+        plt.title("Non-overlapping regions")
+        plt.show()
+
+    return poly1_clipped, poly2_clipped
