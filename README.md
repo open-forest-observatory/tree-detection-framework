@@ -89,7 +89,7 @@ Finally, choose to either install the Detectron2 or SAM2 detection framework.
 The Detectron2 library is not compatible with `poetry` so must be installed directly with pip
 ```
 # https://detectron2.readthedocs.io/en/latest/tutorials/install.html#build-detectron2-from-source
-pip install git+https://github.com/facebookresearch/detectron2.git
+pip install --no-build-isolation git+https://github.com/facebookresearch/detectron2.git
 ```
 Download the detectree2 checkpoint weights.
 ```
