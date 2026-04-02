@@ -149,6 +149,10 @@ def ellipse_mask(
 
 
 def ordered_voronoi(points):
+    """
+    The shapely version we are using does not order the voronoi polygons in the same way as the
+    input points. This wrapper does that.
+    """
     voronoi = shapely.voronoi_polygons(points)
 
     ordered_voronoi = []
@@ -171,7 +175,22 @@ def ordered_voronoi(points):
 
 def split_overlapping_region(
     poly1: shapely.Polygon, poly2: shapely.Polygon, epsilon: float = 1e-6, vis=False
-):
+) -> Tuple[shapely.Polygon, shapely.Polygon]:
+    """
+    Take two potentially-overlapping polygons and return the non-overlapping version of them such
+    that any overlapping regions are split between the two. This is done by finding any overlapping
+    regions and splitting them with a straight line that is equidistant to the two non-overlapping
+    portions of the polygons.
+
+    Args:
+        poly1 (shapely.Polygon): First polygon
+        poly2 (shapely.Polygon): Second polygon
+        epsilon (float, optional): Used for numerical stability. Defaults to 1e-6.
+        vis (bool, optional): Whether to show intermediate results. Defaults to False.
+
+    Returns:
+        Tuple[shapely.Polygon, shapely.Polygon]: The non-overlapping versions of the input polygons
+    """
     # Compute the intersection between the two polygons
     intersection = shapely.intersection(poly1, poly2)
     intersection = intersection.buffer(epsilon)
@@ -231,7 +250,23 @@ def split_overlapping_region(
 
 def make_polygon_set_nonoverlapping(
     polygons: List[shapely.geometry.polygon.Polygon], epsilon: float = 1e-6, vis=False
-):
+) -> List[shapely.geometry.polygon.Polygon]:
+    """
+    Take a set of polygons and return an updated set representing the "core" nonoverlapping regions
+    such that each core region represents the space which is farthest interior to that polygon,
+    compared to all other polygons.
+
+    Args:
+        polygons (List[shapely.geometry.polygon.Polygon]): _description_
+        epsilon (float, optional): Used for numerical stability. Defaults to 1e-6.
+        vis (bool, optional): Show the pairwise compuations. Defaults to False.
+
+    Raises:
+        NotImplementedError: If there are multiple polygons in an intersecting region.
+
+    Returns:
+        List[shapely.geometry.polygon.Polygon]: The core regions, ordered the same way as the input
+    """
     nonoverlapping_regions = defaultdict(list)
 
     for i, first_poly in enumerate(polygons):
