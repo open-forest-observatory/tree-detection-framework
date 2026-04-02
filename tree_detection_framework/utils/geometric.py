@@ -1,5 +1,5 @@
-from typing import List, Tuple
 from collections import defaultdict
+from typing import List, Tuple
 
 import cv2
 import geopandas as gpd
