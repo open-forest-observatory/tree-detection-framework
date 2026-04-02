@@ -20,6 +20,7 @@ from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
 )
+from tree_detection_framework.utils.raster import get_valid_raster_region
 
 
 def single_region_NMS(
@@ -742,7 +743,7 @@ def filter_by_chm(
 
     A detection is kept if:
         - max CHM value within geometry >= min_height, OR
-        - no valid CHM data exists for that geometry
+        - the detection does not fully overlap the CHM
 
     Args:
         outputs (Union[RegionDetections, RegionDetectionsSet]):
@@ -765,6 +766,9 @@ def filter_by_chm(
 
     detections_gdf = region_detections.get_data_frame()
 
+    # Get valid CHM region (polygon of valid pixels)
+    chm_valid_region = get_valid_raster_region(chm_path)
+
     with rasterio.open(chm_path) as src:
         chm_crs = src.crs
         nodata = src.nodata  # value used in raster to represent missing data
@@ -774,6 +778,13 @@ def filter_by_chm(
             sampling_gdf = detections_gdf.to_crs(chm_crs)
         else:
             sampling_gdf = detections_gdf
+
+        # Ensure CHM valid region is in same CRS as sampling_gdf
+        if chm_valid_region.crs != sampling_gdf.crs:
+            chm_valid_region = chm_valid_region.to_crs(sampling_gdf.crs)
+
+        # Compute whether each detection is fully within CHM valid region
+        within_mask = sampling_gdf.within(chm_valid_region.geometry.iloc[0])
 
         chm_heights = []
 
@@ -834,7 +845,7 @@ def filter_by_chm(
 
     # Keep detections if:
     # - height >= threshold OR
-    # - no CHM data (NaN) throughout geometry (can't rule out that it's a tree just because CHM is missing)
-    keep_inds = np.where((chm_heights >= min_height) | np.isnan(chm_heights))[0]
+    # - detection is NOT fully within CHM valid region
+    keep_inds = np.where((chm_heights >= min_height) | (~within_mask))[0]
 
     return region_detections.subset_detections(keep_inds)
