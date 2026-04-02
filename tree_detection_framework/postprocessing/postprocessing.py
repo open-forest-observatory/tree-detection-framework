@@ -823,10 +823,9 @@ def filter_by_chm(
             )
 
             # Extract max values, handle None -> np.nan
-            chm_heights = np.array([
-                stat["max"] if stat["max"] is not None else np.nan
-                for stat in stats
-            ])
+            chm_heights = np.array(
+                [stat["max"] if stat["max"] is not None else np.nan for stat in stats]
+            )
 
     # Keep detections if:
     # - height >= threshold OR
