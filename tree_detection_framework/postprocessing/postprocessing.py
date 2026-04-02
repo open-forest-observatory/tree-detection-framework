@@ -813,35 +813,20 @@ def filter_by_chm(
 
         # 2. POLYGON / BBOX CASE: extract max CHM within geometry
         else:
-            for geom in sampling_gdf.geometry:
-                try:
-                    # Convert shapely geometry -> GeoJSON format for rasterio
-                    geom_geojson = [mapping(geom)]
+            # Compute max CHM height per polygon
+            stats = rasterstats.zonal_stats(
+                sampling_gdf,
+                chm_path,
+                stats=["max"],
+                nodata=nodata,
+                geojson_out=False,
+            )
 
-                    # Mask raster to geometry extent
-                    out_image, _ = mask(
-                        src,
-                        geom_geojson,
-                        crop=True,  # only read bounding region
-                        nodata=np.nan,  # ensures masked + nodata pixels become NaN
-                    )
-                    data = out_image[0].astype(float)
-
-                    # If all pixels are NaN -> no valid CHM data
-                    if np.all(np.isnan(data)):
-                        height = np.nan
-                    else:
-                        # Take max height within polygon (ignores NaNs)
-                        height = float(np.nanmax(data))
-
-                except ValueError:
-                    # Raised when geometry has no overlap with raster
-                    # -> treat as no CHM data
-                    height = np.nan
-
-                chm_heights.append(height)
-
-        chm_heights = np.array(chm_heights)
+            # Extract max values, handle None -> np.nan
+            chm_heights = np.array([
+                stat["max"] if stat["max"] is not None else np.nan
+                for stat in stats
+            ])
 
     # Keep detections if:
     # - height >= threshold OR
