@@ -243,7 +243,10 @@ def make_polygon_set_nonoverlapping(
             nonoverlapping_regions[j].append(second_poly_nonoverlapping)
 
     output_polygons = []
-    for i, all_polys in nonoverlapping_regions.items():
+
+    # Iterate over the keys in order to ensure output order matches input order
+    for i in sorted(nonoverlapping_regions.keys()):
+        all_polys = nonoverlapping_regions[i]
         intersection = shapely.intersection_all(all_polys)
 
         if isinstance(intersection, shapely.geometry.GeometryCollection):
