@@ -174,7 +174,11 @@ def ordered_voronoi(points):
 
 
 def split_overlapping_region(
-    poly1: shapely.Polygon, poly2: shapely.Polygon, epsilon: float = 1e-6, vis=False
+    poly1: shapely.Polygon,
+    poly2: shapely.Polygon,
+    epsilon: float = 1e-6,
+    vis=False,
+    segmentize_multiplier: float = 20.0,
 ) -> Tuple[shapely.Polygon, shapely.Polygon]:
     """
     Take two potentially-overlapping polygons and return the non-overlapping version of them such
@@ -187,6 +191,9 @@ def split_overlapping_region(
         poly2 (shapely.Polygon): Second polygon
         epsilon (float, optional): Used for numerical stability. Defaults to 1e-6.
         vis (bool, optional): Whether to show intermediate results. Defaults to False.
+        segmentize_multiplier (float, optional):
+            Use roughly this many points per dimension when calling "segmentize" to densify the polygon
+            boundary. Defaults to 20.0.
 
     Returns:
         Tuple[shapely.Polygon, shapely.Polygon]: The non-overlapping versions of the input polygons
@@ -203,9 +210,26 @@ def split_overlapping_region(
     p1_min_inter = poly1.difference(intersection)
     p2_min_inter = poly2.difference(intersection)
 
-    # Get the boundary points, dropping the duplicated start/end point
-    boundary1 = list(shapely.segmentize(p1_min_inter.exterior, 0.05).coords)[:-1]
-    boundary2 = list(shapely.segmentize(p2_min_inter.exterior, 0.05).coords)[:-1]
+    # Compute the scale of the objects to understand how densely to sample
+    p1_size = max(
+        p1_min_inter.bounds[2] - p1_min_inter.bounds[0],
+        p1_min_inter.bounds[3] - p1_min_inter.bounds[1],
+    )
+    p2_size = max(
+        p2_min_inter.bounds[2] - p2_min_inter.bounds[0],
+        p2_min_inter.bounds[3] - p2_min_inter.bounds[1],
+    )
+    # Get the densified boundary points, dropping the duplicated start/end point
+    boundary1 = list(
+        shapely.segmentize(
+            p1_min_inter.exterior, p1_size / segmentize_multiplier
+        ).coords
+    )[:-1]
+    boundary2 = list(
+        shapely.segmentize(
+            p2_min_inter.exterior, p2_size / segmentize_multiplier
+        ).coords
+    )[:-1]
 
     # Compute IDs identifying which polygon each vertex corresponds to
     vert_IDs = np.concatenate(
@@ -272,7 +296,9 @@ def make_polygon_set_nonoverlapping(
     for i, first_poly in enumerate(polygons):
         for j, second_poly in enumerate(polygons[:i]):
             first_poly_nonoverlapping, second_poly_nonoverlapping = (
-                split_overlapping_region(first_poly, second_poly, epsilon, vis)
+                split_overlapping_region(
+                    first_poly, second_poly, epsilon=epsilon, vis=vis
+                )
             )
             nonoverlapping_regions[i].append(first_poly_nonoverlapping)
             nonoverlapping_regions[j].append(second_poly_nonoverlapping)
