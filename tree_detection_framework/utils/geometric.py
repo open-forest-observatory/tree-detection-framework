@@ -1,4 +1,5 @@
-from typing import Tuple
+from typing import List, Tuple
+from collections import defaultdict
 
 import cv2
 import geopandas as gpd
@@ -151,10 +152,19 @@ def ordered_voronoi(points):
     voronoi = shapely.voronoi_polygons(points)
 
     ordered_voronoi = []
+
     for point in points.geoms:
         matching_polygon = list(
             filter(lambda poly: shapely.contains(poly, point), voronoi.geoms)
-        )[0]
+        )
+        if len(matching_polygon) > 1:
+            raise ValueError(f"Multiple Voronoi polygons contain the point {point}")
+        # Take the matching element, or empty (point with no values) if numerical issues means there is no match
+        matching_polygon = (
+            matching_polygon[0]
+            if len(matching_polygon) > 0
+            else shapely.geometry.Point()
+        )
         ordered_voronoi.append(matching_polygon)
     return shapely.GeometryCollection(ordered_voronoi)
 
@@ -191,6 +201,7 @@ def split_overlapping_region(
 
     voronoi_gdf = gpd.GeoDataFrame(data={"IDs": vert_IDs}, geometry=list(voronoi.geoms))
 
+    voronoi_gdf.geometry = voronoi_gdf.make_valid()
     merged = voronoi_gdf.dissolve("IDs")
     merged["IDs"] = merged.index
     if vis:
@@ -212,3 +223,36 @@ def split_overlapping_region(
         plt.show()
 
     return poly1_clipped, poly2_clipped
+
+
+def make_polygon_set_nonoverlapping(
+    polygons: List[shapely.geometry.polygon.Polygon], epsilon: float = 1e-6, vis=False
+):
+    nonoverlapping_regions = defaultdict(list)
+
+    for i, first_poly in enumerate(polygons):
+        for j, second_poly in enumerate(polygons[:i]):
+            print(f"Processing pair {first_poly}, {second_poly}")
+            first_poly_nonoverlapping, second_poly_nonoverlapping = (
+                split_overlapping_region(first_poly, second_poly, epsilon, vis)
+            )
+            nonoverlapping_regions[i].append(first_poly_nonoverlapping)
+            nonoverlapping_regions[j].append(second_poly_nonoverlapping)
+
+    output_polygons = []
+    for i, all_polys in nonoverlapping_regions.items():
+        intersection = shapely.intersection_all(all_polys)
+
+        if isinstance(intersection, shapely.geometry.GeometryCollection):
+            poly_goems = [
+                geom for geom in intersection.geoms if isinstance(geom, shapely.Polygon)
+            ]
+            if len(poly_goems) != 1:
+                raise NotImplementedError("Can only handle one overlapping polygon")
+            intersection = poly_goems[0]
+
+        intersection = intersection.buffer(epsilon).buffer(-epsilon)
+
+        output_polygons.append(intersection)
+
+    return output_polygons
