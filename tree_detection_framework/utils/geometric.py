@@ -215,6 +215,10 @@ def split_overlapping_region(
     poly1_clipped = poly1.intersection(poly1_merged)
     poly2_clipped = poly2.intersection(poly2_merged)
 
+    # Remove extranous points by simplifying
+    poly1_clipped = shapely.make_valid(shapely.simplify(poly1_clipped, epsilon))
+    poly2_clipped = shapely.make_valid(shapely.simplify(poly2_clipped, epsilon))
+
     if vis:
         _, ax = plt.subplots()
         plotting.plot_polygon(poly1_clipped, ax=ax, color="b")
@@ -232,7 +236,6 @@ def make_polygon_set_nonoverlapping(
 
     for i, first_poly in enumerate(polygons):
         for j, second_poly in enumerate(polygons[:i]):
-            print(f"Processing pair {first_poly}, {second_poly}")
             first_poly_nonoverlapping, second_poly_nonoverlapping = (
                 split_overlapping_region(first_poly, second_poly, epsilon, vis)
             )
@@ -251,6 +254,7 @@ def make_polygon_set_nonoverlapping(
                 raise NotImplementedError("Can only handle one overlapping polygon")
             intersection = poly_goems[0]
 
+        # There are examples of weird internal lines. This removes them.
         intersection = intersection.buffer(epsilon).buffer(-epsilon)
 
         output_polygons.append(intersection)
