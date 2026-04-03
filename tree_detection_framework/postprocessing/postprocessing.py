@@ -20,8 +20,8 @@ from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
 )
-from tree_detection_framework.utils.raster import get_valid_raster_region
 from tree_detection_framework.utils.geometric import make_polygon_set_nonoverlapping
+from tree_detection_framework.utils.raster import get_valid_raster_region
 
 
 def single_region_NMS(
