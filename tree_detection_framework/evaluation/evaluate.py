@@ -198,6 +198,7 @@ def _fill_in_heights(
 def _chm_max_points(
     gdf: gpd.GeoDataFrame,
     chm_path: str,
+    min_valid_fraction: float = 0.5,
 ) -> tuple[list, np.ndarray]:
     """Find the highest CHM pixel within each polygon.
 
@@ -207,6 +208,9 @@ def _chm_max_points(
     Args:
         gdf: GeoDataFrame with polygon geometries.
         chm_path: Path to the CHM raster.
+        min_valid_fraction: Minimum fraction of valid (non-nodata) CHM pixels required
+            within a polygon to compute the maximum height. Polygons below this threshold
+            fall back to centroid.
 
     Returns:
         tuple(list, np.ndarray):
@@ -246,11 +250,21 @@ def _chm_max_points(
                 data = data.astype(float)
                 data[data == nodata] = np.nan
 
-            # Check if all pixels are nodata
-            if np.all(np.isnan(data)):
+            valid_mask = ~np.isnan(data)
+            valid_fraction = np.sum(valid_mask) / data.size
+
+            if valid_fraction == 0:
                 warnings.warn(
                     f"Polygon at index {i} has entirely nodata CHM coverage. "
                     "Falling back to centroid with height=nan."
+                )
+                points.append(polygon.centroid)
+                continue
+
+            if valid_fraction < min_valid_fraction:
+                warnings.warn(
+                    f"Polygon at index {i} has only {valid_fraction:.2f} valid CHM pixels "
+                    "Falling back to centroid."
                 )
                 points.append(polygon.centroid)
                 continue
