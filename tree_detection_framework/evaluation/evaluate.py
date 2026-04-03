@@ -1,11 +1,14 @@
 import logging
-from typing import Callable, List, Optional, Tuple, Union
+import warnings
+from typing import Callable, List, Literal, Optional, Tuple, Union
 
 import geopandas as gpd
 import matplotlib.collections as mc
 import matplotlib.pyplot as plt
 import numpy as np
+import rasterio
 import shapely
+from rasterio.mask import mask
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
 from shapely.geometry import Point, Polygon, box
@@ -22,6 +25,85 @@ from tree_detection_framework.utils.raster import get_heights_from_chm
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+
+def polygons_to_points(
+    detections: RegionDetections | RegionDetectionsSet | gpd.GeoDataFrame,
+    method: Literal["centroid", "chm_max"],
+    chm_path: Optional[str] = None,
+    height_column: str = "height",
+    crown_geometry_column: str = "crown_geometry",
+) -> gpd.GeoDataFrame:
+    """Convert polygon geometries to point geometries using the specified method.
+    The original polygon geometries are stored in a new column, and height values
+    are populated when CHM sampling is performed.
+
+    Args:
+        detections: GeoDataFrame, RegionDetections, or RegionDetectionsSet with
+            polygon geometries to convert as points.
+        method: Method to use to derive the representative point from each polygon.
+            - "centroid": Use the centroid of each polygon. If `chm_path` is
+              provided, the CHM is sampled at each centroid to populate
+              `height_column`.
+            - "chm_max": Requires `chm_path`. The point is set to the
+              location of the highest CHM pixel within each polygon, and
+              `height_column` is populated with that pixel's value. Falls back
+              to centroid with a warning for polygons whose CHM coverage is
+              entirely nodata.
+        chm_path: Path to a canopy height model (CHM) raster. Required when
+            `method="chm_max"`. Optional for `method="centroid"`.
+        height_column: Name of the column to write sampled height values into.
+            Raises a ValueError if this column already exists in `detections`.
+            Defaults to "height".
+        crown_geometry_column: Name of the column in which the original polygon
+            geometries are stored after points are derived and set as the default
+            geometry column. Defaults to "crown_geometry".
+    Returns:
+        gpd.GeoDataFrame: A copy of detections with -
+        - Active geometry replaced with point geometries (Point).
+        - Original polygon geometries stored in `crown_geometry_column`.
+        - `height_column` populated when CHM sampling is performed.
+        - All other columns preserved unchanged.
+    """
+    # Convert input to GeoDataFrame if needed
+    if isinstance(detections, RegionDetectionsSet):
+        detections = detections.merge().get_data_frame()
+    elif isinstance(detections, RegionDetections):
+        detections = detections.get_data_frame()
+
+    # Check if height column already exists
+    if height_column in detections.columns:
+        raise ValueError(
+            f"Column '{height_column}' already exists in the GeoDataFrame. "
+            "Rename or drop it before calling polygons_to_points to avoid "
+            "overwriting existing height values."
+        )
+
+    if method == "chm_max" and chm_path is None:
+        raise ValueError("chm_path must be provided when method='chm_max'.")
+
+    # Work on a copy of the detections gdf
+    result = detections.copy()
+    # Store original polygon geometries in a new column before overwriting the active geometry with points
+    result[crown_geometry_column] = result.geometry
+
+    # Derive point geometries
+    if method == "centroid":
+        result["geometry"] = result.geometry.centroid
+
+        if chm_path is not None:
+            logging.info("Sampling CHM at centroid locations for height values.")
+            coords = np.column_stack([result.geometry.x, result.geometry.y])
+            result[height_column] = get_heights_from_chm(coords, result.crs, chm_path)
+
+    elif method == "chm_max":
+        logging.info("Finding tallest CHM pixel within each polygon.")
+        points, heights = _chm_max_points(result, chm_path)
+        result["geometry"] = points
+        result[height_column] = heights
+        result.attrs["crs"] = result.crs.to_string()
+
+    return result
 
 
 def compute_matched_ious(
@@ -113,19 +195,123 @@ def _fill_in_heights(
         )
 
 
-def _visualize_points(coords1, coords2, matches, mode=3, buffer=5):
+def _chm_max_points(
+    gdf: gpd.GeoDataFrame,
+    chm_path: str,
+    min_valid_fraction: float = 0.5,
+) -> tuple[list, np.ndarray]:
+    """Find the highest CHM pixel within each polygon.
+
+    For polygons whose CHM coverage is entirely nodata, a warning is given
+    and the centroid is used as a fallback point with np.nan as height.
+
+    Args:
+        gdf: GeoDataFrame with polygon geometries.
+        chm_path: Path to the CHM raster.
+        min_valid_fraction: Minimum fraction of valid (non-nodata) CHM pixels required
+            within a polygon to compute the maximum height. Polygons below this threshold
+            fall back to centroid.
+
+    Returns:
+        tuple(list, np.ndarray):
+        - List of Point geometries (one per polygon), in the CRS of `gdf`.
+        - np.ndarray of height values (np.nan for nodata fallbacks).
+    """
+    points = []
+
+    # Initialize heights array with NaNs; will populate valid heights and leave NaN for
+    # polygons with nodata coverage or other issues. This also ensures the array has the correct length.
+    heights = np.full(len(gdf), np.nan, dtype=float)
+
+    with rasterio.open(chm_path) as src:
+        # Work in CHM CRS, then reproject points back to original CRS at the end
+        polys_in_chm_crs = gdf if gdf.crs == src.crs else gdf.to_crs(src.crs)
+        nodata = src.nodata
+
+        for i, (_, row) in enumerate(polys_in_chm_crs.iterrows()):
+            polygon = row.geometry
+
+            try:
+                chm_window, window_transform = mask(
+                    src, [polygon], crop=True, nodata=np.nan, filled=True
+                )
+            except Exception as e:
+                warnings.warn(
+                    f"Could not mask CHM for polygon at index {i}: {e}. "
+                    "Falling back to centroid."
+                )
+                points.append(polygon.centroid)
+                continue
+
+            data = chm_window[0]  # single band
+
+            # Replace nodata with nan
+            if nodata is not None:
+                data = data.astype(float)
+                data[data == nodata] = np.nan
+
+            valid_mask = ~np.isnan(data)
+            valid_fraction = np.sum(valid_mask) / data.size
+
+            if valid_fraction == 0:
+                warnings.warn(
+                    f"Polygon at index {i} has entirely nodata CHM coverage. "
+                    "Falling back to centroid with height=nan."
+                )
+                points.append(polygon.centroid)
+                continue
+
+            if valid_fraction < min_valid_fraction:
+                warnings.warn(
+                    f"Polygon at index {i} has only {valid_fraction:.2f} valid CHM pixels "
+                    "Falling back to centroid."
+                )
+                points.append(polygon.centroid)
+                continue
+
+            # Find the pixel with the maximum CHM value
+            flat_idx = np.nanargmax(data)
+            row_idx, col_idx = np.unravel_index(flat_idx, data.shape)
+            heights[i] = float(data[row_idx, col_idx])
+
+            # Convert pixel coordinates back to spatial coordinates
+            x, y = rasterio.transform.xy(window_transform, row_idx, col_idx)
+            points.append(Point(x, y))
+
+    # Reproject points back to original GDF CRS if CHM CRS differed
+    if gdf.crs != polys_in_chm_crs.crs:
+        pts_gdf = gpd.GeoDataFrame(geometry=points, crs=polys_in_chm_crs.crs)
+        pts_gdf = pts_gdf.to_crs(gdf.crs)
+        points = list(pts_gdf.geometry)
+
+    return points, heights
+
+
+def _visualize_points(coords1, coords2, matches, mode=3, buffer=5, polygons2=None):
     """Visualize matched points between two coordinate sets.
     Args:
         coords1 (np.ndarray): point coordinates from set 1
         coords2 (np.ndarray): point coordinates from set 2
         matches (List[tuple]): indices from set 1, set 2, and height/distance data for the matches
-        mode (int): Ways to visulaize the points
+        mode (int): Ways to visualize the points
             - 1: Show only matched points
             - 2: Show all points from both sets, highlighting matches
             - 3: Same as mode 2, but crop the plot to the smaller set's bounds + buffer
         buffer (int): Used in mode 3 while cropping the smaller set's bounds
+        polygons2 (gpd.GeoSeries, optional): Crown polygon geometries for set 2. If provided,
+            polygon outlines are drawn underneath the scatter points.
     """
     _, ax = plt.subplots()
+
+    # Draw crown polygons underneath points if provided
+    if polygons2 is not None:
+        polygons2.plot(
+            ax=ax,
+            facecolor="lightblue",
+            edgecolor="steelblue",
+            linewidth=0.5,
+            alpha=0.3,
+        )
 
     # Matched coordinates
     matched_coords1 = np.array([coords1[i1] for (i1, _, _) in matches])
@@ -411,7 +597,8 @@ def match_points(
             break
 
     if vis:
-        _visualize_points(coords1, coords2, matches, mode=vis_mode)
+        polygons2 = df2["crown_geometry"] if "crown_geometry" in df2.columns else None
+        _visualize_points(coords1, coords2, matches, mode=vis_mode, polygons2=polygons2)
 
     return matches
 
