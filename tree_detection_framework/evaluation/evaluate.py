@@ -101,6 +101,7 @@ def polygons_to_points(
         points, heights = _chm_max_points(result, chm_path)
         result["geometry"] = points
         result[height_column] = heights
+        result.attrs["crs"] = result.crs.to_string()
 
     return result
 
