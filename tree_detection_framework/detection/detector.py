@@ -804,7 +804,7 @@ class GeometricTreeCrownDetector(Detector):
         id_to_height = {
             int(uid): height for uid, height in zip(filtered_ids, filtered_heights)
         }
-        id_to_treetop_pixel_coord = {
+        id_to_treetop_pixel_coords = {
             int(uid): tpc for uid, tpc in zip(filtered_ids, filtered_points)
         }
 
@@ -816,14 +816,11 @@ class GeometricTreeCrownDetector(Detector):
         for geom, tree_id in shapes(labels.astype("int32"), mask=(labels > 0)):
             # Subtract one to account for the +1 offset when the mask was created.
             tree_id = int(tree_id) - 1
+            # Return the crown polygon, and height and location of the tree top
             data_dict = {
-                "tree_crown": shape(
-                    geom
-                ),  # return a shapely object with the coordinates
-                "treetop_height": id_to_height.get(
-                    tree_id
-                ),  # get height value corresponding to the treetop ID
-                "treetop_pixel_coords": id_to_treetop_pixel_coord.get(tree_id),
+                "tree_crown": shape(geom),
+                "treetop_height": id_to_height.get(tree_id),
+                "treetop_pixel_coords": id_to_treetop_pixel_coords.get(tree_id),
             }
             # Return treetop IDs only if they were separately detected
             if treetop_ids_provided:

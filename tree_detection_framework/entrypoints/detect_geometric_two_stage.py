@@ -101,13 +101,23 @@ def detect_trees_two_stage(
 
         # Predict the crowns
         treecrown_detections = treecrown_detector.predict(raster_vector_dataloader)
+        # Convert to a data frame
         treecrown_detections_gdf = treecrown_detections.get_data_frame(merge=True)
+        # Rank the detections so the ones which have a tree top closer to the center of their
+        # respective tile are first
         treecrown_detections_gdf = treecrown_detections_gdf.sort_values(
             "score", ascending=False
         )
+        # The CRS is dropped by the next step
+        crown_CRS = treecrown_detections_gdf.crs
+
+        # Take one crown per tree top, prefering the crowns where the corresponding tree top was
+        # closer to the center.
         treecrown_detections_gdf = treecrown_detections_gdf.groupby(
-            "treetop_unique_ID"
+            "treetop_unique_ID", as_index=False
         ).first()
+        # Reset the CRS
+        treecrown_detections_gdf.set_crs(crown_CRS, inplace=True)
 
     # Convert to the geodataframe representation
     treetop_detections_gdf = treetop_detections.get_data_frame(merge=True)
