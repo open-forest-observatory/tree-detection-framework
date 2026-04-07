@@ -252,8 +252,8 @@ def split_overlapping_region(
         ax.set_title("Voronoi tessellation colored by original polygon")
         plt.show()
 
-    poly1_merged = merged.iloc[0, :].geometry
-    poly2_merged = merged.iloc[1, :].geometry
+    poly1_merged = merged.iloc[0].geometry
+    poly2_merged = merged.iloc[1].geometry
 
     poly1_clipped = poly1.intersection(poly1_merged)
     poly2_clipped = poly2.intersection(poly2_merged)
@@ -281,7 +281,9 @@ def make_polygon_set_nonoverlapping(
     compared to all other polygons.
 
     Args:
-        polygons (List[shapely.geometry.polygon.Polygon]): _description_
+        polygons (List[shapely.geometry.polygon.Polygon]):
+            A list of polygons which may have pairwise overlaps. Note, this approach may fail if
+            two polygons are identical or a strict subset of another one.
         epsilon (float, optional): Used for numerical stability. Defaults to 1e-6.
         vis (bool, optional): Show the pairwise compuations. Defaults to False.
 
@@ -311,12 +313,12 @@ def make_polygon_set_nonoverlapping(
         intersection = shapely.intersection_all(all_polys)
 
         if isinstance(intersection, shapely.geometry.GeometryCollection):
-            poly_goems = [
+            poly_geoms = [
                 geom for geom in intersection.geoms if isinstance(geom, shapely.Polygon)
             ]
-            if len(poly_goems) != 1:
+            if len(poly_geoms) != 1:
                 raise NotImplementedError("Can only handle one overlapping polygon")
-            intersection = poly_goems[0]
+            intersection = poly_geoms[0]
 
         # There are examples of weird internal lines. This removes them.
         intersection = intersection.buffer(epsilon).buffer(-epsilon)
