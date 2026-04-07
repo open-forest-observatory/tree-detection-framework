@@ -20,6 +20,7 @@ from tree_detection_framework.detection.region_detections import (
     RegionDetections,
     RegionDetectionsSet,
 )
+from tree_detection_framework.utils.geometric import make_polygon_set_nonoverlapping
 from tree_detection_framework.utils.raster import get_valid_raster_region
 
 
@@ -492,18 +493,16 @@ def remove_out_of_bounds_detections(
     return list_of_filtered_region_sets
 
 
-def remove_edge_detections(
+def remove_detections_from_tile_overlap(
     detections: RegionDetectionsSet,
-    suppression_distance: float,
     retain_method: str = "within",
 ) -> RegionDetectionsSet:
-    """Remove detections at the edges of tiles
+    """Remove detections in overlapping regions of tiles by defining a central "core" area of each
+    tile which is farthest from the boundary and keeping detections within that region.
 
     Args:
         detections (RegionDetectionsSet):
             The detections to suppress
-        suppression_distance (float):
-            Remove detections within this distance of the boundary
         retain_method (str, optional):
             How to deal with edge detections. "within" keeps detections that are fully within the
             interior region, "intersects" keeps any that touch the interior region, and "clip" clips
@@ -514,24 +513,23 @@ def remove_edge_detections(
         RegionDetectionsSet: Updated detections
     """
     updated_rd_list = []
-    for rd in detections.region_detections:
-        # Compute the buffered bounds for this region
-        buffered_bounds = rd.get_bounds().buffer(-suppression_distance)
+    # Get the bounds of each tile
+    detection_bounds = detections.get_bounds(union_bounds=False).tolist()
+    # Find the core nonoverlapping region of each tile
+    core_detection_bounds = make_polygon_set_nonoverlapping(detection_bounds)
+
+    for rd, core_bounds in zip(detections.region_detections, core_detection_bounds):
 
         def update_detections(detections: gpd.GeoDataFrame):
             if retain_method == "within":
                 # Keep detections that are fully within the interior region
-                updated_detections = detections[
-                    detections.within(buffered_bounds.geometry[0])
-                ]
+                updated_detections = detections[detections.within(core_bounds)]
             elif retain_method == "intersects":
                 # Keep detections that intersect the interior region
-                updated_detections = detections[
-                    detections.intersects(buffered_bounds.geometry[0])
-                ]
+                updated_detections = detections[detections.intersects(core_bounds)]
             elif retain_method == "clip":
                 # Clip detections to the interior region, entirely dropping empty geometries
-                updated_detections = detections.clip(buffered_bounds)
+                updated_detections = detections.clip(core_bounds)
             else:
                 raise ValueError(
                     f"retain_method was {retain_method}, but should be 'within', 'intersects', or 'clip'"
