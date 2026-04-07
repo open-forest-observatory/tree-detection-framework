@@ -788,9 +788,11 @@ class GeometricTreeCrownDetector(Detector):
 
         # Rasterize treetops as markers
         markers = rasterize(
-            # Convert uid to int since it's a string with 0 padded values
-            [(pt, int(uid)) for pt, uid in zip(filtered_points, filtered_ids)],
+            # Convert uid to int since it's originally a string with 0 padded values
+            # Add 1 to the value because watershed expects the background to be represented by 0s
+            [(pt, int(uid) + 1) for pt, uid in zip(filtered_points, filtered_ids)],
             out_shape=image.shape,
+            fill=0,
         )
 
         # Invert the CHM so that high points (tree tops) become basins for watershed
@@ -809,7 +811,8 @@ class GeometricTreeCrownDetector(Detector):
         # `mask` ensures that only non-zero crown areas are included in the output.
         crowns = []
         for geom, tree_id in shapes(labels.astype("int32"), mask=(labels > 0)):
-            tree_id = int(tree_id)
+            # Subtract one to account for the +1 offset when the mask was created.
+            tree_id = int(tree_id) - 1
             data_dict = {
                 "tree_crown": shape(
                     geom
