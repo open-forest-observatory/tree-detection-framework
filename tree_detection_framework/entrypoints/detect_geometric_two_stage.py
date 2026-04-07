@@ -95,18 +95,19 @@ def detect_trees_two_stage(
         # Create the crown detector, which is seeded by the tree top points detected in the last step
         # The score metric is how far from the edge the detection is, which prioritizes central detections
         treecrown_detector = GeometricTreeCrownDetector(
-            confidence_feature="distance", **crown_segmentation_kwargs
+            confidence_feature="distance",
+            **crown_segmentation_kwargs,
         )
 
         # Predict the crowns
         treecrown_detections = treecrown_detector.predict(raster_vector_dataloader)
-        # Suppress overlapping crown predictions. This step can be slow.
-        treecrown_detections = multi_region_NMS(
-            treecrown_detections,
-            confidence_column="score",
-            intersection_method="IOS",
-            run_per_region_NMS=False,
+        treecrown_detections_gdf = treecrown_detections.get_data_frame(merge=True)
+        treecrown_detections_gdf = treecrown_detections_gdf.sort_values(
+            "score", ascending=False
         )
+        treecrown_detections_gdf = treecrown_detections_gdf.groupby(
+            "treetop_unique_ID"
+        ).first()
 
     # Convert to the geodataframe representation
     treetop_detections_gdf = treetop_detections.get_data_frame(merge=True)
@@ -133,9 +134,6 @@ def detect_trees_two_stage(
     treetop_detections_gdf.to_file(tree_tops_save_path)
 
     if tree_crowns_save_path is not None:
-        # Convert to geodataframe representation
-        treecrown_detections_gdf = treecrown_detections.get_data_frame()
-
         # Drop the crowns corresponding to trees detected at the edge by ensuring crowns correspond
         # to a tree top which was kept
         if edge_suppression_meters is not None and edge_suppression_meters != 0:
@@ -144,7 +142,6 @@ def detect_trees_two_stage(
                     treetop_detections_gdf.unique_ID
                 )
             ]
-
         # Save the crowns
         tree_crowns_save_path.parent.mkdir(parents=True, exist_ok=True)
         treecrown_detections_gdf.to_file(tree_crowns_save_path)

@@ -34,7 +34,6 @@ def calculate_scores(
         raise ValueError(
             "Invalid confidence_feature provided. Choose from: `height`, `area`, `distance`, `all`"
         )
-
     if confidence_feature == "height":
         # Use height values as scores
         confidence_scores = tile_gdf["treetop_height"]
@@ -48,10 +47,6 @@ def calculate_scores(
         confidence_scores = tile_gdf[geometry_column].apply(lambda geom: geom.area)
 
     elif confidence_feature == "distance":
-        # Calculate the centroid of each tree crown
-        tile_gdf["centroid"] = tile_gdf[geometry_column].apply(
-            lambda geom: geom.centroid if not geom.is_empty else None
-        )
 
         # Calculate distances to the closest edge for each centroid
         def calculate_edge_distance(centroid):
@@ -67,7 +62,19 @@ def calculate_scores(
             # Return the distance to the closest edge
             return min(distances)
 
-        tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(calculate_edge_distance)
+        if "treetop_pixel_coords" in tile_gdf.columns:
+            tile_gdf["edge_distance"] = tile_gdf["treetop_pixel_coords"].apply(
+                calculate_edge_distance
+            )
+        else:
+            # If an explicit tree top is not provided, use the centroid
+            tile_gdf["centroid"] = tile_gdf[geometry_column].apply(
+                lambda geom: geom.centroid if not geom.is_empty else None
+            )
+            tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(
+                calculate_edge_distance
+            )
+
         # Use edge distance values as scores
         confidence_scores = tile_gdf["edge_distance"]
 

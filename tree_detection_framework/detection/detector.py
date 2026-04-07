@@ -777,7 +777,7 @@ class GeometricTreeCrownDetector(Detector):
         ]
         if len(filtered) == 0:
             # Tile has no treetops above threshold. Return an empty GeoDataFrame.
-            columns = ["tree_crown", "treetop_height"]
+            columns = ["tree_crown", "treetop_height", "treetop_pixel_coords"]
             if treetop_ids_provided:
                 columns.append("treetop_unique_ID")
             empty_gdf = gpd.GeoDataFrame(columns=columns, geometry="tree_crown")
@@ -804,6 +804,9 @@ class GeometricTreeCrownDetector(Detector):
         id_to_height = {
             int(uid): height for uid, height in zip(filtered_ids, filtered_heights)
         }
+        id_to_treetop_pixel_coord = {
+            int(uid): tpc for uid, tpc in zip(filtered_ids, filtered_points)
+        }
 
         # Convert the labeled raster into polygon geometries using rasterio's shapes().
         # Each contiguous region of the same label value/crown ID is extracted as a polygon
@@ -820,6 +823,7 @@ class GeometricTreeCrownDetector(Detector):
                 "treetop_height": id_to_height.get(
                     tree_id
                 ),  # get height value corresponding to the treetop ID
+                "treetop_pixel_coords": id_to_treetop_pixel_coord.get(tree_id),
             }
             # Return treetop IDs only if they were separately detected
             if treetop_ids_provided:
@@ -830,7 +834,12 @@ class GeometricTreeCrownDetector(Detector):
         crown_gdf = gpd.GeoDataFrame(
             crowns,
             geometry="tree_crown",
-            columns=["tree_crown", "treetop_height", "treetop_unique_ID"],
+            columns=[
+                "tree_crown",
+                "treetop_height",
+                "treetop_unique_ID",
+                "treetop_pixel_coords",
+            ],
         )
 
         # Simplify by tolerance value to get smoother crown polygons
