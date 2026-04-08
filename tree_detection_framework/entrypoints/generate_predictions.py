@@ -33,6 +33,7 @@ def generate_predictions(
     iou_threshold: Optional[float] = 0.3,
     min_confidence: Optional[float] = 0.3,
     batch_size: int = 1,
+    detectree2_weights_path: str = "",
     detector_kwargs: dict = {},
 ):
     """
@@ -108,11 +109,7 @@ def generate_predictions(
 
     elif tree_detection_model == "detectree2":
 
-        # Load detectree2 pretrained weights
-        # TODO: download pretrained weights when called, instead of providing a local path
-        trained_model = (
-            "/ofo-share/repos-amritha/detectree2-code/230103_randresize_full.pth"
-        )
+        trained_model = args.detectree2_weights_path
         param_dict = {"update_model": trained_model}
 
         dtree2_module = Detectree2Module(param_dict)
@@ -180,6 +177,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iou-threshold", type=float, default=0.3)
     parser.add_argument("--min-confidence", type=float, default=0.3)
     parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument(
+        "--detectree2-weights-path",
+        type=str,
+        default="/app/checkpoints/detectree2/230103_randresize_full.pth",
+        help="Path to the detectree2 pretrained weights (.pth file)",
+    )
     parser.add_argument(
         "--detector-kwargs",
         type=str,
