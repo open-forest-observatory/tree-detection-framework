@@ -25,13 +25,15 @@ COPY . /app
 # Install the module dependencies with poetry without creating a virtual environment
 RUN /root/.local/bin/poetry config virtualenvs.create false && /root/.local/bin/poetry install
 
-# Install deepforest dependencies
-#RUN pip install git+https://github.com/facebookresearch/detectron2.git
+# Install detectron2 from source with --no-build-isolation so the build
+# subprocess can see torch (already installed above by poetry)
+RUN pip install --no-build-isolation \
+    git+https://github.com/facebookresearch/detectron2.git
 
-# Download the weights
-#RUN mkdir /app/checkpoints/detectree2 -p && cd /app/checkpoints/detectree2 && curl https://zenodo.org/records/10522461/files/230103_randresize_full.pth
-
-# Note that it's worth trying to install SAM as well in the same container but I'm not sure it will work
+# Download the detectree2 weights
+RUN mkdir -p /app/checkpoints/detectree2 && \
+    curl -L -o /app/checkpoints/detectree2/230103_randresize_full.pth \
+    https://zenodo.org/records/10522461/files/230103_randresize_full.pth
 
 # Run the detector script
 CMD python /app/tree_detection_framework/entrypoints/generate_predictions.py
