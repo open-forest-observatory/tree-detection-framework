@@ -293,6 +293,10 @@ def make_polygon_set_nonoverlapping(
     Returns:
         List[shapely.geometry.polygon.Polygon]: The core regions, ordered the same way as the input
     """
+    # If there are zero or one polygons, just return that unchanged
+    if len(polygons) <= 1:
+        return polygons
+
     nonoverlapping_regions = defaultdict(list)
 
     for i, first_poly in enumerate(polygons):
