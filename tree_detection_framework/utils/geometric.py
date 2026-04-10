@@ -148,12 +148,12 @@ def ellipse_mask(
     return mask.astype(bool)
 
 
-def ordered_voronoi(points):
+def ordered_voronoi(points, tolerance: float = 1e-6):
     """
     The shapely version we are using does not order the voronoi polygons in the same way as the
     input points. This wrapper does that.
     """
-    voronoi = shapely.voronoi_polygons(points)
+    voronoi = shapely.voronoi_polygons(points, tolerance=tolerance)
 
     ordered_voronoi = []
 
@@ -293,6 +293,10 @@ def make_polygon_set_nonoverlapping(
     Returns:
         List[shapely.geometry.polygon.Polygon]: The core regions, ordered the same way as the input
     """
+    # If there are zero or one polygons, just return that unchanged
+    if len(polygons) <= 1:
+        return polygons
+
     nonoverlapping_regions = defaultdict(list)
 
     for i, first_poly in enumerate(polygons):
