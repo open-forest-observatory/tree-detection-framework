@@ -34,7 +34,6 @@ def calculate_scores(
         raise ValueError(
             "Invalid confidence_feature provided. Choose from: `height`, `area`, `distance`, `all`"
         )
-
     if confidence_feature == "height":
         # Use height values as scores
         confidence_scores = tile_gdf["treetop_height"]
@@ -48,16 +47,11 @@ def calculate_scores(
         confidence_scores = tile_gdf[geometry_column].apply(lambda geom: geom.area)
 
     elif confidence_feature == "distance":
-        # Calculate the centroid of each tree crown
-        tile_gdf["centroid"] = tile_gdf[geometry_column].apply(
-            lambda geom: geom.centroid if not geom.is_empty else None
-        )
-
-        # Calculate distances to the closest edge for each centroid
-        def calculate_edge_distance(centroid):
-            if centroid is None:  # Check if centroid is None (empty geometry case)
+        # Calculate distances to the closest edge for each point
+        def calculate_edge_distance(point):
+            if point is None:  # Check if point is None (empty geometry case)
                 return 0
-            x, y = centroid.x, centroid.y
+            x, y = point.x, point.y
             distances = [
                 x,  # left edge
                 image_shape[1] - x,  # right edge
@@ -67,7 +61,18 @@ def calculate_scores(
             # Return the distance to the closest edge
             return min(distances)
 
-        tile_gdf["edge_distance"] = tile_gdf["centroid"].apply(calculate_edge_distance)
+        if "treetop_pixel_coords" in tile_gdf.columns:
+            # This represents the location of the treetop relative to the tile pixel coordinates
+            tile_gdf["edge_distance"] = tile_gdf["treetop_pixel_coords"].apply(
+                calculate_edge_distance
+            )
+        else:
+            # If an explicit tree top is not provided, use the centroid of the crown
+            centroid = tile_gdf[geometry_column].apply(
+                lambda geom: geom.centroid if not geom.is_empty else None
+            )
+            tile_gdf["edge_distance"] = centroid.apply(calculate_edge_distance)
+
         # Use edge distance values as scores
         confidence_scores = tile_gdf["edge_distance"]
 
