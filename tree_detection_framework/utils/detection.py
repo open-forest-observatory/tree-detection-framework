@@ -47,11 +47,11 @@ def calculate_scores(
         confidence_scores = tile_gdf[geometry_column].apply(lambda geom: geom.area)
 
     elif confidence_feature == "distance":
-        # Calculate distances to the closest edge for each centroid
-        def calculate_edge_distance(centroid):
-            if centroid is None:  # Check if centroid is None (empty geometry case)
+        # Calculate distances to the closest edge for each point
+        def calculate_edge_distance(point):
+            if point is None:  # Check if point is None (empty geometry case)
                 return 0
-            x, y = centroid.x, centroid.y
+            x, y = point.x, point.y
             distances = [
                 x,  # left edge
                 image_shape[1] - x,  # right edge
