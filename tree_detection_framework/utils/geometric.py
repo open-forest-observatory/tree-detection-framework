@@ -148,12 +148,12 @@ def ellipse_mask(
     return mask.astype(bool)
 
 
-def ordered_voronoi(points):
+def ordered_voronoi(points, tolerance:float=1e-6):
     """
     The shapely version we are using does not order the voronoi polygons in the same way as the
     input points. This wrapper does that.
     """
-    voronoi = shapely.voronoi_polygons(points)
+    voronoi = shapely.voronoi_polygons(points, tolerance=tolerance)
 
     ordered_voronoi = []
 
