@@ -109,7 +109,9 @@ def polygons_to_points(
 
     elif method == "chm_max":
         logging.info("Finding tallest CHM pixel within each polygon.")
-        points, heights = _chm_max_points(result, chm_path, erosion_distance=erosion_distance)
+        points, heights = _chm_max_points(
+            result, chm_path, erosion_distance=erosion_distance
+        )
         result["geometry"] = points
         result[height_column] = heights
         result.attrs["crs"] = result.crs.to_string()
