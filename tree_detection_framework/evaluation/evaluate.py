@@ -11,6 +11,7 @@ import shapely
 from rasterio.mask import mask
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
+from shapely.affinity import scale
 from shapely.geometry import Point, Polygon, box
 
 from tree_detection_framework.constants import PATH_TYPE
@@ -86,6 +87,12 @@ def polygons_to_points(
     result = detections.copy()
     # Store original polygon geometries in a new column before overwriting the active geometry with points
     result[crown_geometry_column] = result.geometry
+
+    # For box polygons (only DeepForest so far), replace geometry with the largest inscribed circle or ellipse before deriving points
+    first_geom = result.geometry.iloc[0]
+    # check if geometry is a box polygon (i.e. it is equal to its own bounding box)
+    if first_geom.equals(first_geom.envelope):
+        result["geometry"] = result.geometry.apply(_inscribe_circle_or_ellipse)
 
     # Derive point geometries
     if method == "centroid":
@@ -193,6 +200,15 @@ def _fill_in_heights(
             "Please provide values for 'height1' and 'height2' "
             "or a 'fillin_method' to derive heights from an alternative source."
         )
+
+
+def _inscribe_circle_or_ellipse(polygon: Polygon) -> Polygon:
+    """Return the largest inscribed circle (square box) or ellipse (rectangular box)."""
+    minx, miny, maxx, maxy = polygon.bounds
+    cx, cy = (minx + maxx) / 2, (miny + maxy) / 2  # center of the box
+    rx, ry = (maxx - minx) / 2, (maxy - miny) / 2  # rx = width/2, ry = height/2
+    # scale() stretches a unit circle along each axis producing an ellipse that touches all sides
+    return scale(Point(cx, cy).buffer(1), xfact=rx, yfact=ry)
 
 
 def _chm_max_points(
