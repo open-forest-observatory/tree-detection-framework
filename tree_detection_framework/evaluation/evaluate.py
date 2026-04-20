@@ -34,6 +34,7 @@ def polygons_to_points(
     chm_path: Optional[str] = None,
     height_column: str = "height",
     crown_geometry_column: str = "crown_geometry",
+    erosion_distance: float = 0.0,
 ) -> gpd.GeoDataFrame:
     """Convert polygon geometries to point geometries using the specified method.
     The original polygon geometries are stored in a new column, and height values
@@ -59,6 +60,9 @@ def polygons_to_points(
         crown_geometry_column: Name of the column in which the original polygon
             geometries are stored after points are derived and set as the default
             geometry column. Defaults to "crown_geometry".
+        erosion_distance: Distance (in CHM CRS units) to erode each polygon inward
+            before finding the maximum CHM pixel. Only used when `method="chm_max"`.
+            Defaults to 0.0 (no erosion).
     Returns:
         gpd.GeoDataFrame: A copy of detections with -
         - Active geometry replaced with point geometries (Point).
@@ -105,7 +109,7 @@ def polygons_to_points(
 
     elif method == "chm_max":
         logging.info("Finding tallest CHM pixel within each polygon.")
-        points, heights = _chm_max_points(result, chm_path)
+        points, heights = _chm_max_points(result, chm_path, erosion_distance=erosion_distance)
         result["geometry"] = points
         result[height_column] = heights
         result.attrs["crs"] = result.crs.to_string()
@@ -215,6 +219,7 @@ def _chm_max_points(
     gdf: gpd.GeoDataFrame,
     chm_path: str,
     min_valid_fraction: float = 0.5,
+    erosion_distance: float = 0.0,
 ) -> tuple[list, np.ndarray]:
     """Find the highest CHM pixel within each polygon.
 
@@ -227,6 +232,10 @@ def _chm_max_points(
         min_valid_fraction: Minimum fraction of valid (non-nodata) CHM pixels required
             within a polygon to compute the maximum height. Polygons below this threshold
             fall back to centroid.
+        erosion_distance: Distance (in CRS units of the CHM) to erode each polygon
+            inward before finding the maximum CHM pixel. Helps exclude edge pixels
+            just outside the tree crown. If erosion collapses a polygon to empty
+            geometry, the original polygon is used as a fallback.
 
     Returns:
         tuple(list, np.ndarray):
@@ -246,6 +255,13 @@ def _chm_max_points(
 
         for i, (_, row) in enumerate(polys_in_chm_crs.iterrows()):
             polygon = row.geometry
+
+            if erosion_distance > 0:
+                eroded = polygon.buffer(-erosion_distance)
+                if not eroded.is_empty:
+                    # polygon is reassigned only if eroded result is non-empty
+                    # so a collapsed erosion silently falls back to original.
+                    polygon = eroded
 
             try:
                 chm_window, window_transform = mask(
