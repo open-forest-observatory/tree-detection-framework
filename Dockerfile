@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir git+https://github.com/facebookresearch/sam2.git
 # SAM3's __init__.py imports torch at module level, so the wheel build needs torch
 # available — use --no-build-isolation to share the current environment
 RUN pip install --no-build-isolation --no-cache-dir \
-    git+https://github.com/facebookresearch/sam3.git \
+    git+https://github.com/facebookresearch/sam3.git@86ed770 \
     decord
 
 # Stage 2: runtime
