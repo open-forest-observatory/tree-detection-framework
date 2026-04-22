@@ -53,14 +53,13 @@ COPY --from=builder /app/tree_detection_framework /app/tree_detection_framework
 WORKDIR /app
 ENV PYTHONPATH=/app
 
-# Download detectree2 and SAM2 weights; copy locally-saved SAM3 weights
+# Download detectree2 and SAM2 weights; SAM3 weights must be mounted at runtime
+# (see --sam3-checkpoint-path or --sam3-huggingface-token arguments)
 RUN mkdir -p /app/checkpoints && \
     curl -L -o /app/checkpoints/230103_randresize_full.pth \
         https://zenodo.org/records/10522461/files/230103_randresize_full.pth && \
     curl -L -o /app/checkpoints/sam2.1_hiera_large.pt \
         https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
-
-COPY checkpoints/sam3.pt /app/checkpoints/sam3.pt
 
 # Run the detector script
 CMD python /app/tree_detection_framework/entrypoints/generate_predictions.py

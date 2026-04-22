@@ -2,5 +2,4 @@ data/
 sandbox/
 examples/
 checkpoints/
-!checkpoints/sam3.pt
 train_outputs/

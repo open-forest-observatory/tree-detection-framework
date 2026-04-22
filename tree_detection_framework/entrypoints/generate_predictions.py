@@ -229,7 +229,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sam3-checkpoint-path",
         type=str,
-        default=str(Path(CHECKPOINTS_FOLDER, "sam3.pt")),
+        default=None,
         help="Path to a local SAM3 checkpoint file",
     )
     parser.add_argument(
