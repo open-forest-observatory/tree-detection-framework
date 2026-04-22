@@ -39,7 +39,9 @@ def generate_predictions(
     iou_threshold: Optional[float] = 0.3,
     min_confidence: Optional[float] = 0.3,
     batch_size: int = 1,
-    detectree2_weights_path: PATH_TYPE = Path(CHECKPOINTS_FOLDER, "230103_randresize_full.pth"),
+    detectree2_weights_path: PATH_TYPE = Path(
+        CHECKPOINTS_FOLDER, "230103_randresize_full.pth"
+    ),
     sam2_checkpoint: PATH_TYPE = Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt"),
     sam2_model_cfg: str = "configs/sam2.1/sam2.1_hiera_l.yaml",
     sam3_checkpoint_path: PATH_TYPE = Path(CHECKPOINTS_FOLDER, "sam3.pt"),
