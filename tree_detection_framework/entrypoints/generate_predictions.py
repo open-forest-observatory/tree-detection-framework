@@ -7,7 +7,11 @@ from typing import Optional
 import pyproj
 import torch
 
-from tree_detection_framework.constants import BOUNDARY_TYPE, CHECKPOINTS_FOLDER, PATH_TYPE
+from tree_detection_framework.constants import (
+    BOUNDARY_TYPE,
+    CHECKPOINTS_FOLDER,
+    PATH_TYPE,
+)
 from tree_detection_framework.detection.detector import (
     DeepForestDetector,
     Detectree2Detector,
