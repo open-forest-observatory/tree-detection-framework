@@ -14,7 +14,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 WORKDIR /app
 COPY . /app
 
-# Install only production dependencies (skip dev group and the root package)
+# Install only production dependencies 
 # --no-root avoids baking in the source package so it can be mounted at runtime
 RUN /root/.local/bin/poetry config virtualenvs.create false && \
     /root/.local/bin/poetry install --without dev --no-root
@@ -26,8 +26,8 @@ RUN pip install --no-build-isolation git+https://github.com/facebookresearch/det
 # Install SAM2 from source
 RUN pip install --no-cache-dir git+https://github.com/facebookresearch/sam2.git
 
-# SAM3's __init__.py imports torch at module level, so the wheel build needs torch
-# available — use --no-build-isolation to share the current environment
+# Install SAM3 from source and pin to commit 86ed770 because the latest commit
+# as of 4/21/2026 raises RuntimeError: mat1 and mat2 must have the same dtype, but got BFloat16 and Float
 RUN pip install --no-build-isolation --no-cache-dir \
     git+https://github.com/facebookresearch/sam3.git@86ed770 \
     decord
@@ -47,9 +47,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.10 /usr/local/lib/python3.10
 COPY --from=builder /usr/local/bin /usr/local/bin
 
+# Copy the TDF source package
+COPY --from=builder /app/tree_detection_framework /app/tree_detection_framework
 
-# Source code is NOT baked in — mount the repo at /app at runtime.
-# PYTHONPATH lets Python find tree_detection_framework from the mounted volume.
 WORKDIR /app
 ENV PYTHONPATH=/app
 
