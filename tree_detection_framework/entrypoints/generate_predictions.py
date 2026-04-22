@@ -11,7 +11,6 @@ from tree_detection_framework.constants import BOUNDARY_TYPE, CHECKPOINTS_FOLDER
 from tree_detection_framework.detection.detector import (
     DeepForestDetector,
     Detectree2Detector,
-    GeometricDetector,
 )
 from tree_detection_framework.detection.models import DeepForestModule, Detectree2Module
 from tree_detection_framework.detection.SAM2_detector import SAMV2Detector
@@ -54,7 +53,7 @@ def generate_predictions(
             Stride of the chip. May be pixels or meters, based on `use_units_meters`. If used,
             `chip_overlap_percentage` should not be set. Defaults to None.
         tree_detection_model (str):
-            Selected model for detecting trees. One of "deepforest", "detectree2", "geometric", "sam2", or "sam3".
+            Selected model for detecting trees. One of "deepforest", "detectree2", "sam2", or "sam3".
         chip_overlap_percentage (Optional[float], optional):
             Percent overlap of the chip from 0-100. If used, `chip_stride` should not be set.
             Defaults to None.
@@ -129,10 +128,6 @@ def generate_predictions(
         dtree2_module = Detectree2Module(param_dict)
         detector = Detectree2Detector(dtree2_module, **detector_kwargs)
 
-    elif tree_detection_model == "geometric":
-        # Create a geometric detector which is applicable to CHM inputs using the default parameters
-        detector = GeometricDetector(**detector_kwargs)
-
     elif tree_detection_model == "sam2":
         detector = SAMV2Detector(
             sam2_checkpoint=sam2_checkpoint,
@@ -153,9 +148,8 @@ def generate_predictions(
             """Please enter a valid tree detection model. Currently supported models are:
                 1. deepforest
                 2. detectree2
-                3. geometric
-                4. sam2
-                5. sam3
+                3. sam2
+                4. sam3
                 """
         )
 
