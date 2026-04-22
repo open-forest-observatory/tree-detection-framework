@@ -255,15 +255,15 @@ def _chm_max_points(
         polys_in_chm_crs = gdf if gdf.crs == src.crs else gdf.to_crs(src.crs)
         nodata = src.nodata
 
-        for i, (_, row) in enumerate(polys_in_chm_crs.iterrows()):
-            polygon = row.geometry
+        if erosion_distance > 0:
+            eroded = polys_in_chm_crs.geometry.buffer(-erosion_distance)
+            # Fall back to original geometry where erosion collapses to empty
+            final_geometries = eroded.where(~eroded.is_empty, polys_in_chm_crs.geometry)
+        else:
+            final_geometries = polys_in_chm_crs.geometry
 
-            if erosion_distance > 0:
-                eroded = polygon.buffer(-erosion_distance)
-                if not eroded.is_empty:
-                    # polygon is reassigned only if eroded result is non-empty
-                    # so a collapsed erosion silently falls back to original.
-                    polygon = eroded
+        for i in range(len(polys_in_chm_crs)):
+            polygon = final_geometries.iloc[i]
 
             try:
                 chm_window, window_transform = mask(
