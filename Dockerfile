@@ -1,3 +1,6 @@
+# This is a multi-stage build that keeps the final image size small by 
+# only copying runtime dependencies and source code into the final image.
+
 # Stage 1: builder
 # Build tools, compilers, and poetry are only needed here.
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 AS builder
