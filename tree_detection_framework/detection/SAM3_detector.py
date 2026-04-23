@@ -36,11 +36,12 @@ class SAM3Detector(Detector):
         bpe_path=_SAM3_DEFAULT_BPE_PATH,
         text_prompt="tree",
         confidence_threshold=0.4,
+        checkpoint_path=None,
         huggingface_token=None,
         postprocessors=None,
     ):
         """
-        Create a SAM3 detector. This detector uses a test prompt "tree" to detect tree crowns.
+        Create a SAM3 detector. This detector uses a text prompt "tree" to detect tree crowns.
         Refer README for steps to generate a HuggingFace access token to download the weights.
 
         Args:
@@ -51,9 +52,12 @@ class SAM3Detector(Detector):
                 Defaults to "tree".
             confidence_threshold (float): Minimum confidence score for keeping a
                 predicted mask. Defaults to 0.4.
+            checkpoint_path (str, optional): Path to a local SAM3 checkpoint
+                file (.pt). When provided, weights are loaded from disk and
+                HuggingFace download is skipped.
             huggingface_token (str, optional): HuggingFace API token for downloading
-                SAM3 model weights. Can also be set via the HF_TOKEN environment
-                variable. If neither is provided, assumes weights are already cached.
+                SAM3 model weights. Only used when checkpoint_path is not given.
+                Can also be set via the HF_TOKEN environment variable.
             postprocessors (list, optional): See docstring for Detector class.
                 Defaults to None.
         """
@@ -67,19 +71,26 @@ class SAM3Detector(Detector):
         self.text_prompt = text_prompt
         self.confidence_threshold = confidence_threshold
 
-        # Resolve HuggingFace token
-        token = huggingface_token or os.environ.get("HF_TOKEN")
-        if token:
-            from huggingface_hub import login
-
-            login(token=token)
-        else:
-            logging.info(
-                "No HuggingFace token provided. Assuming SAM3 weights are already cached. "
-                "Pass huggingface_token= or set the HF_TOKEN environment variable if download is needed."
+        if checkpoint_path is not None:
+            # Load weights from a local file; skip HuggingFace entirely.
+            self.model = build_sam3_image_model(
+                bpe_path=str(bpe_path),
+                checkpoint_path=str(checkpoint_path),
+                load_from_HF=False,
             )
+        else:
+            # Fall back to HuggingFace download path.
+            token = huggingface_token or os.environ.get("HF_TOKEN")
+            if token:
+                from huggingface_hub import login
 
-        self.model = build_sam3_image_model(bpe_path=str(bpe_path))
+                login(token=token)
+            else:
+                logging.info(
+                    "No HuggingFace token provided. Assuming SAM3 weights are already cached. "
+                    "Pass huggingface_token= or set the HF_TOKEN environment variable if download is needed."
+                )
+            self.model = build_sam3_image_model(bpe_path=str(bpe_path))
         self.processor = Sam3Processor(
             self.model, confidence_threshold=self.confidence_threshold
         )

@@ -1,18 +1,24 @@
 import argparse
 import json
 import logging
+from pathlib import Path
 from typing import Optional
 
 import pyproj
 import torch
 
-from tree_detection_framework.constants import BOUNDARY_TYPE, PATH_TYPE
+from tree_detection_framework.constants import (
+    BOUNDARY_TYPE,
+    CHECKPOINTS_FOLDER,
+    PATH_TYPE,
+)
 from tree_detection_framework.detection.detector import (
     DeepForestDetector,
     Detectree2Detector,
-    GeometricDetector,
 )
 from tree_detection_framework.detection.models import DeepForestModule, Detectree2Module
+from tree_detection_framework.detection.SAM2_detector import SAMV2Detector
+from tree_detection_framework.detection.SAM3_detector import SAM3Detector
 from tree_detection_framework.postprocessing.postprocessing import multi_region_NMS
 from tree_detection_framework.preprocessing.preprocessing import create_dataloader
 
@@ -33,6 +39,12 @@ def generate_predictions(
     iou_threshold: Optional[float] = 0.3,
     min_confidence: Optional[float] = 0.3,
     batch_size: int = 1,
+    detectree2_weights_path: PATH_TYPE = Path(
+        CHECKPOINTS_FOLDER, "230103_randresize_full.pth"
+    ),
+    sam2_checkpoint_path: PATH_TYPE = Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt"),
+    sam3_checkpoint_path: PATH_TYPE = Path(CHECKPOINTS_FOLDER, "sam3.pt"),
+    sam3_huggingface_token: Optional[str] = None,
     detector_kwargs: dict = {},
 ):
     """
@@ -46,7 +58,7 @@ def generate_predictions(
             Stride of the chip. May be pixels or meters, based on `use_units_meters`. If used,
             `chip_overlap_percentage` should not be set. Defaults to None.
         tree_detection_model (str):
-            Selected model for detecting trees. One of "deepforest", "detectree2", or "geometric".
+            Selected model for detecting trees. One of "deepforest", "detectree2", "sam2", or "sam3".
         chip_overlap_percentage (Optional[float], optional):
             Percent overlap of the chip from 0-100. If used, `chip_stride` should not be set.
             Defaults to None.
@@ -73,8 +85,14 @@ def generate_predictions(
             Prediction score threshold for detections to be included.
         batch_size (int, optional):
             Number of images to load in a batch. Defaults to 1.
+        sam2_checkpoint_path (PATH_TYPE, optional):
+            Path to the SAM2 checkpoint file. Defaults to checkpoints/sam2.1_hiera_large.pt.
+        sam3_checkpoint_path (PATH_TYPE, optional):
+            Path to a local SAM3 checkpoint file. Defaults to checkpoints/sam3.pt.
+        sam3_huggingface_token (str, optional):
+            HuggingFace token for downloading SAM3 weights. Only used when sam3_checkpoint_path is None.
         detector_kwargs (dict, optional):
-            Optional keywork arguments to be unpacked for the detector constructor.
+            Optional keyword arguments to be unpacked for the detector constructor.
     """
 
     # Create the dataloader by passing folder path to raster data.
@@ -108,26 +126,32 @@ def generate_predictions(
 
     elif tree_detection_model == "detectree2":
 
-        # Load detectree2 pretrained weights
-        # TODO: download pretrained weights when called, instead of providing a local path
-        trained_model = (
-            "/ofo-share/repos-amritha/detectree2-code/230103_randresize_full.pth"
-        )
-        param_dict = {"update_model": trained_model}
+        param_dict = {"update_model": detectree2_weights_path}
 
         dtree2_module = Detectree2Module(param_dict)
         detector = Detectree2Detector(dtree2_module, **detector_kwargs)
 
-    elif tree_detection_model == "geometric":
-        # Create a geometric detector which is applicable to CHM inputs using the default parameters
-        detector = GeometricDetector(**detector_kwargs)
+    elif tree_detection_model == "sam2":
+        detector = SAMV2Detector(
+            sam2_checkpoint=sam2_checkpoint_path,
+            **detector_kwargs,
+        )
+
+    elif tree_detection_model == "sam3":
+        detector = SAM3Detector(
+            checkpoint_path=sam3_checkpoint_path,
+            huggingface_token=sam3_huggingface_token,
+            confidence_threshold=min_confidence,
+            **detector_kwargs,
+        )
 
     else:
         raise ValueError(
             """Please enter a valid tree detection model. Currently supported models are:
                 1. deepforest
                 2. detectree2
-                3. geometric
+                3. sam2
+                4. sam3
                 """
         )
 
@@ -180,6 +204,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iou-threshold", type=float, default=0.3)
     parser.add_argument("--min-confidence", type=float, default=0.3)
     parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument(
+        "--detectree2-weights-path",
+        type=str,
+        default=str(Path(CHECKPOINTS_FOLDER, "230103_randresize_full.pth")),
+        help="Path to the detectree2 pretrained weights (.pth file)",
+    )
+    parser.add_argument(
+        "--sam2-checkpoint-path",
+        type=str,
+        default=str(Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt")),
+        help="Path to the SAM2 checkpoint file",
+    )
+    parser.add_argument(
+        "--sam3-checkpoint-path",
+        type=str,
+        default=None,
+        help="Path to a local SAM3 checkpoint file",
+    )
+    parser.add_argument(
+        "--sam3-huggingface-token",
+        type=str,
+        default=None,
+        help="HuggingFace token for downloading SAM3 weights (only used when --sam3-checkpoint-path is not set)",
+    )
     parser.add_argument(
         "--detector-kwargs",
         type=str,
