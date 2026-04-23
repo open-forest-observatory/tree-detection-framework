@@ -42,8 +42,7 @@ def generate_predictions(
     detectree2_weights_path: PATH_TYPE = Path(
         CHECKPOINTS_FOLDER, "230103_randresize_full.pth"
     ),
-    sam2_checkpoint: PATH_TYPE = Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt"),
-    sam2_model_cfg: str = "configs/sam2.1/sam2.1_hiera_l.yaml",
+    sam2_checkpoint_path: PATH_TYPE = Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt"),
     sam3_checkpoint_path: PATH_TYPE = Path(CHECKPOINTS_FOLDER, "sam3.pt"),
     sam3_huggingface_token: Optional[str] = None,
     detector_kwargs: dict = {},
@@ -86,10 +85,8 @@ def generate_predictions(
             Prediction score threshold for detections to be included.
         batch_size (int, optional):
             Number of images to load in a batch. Defaults to 1.
-        sam2_checkpoint (PATH_TYPE, optional):
+        sam2_checkpoint_path (PATH_TYPE, optional):
             Path to the SAM2 checkpoint file. Defaults to checkpoints/sam2.1_hiera_large.pt.
-        sam2_model_cfg (str, optional):
-            Path to the SAM2 model config yaml. Defaults to configs/sam2.1/sam2.1_hiera_l.yaml.
         sam3_checkpoint_path (PATH_TYPE, optional):
             Path to a local SAM3 checkpoint file. Defaults to checkpoints/sam3.pt.
         sam3_huggingface_token (str, optional):
@@ -136,8 +133,7 @@ def generate_predictions(
 
     elif tree_detection_model == "sam2":
         detector = SAMV2Detector(
-            sam2_checkpoint=sam2_checkpoint,
-            model_cfg=sam2_model_cfg,
+            sam2_checkpoint=sam2_checkpoint_path,
             **detector_kwargs,
         )
 
@@ -215,16 +211,10 @@ def parse_args() -> argparse.Namespace:
         help="Path to the detectree2 pretrained weights (.pth file)",
     )
     parser.add_argument(
-        "--sam2-checkpoint",
+        "--sam2-checkpoint-path",
         type=str,
         default=str(Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt")),
         help="Path to the SAM2 checkpoint file",
-    )
-    parser.add_argument(
-        "--sam2-model-cfg",
-        type=str,
-        default="configs/sam2.1/sam2.1_hiera_l.yaml",
-        help="Path to the SAM2 model config yaml",
     )
     parser.add_argument(
         "--sam3-checkpoint-path",
