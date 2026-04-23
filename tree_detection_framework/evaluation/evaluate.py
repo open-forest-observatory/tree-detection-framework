@@ -11,6 +11,7 @@ import shapely
 from rasterio.mask import mask
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
+from shapely.affinity import scale
 from shapely.geometry import Point, Polygon, box
 
 from tree_detection_framework.constants import PATH_TYPE
@@ -33,6 +34,7 @@ def polygons_to_points(
     chm_path: Optional[str] = None,
     height_column: str = "height",
     crown_geometry_column: str = "crown_geometry",
+    erosion_distance: float = 0.0,
 ) -> gpd.GeoDataFrame:
     """Convert polygon geometries to point geometries using the specified method.
     The original polygon geometries are stored in a new column, and height values
@@ -58,6 +60,9 @@ def polygons_to_points(
         crown_geometry_column: Name of the column in which the original polygon
             geometries are stored after points are derived and set as the default
             geometry column. Defaults to "crown_geometry".
+        erosion_distance: Distance (in CHM CRS units) to erode each polygon inward
+            before finding the maximum CHM pixel. Only used when `method="chm_max"`.
+            Defaults to 0.0 (no erosion).
     Returns:
         gpd.GeoDataFrame: A copy of detections with -
         - Active geometry replaced with point geometries (Point).
@@ -87,6 +92,12 @@ def polygons_to_points(
     # Store original polygon geometries in a new column before overwriting the active geometry with points
     result[crown_geometry_column] = result.geometry
 
+    # For box polygons (only DeepForest so far), replace geometry with the largest inscribed circle or ellipse before deriving points
+    first_geom = result.geometry.iloc[0]
+    # check if geometry is a box polygon (i.e. it is equal to its own bounding box)
+    if first_geom.equals(first_geom.envelope):
+        result["geometry"] = result.geometry.apply(_inscribe_circle_or_ellipse)
+
     # Derive point geometries
     if method == "centroid":
         result["geometry"] = result.geometry.centroid
@@ -98,7 +109,9 @@ def polygons_to_points(
 
     elif method == "chm_max":
         logging.info("Finding tallest CHM pixel within each polygon.")
-        points, heights = _chm_max_points(result, chm_path)
+        points, heights = _chm_max_points(
+            result, chm_path, erosion_distance=erosion_distance
+        )
         result["geometry"] = points
         result[height_column] = heights
         result.attrs["crs"] = result.crs.to_string()
@@ -195,10 +208,20 @@ def _fill_in_heights(
         )
 
 
+def _inscribe_circle_or_ellipse(polygon: Polygon) -> Polygon:
+    """Return the largest inscribed circle (square box) or ellipse (rectangular box)."""
+    minx, miny, maxx, maxy = polygon.bounds
+    cx, cy = (minx + maxx) / 2, (miny + maxy) / 2  # center of the box
+    rx, ry = (maxx - minx) / 2, (maxy - miny) / 2  # rx = width/2, ry = height/2
+    # scale() stretches a unit circle along each axis producing an ellipse that touches all sides
+    return scale(Point(cx, cy).buffer(1), xfact=rx, yfact=ry)
+
+
 def _chm_max_points(
     gdf: gpd.GeoDataFrame,
     chm_path: str,
     min_valid_fraction: float = 0.5,
+    erosion_distance: float = 0.0,
 ) -> tuple[list, np.ndarray]:
     """Find the highest CHM pixel within each polygon.
 
@@ -211,6 +234,10 @@ def _chm_max_points(
         min_valid_fraction: Minimum fraction of valid (non-nodata) CHM pixels required
             within a polygon to compute the maximum height. Polygons below this threshold
             fall back to centroid.
+        erosion_distance: Distance (in CRS units of the CHM) to erode each polygon
+            inward before finding the maximum CHM pixel. Helps exclude edge pixels
+            just outside the tree crown. If erosion collapses a polygon to empty
+            geometry, the original polygon is used as a fallback.
 
     Returns:
         tuple(list, np.ndarray):
@@ -228,8 +255,15 @@ def _chm_max_points(
         polys_in_chm_crs = gdf if gdf.crs == src.crs else gdf.to_crs(src.crs)
         nodata = src.nodata
 
-        for i, (_, row) in enumerate(polys_in_chm_crs.iterrows()):
-            polygon = row.geometry
+        if erosion_distance > 0:
+            eroded = polys_in_chm_crs.geometry.buffer(-erosion_distance)
+            # Fall back to original geometry where erosion collapses to empty
+            final_geometries = eroded.where(~eroded.is_empty, polys_in_chm_crs.geometry)
+        else:
+            final_geometries = polys_in_chm_crs.geometry
+
+        for i in range(len(polys_in_chm_crs)):
+            polygon = final_geometries.iloc[i]
 
             try:
                 chm_window, window_transform = mask(
