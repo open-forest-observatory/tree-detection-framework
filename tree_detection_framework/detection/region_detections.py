@@ -697,7 +697,9 @@ class RegionDetectionsSet:
             # For empty tiles, skip saving the detections and only save the tile bounds.
             # They are reconstructed as empty RegionDetections on load via the _bounds layer.
             if len(detections) > 0:
-                mode = "w" if first_write else "a"  # "a" appends a new named layer to the existing file
+                mode = (
+                    "w" if first_write else "a"
+                )  # "a" appends a new named layer to the existing file
                 detections.to_file(
                     save_path, layer=f"detections_{i}", driver="GPKG", mode=mode
                 )
@@ -706,7 +708,9 @@ class RegionDetectionsSet:
             bounds_records.append({"tile_id": i, "geometry": bounds_geom})
 
         # Collect all bounds into a single layer
-        bounds_crs = CRS if CRS is not None else self.get_default_CRS(check_all_have_CRS=False)
+        bounds_crs = (
+            CRS if CRS is not None else self.get_default_CRS(check_all_have_CRS=False)
+        )
         bounds_gdf = gpd.GeoDataFrame(bounds_records, crs=bounds_crs)
         bounds_gdf.to_file(save_path, layer="_bounds", driver="GPKG", mode="a")
 
@@ -733,13 +737,13 @@ class RegionDetectionsSet:
         n_tiles = len(bounds_gdf)
 
         # Map tile_id -> detection layer name for tiles that have detections
-        detection_layer_map = {
-            int(l.split("_")[1]): l for l in detection_layers
-        }
+        detection_layer_map = {int(l.split("_")[1]): l for l in detection_layers}
 
         region_detections = []
         for i in range(n_tiles):
-            bounds_geom = bounds_gdf.loc[i, "geometry"] if i in bounds_gdf.index else None
+            bounds_geom = (
+                bounds_gdf.loc[i, "geometry"] if i in bounds_gdf.index else None
+            )
             crs = bounds_gdf.crs
 
             if i in detection_layer_map:
