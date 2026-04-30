@@ -649,6 +649,7 @@ class RegionDetectionsSet:
         """
         Save the data to a geospatial file by calling get_data_frame with merge=True and then saving
         to the specified file. The containing folder is created if it doesn't exist.
+        NOTE: Use `save_tiled()` if you want to preserve the tile structure and bounds of each individual region.
 
         Args:
             save_path (PATH_TYPE):
