@@ -1484,3 +1484,154 @@ class Detectree2Detector(LightningDetector):
             )
 
         return all_geometries, all_data_dicts
+
+
+class TCDDetector(LightningDetector):
+    """Instance segmentation detector using the pretrained TCD (Restor Foundation) Mask R-CNN checkpoint.
+    This detector detecects 2 classes:
+    - Class 0: "canopy" class for contiguous canopy cover (including tree crowns and gaps between them)
+    - Class 1: "tree" class for individual tree crowns
+    The `label` column in the output detections gdf can be used to filter these classes.
+
+    Loads `restor/tcd-mask-rcnn-r50` from HuggingFace Hub and runs inference.
+    Note: This model was trained with 0.1m/px image resolution
+
+    Adapted from https://github.com/Restor-Foundation/tcd
+    """
+
+    def __init__(self, module, postprocessors=None):
+        """
+        Args:
+            module (TCDMaskRCNNModule): Configuration module with the Detectron2 cfg.
+            postprocessors (list, optional): See Detector base class. Defaults to None.
+        """
+        super().__init__(postprocessors=postprocessors)
+        if DETECTRON2_AVAILABLE is False:
+            raise ImportError(
+                "TCDDetector requires detectron2. Please install it to use this detector."
+            )
+        self.module = module
+        self.setup_predictor()
+
+    def setup_predictor(self):
+        """Build the Detectron2 model and load weights.
+
+        If cfg.MODEL.WEIGHTS is a HuggingFace repo ID (not a local path),
+        downloads model.pth from the Hub before loading.
+        """
+        import os
+
+        self.cfg = self.module.cfg.clone()
+
+        weights = self.cfg.MODEL.WEIGHTS
+        if not os.path.exists(weights):
+            try:
+                from huggingface_hub import hf_hub_download
+
+                logging.info("Downloading TCD checkpoint from HuggingFace Hub: %s", weights)
+                weights = hf_hub_download(repo_id=weights, filename="model.pth")
+                self.cfg.MODEL.WEIGHTS = weights
+            except Exception as exc:
+                logging.warning(
+                    "Could not download checkpoint '%s' from HuggingFace Hub: %s",
+                    self.cfg.MODEL.WEIGHTS,
+                    exc,
+                )
+
+        self.model = build_model(self.cfg)
+        self.model.to(self.cfg.MODEL.DEVICE)
+        self.model.eval()
+
+        checkpointer = DetectionCheckpointer(self.model)
+        checkpointer.load(self.cfg.MODEL.WEIGHTS)
+
+        # ResizeShortestEdge with MIN_SIZE_TEST=0 only caps at MAX_SIZE_TEST
+        self.aug = T.ResizeShortestEdge(
+            [self.cfg.INPUT.MIN_SIZE_TEST, self.cfg.INPUT.MIN_SIZE_TEST],
+            self.cfg.INPUT.MAX_SIZE_TEST,
+        )
+        self.input_format = self.cfg.INPUT.FORMAT
+
+    def call_predict(self, batch):
+        """Preprocess a batch and run Detectron2 inference.
+
+        Args:
+            batch (Tensor): Float tensor [N, C, H, W] from the dataloader.
+                            Values may be in [0, 1] or [0, 255].
+
+        Returns:
+            List of dicts (one per image) each containing an "instances" key.
+        """
+        with torch.no_grad():
+            inputs = []
+            for image in batch:
+                # Rescale [0, 1] to [0, 255]
+                if image.min() >= 0 and image.max() <= 1:
+                    image = (image * 255).byte()
+
+                # Drop extra channels beyond RGB
+                if image.shape[0] != 3:
+                    image = image[:3]
+
+                # HWC numpy for the Detectron2 augmentation API
+                image_np = image.permute(1, 2, 0).numpy()
+
+                # Detectron2 COCO base models expect BGR; flip from RGB dataloader output
+                if self.input_format == "BGR":
+                    image_np = np.flip(image_np, axis=2)
+
+                height, width = image_np.shape[:2]
+                image_np = self.aug.get_transform(image_np).apply_image(image_np)
+                tensor = torch.as_tensor(
+                    image_np.astype("float32").transpose(2, 0, 1)
+                ).to(self.cfg.MODEL.DEVICE)
+
+                inputs.append({"image": tensor, "height": height, "width": width})
+
+            return self.model(inputs)
+
+    def predict_batch(self, batch):
+        """Run inference on one batch of tiles.
+
+        Args:
+            batch (defaultDict): A batch from the dataloader with an "image" key
+                                 (tensor of shape [N, C, H, W]).
+
+        Returns:
+            all_geometries (List[List[shapely.Geometry]]):
+                One list of shapely geometries per image in the batch.
+            all_data_dicts (List[dict]):
+                One dict per image with keys "score", "labels", and "bbox".
+        """
+        images = batch["image"]
+        batch_preds = self.call_predict(images)
+
+        all_geometries = []
+        all_data_dicts = []
+
+        for pred in batch_preds:
+            instances = pred["instances"].to("cpu")
+
+            # Convert predicted masks to shapely geometries
+            pred_masks = instances.pred_masks.numpy()
+            shapely_objects = [mask_to_shapely(m) for m in pred_masks]
+
+            # Convert predicted boxes to shapely boxes
+            np_bboxes = instances.pred_boxes.tensor.numpy()
+            shapely_bboxes = shapely.box(
+                xmin=np_bboxes[:, 0],
+                ymin=np_bboxes[:, 1],
+                xmax=np_bboxes[:, 2],
+                ymax=np_bboxes[:, 3],
+            )
+
+            all_geometries.append(shapely_objects)
+            all_data_dicts.append(
+                {
+                    "score": instances.scores.numpy(),
+                    "labels": instances.pred_classes.numpy(),
+                    "bbox": shapely_bboxes,
+                }
+            )
+
+        return all_geometries, all_data_dicts
