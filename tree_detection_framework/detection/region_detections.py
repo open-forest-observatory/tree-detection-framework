@@ -698,7 +698,6 @@ class RegionDetectionsSet:
             if detections_crs is None and len(detections) > 0:
                 detections_crs = detections.crs
             if len(detections) > 0:
-                detections = detections.copy()
                 detections["region_ID"] = i  # tag each row with its tile index
                 detection_frames.append(detections)
             # always record bounds, even for empty tiles
