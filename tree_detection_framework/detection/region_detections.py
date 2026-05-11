@@ -2,7 +2,6 @@ import copy
 from pathlib import Path
 from typing import Callable, List, Optional, Union
 
-import fiona
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -672,11 +671,11 @@ class RegionDetectionsSet:
         concatenated_geodataframes.to_file(save_path)
 
     def save_tiled(self, save_path: PATH_TYPE, CRS: Optional[pyproj.CRS] = None):
-        """Save to a GPKG file with one layer per tile plus a single shared bounds layer.
+        """Save to a GPKG file with a single detections layer (all tiles) and a bounds layer.
 
         Layout:
-          - "detections_0", "detections_1", ... one detection layer per tile
-          - "_bounds": one layer holding all tile bounds with a "tile_id" column
+          - "detections": one layer holding all detections with a "tile_id" column
+          - "bounds": one layer holding all tile bounds with a "tile_id" column
 
         This preserves tile structure (including empty tiles).
         Use from_tiled_file to reconstruct the RegionDetectionsSet exactly.
@@ -690,29 +689,41 @@ class RegionDetectionsSet:
         save_path = Path(save_path)
         save_path.parent.mkdir(exist_ok=True, parents=True)
 
+        detection_frames = []
         bounds_records = []
-        first_write = True
+        detections_crs = CRS  # inferred from first non-empty tile if not provided
+
         for i, rd in enumerate(self.region_detections):
             detections = rd.get_data_frame(CRS=CRS)
-            # For empty tiles, skip saving the detections and only save the tile bounds.
-            # They are reconstructed as empty RegionDetections on load via the _bounds layer.
+            if detections_crs is None and len(detections) > 0:
+                detections_crs = detections.crs
             if len(detections) > 0:
-                mode = (
-                    "w" if first_write else "a"
-                )  # "a" appends a new named layer to the existing file
-                detections.to_file(
-                    save_path, layer=f"detections_{i}", driver="GPKG", mode=mode
-                )
-                first_write = False
+                detections = detections.copy()
+                detections["region_ID"] = i  # tag each row with its tile index
+                detection_frames.append(detections)
+            # always record bounds, even for empty tiles
             bounds_geom = rd.get_bounds(CRS=CRS).iloc[0]
-            bounds_records.append({"tile_id": i, "geometry": bounds_geom})
+            bounds_records.append({"region_ID": i, "geometry": bounds_geom})
+
+        # Concatenate all tiles into one layer; write an empty frame if there are no detections
+        if detection_frames:
+            all_detections = gpd.GeoDataFrame(
+                pd.concat(detection_frames, ignore_index=True), crs=detections_crs
+            )
+        else:
+            all_detections = gpd.GeoDataFrame(
+                {"region_ID": pd.Series([], dtype=int)},
+                geometry=gpd.GeoSeries([], crs=detections_crs),
+                crs=detections_crs,
+            )
+        all_detections.to_file(save_path, layer="detections", driver="GPKG", mode="w")
 
         # Collect all bounds into a single layer
         bounds_crs = (
             CRS if CRS is not None else self.get_default_CRS(check_all_have_CRS=False)
         )
         bounds_gdf = gpd.GeoDataFrame(bounds_records, crs=bounds_crs)
-        bounds_gdf.to_file(save_path, layer="_bounds", driver="GPKG", mode="a")
+        bounds_gdf.to_file(save_path, layer="bounds", driver="GPKG", mode="a")
 
     @classmethod
     def from_tiled_file(cls, save_path: PATH_TYPE) -> "RegionDetectionsSet":
@@ -724,44 +735,45 @@ class RegionDetectionsSet:
         Returns:
             RegionDetectionsSet: The reconstructed set with one RegionDetections per tile.
         """
-
         save_path = Path(save_path)
-        layers = fiona.listlayers(str(save_path))
-        detection_layers = sorted(
-            [l for l in layers if l.startswith("detections_")],
-            key=lambda l: int(l.split("_")[1]),
-        )
 
-        # Load the shared bounds layer indexed by tile_id
-        bounds_gdf = gpd.read_file(save_path, layer="_bounds").set_index("tile_id")
+        bounds_gdf = gpd.read_file(save_path, layer="bounds").set_index("region_ID")
         n_tiles = len(bounds_gdf)
+        crs = bounds_gdf.crs
 
-        # Map tile_id -> detection layer name for tiles that have detections
-        detection_layer_map = {int(l.split("_")[1]): l for l in detection_layers}
+        # Split the flat detections layer back into per-tile groups
+        # drop region_ID since it's storage metadata
+        all_detections = gpd.read_file(save_path, layer="detections")
+        if len(all_detections) > 0:
+            crs = all_detections.crs
+            detections_by_tile = {
+                region_id: group.drop(columns=["region_ID"]).reset_index(drop=True)
+                for region_id, group in all_detections.groupby("region_ID")
+            }
+        else:
+            detections_by_tile = {}
 
         region_detections = []
         for i in range(n_tiles):
-            bounds_geom = (
-                bounds_gdf.loc[i, "geometry"] if i in bounds_gdf.index else None
-            )
-            crs = bounds_gdf.crs
+            bounds_geom = bounds_gdf.loc[i, "geometry"] if i in bounds_gdf.index else None
 
-            if i in detection_layer_map:
-                detections = gpd.read_file(save_path, layer=detection_layer_map[i])
-                crs = detections.crs
+            # Get the detections for this tile if they exist
+            if i in detections_by_tile:
+                tile_detections = detections_by_tile[i]
             else:
-                # Empty tile doesn't have a "detections_{i}" layer
-                # Reconstruct it with an empty GeoDataFrame
-                detections = gpd.GeoDataFrame(geometry=gpd.GeoSeries([], crs=crs))
+                # tile was empty - reconstruct with an empty GeoDataFrame
+                tile_detections = gpd.GeoDataFrame(geometry=gpd.GeoSeries([], crs=crs))
 
+            # Create a RegionDetections object for this tile
             rd = RegionDetections(
                 detection_geometries="geometry",
-                data=detections,
+                data=tile_detections,
                 CRS=crs,
                 geospatial_prediction_bounds=bounds_geom,
             )
             region_detections.append(rd)
 
+        # Create and return the RegionDetectionsSet
         return cls(region_detections)
 
     def plot(
