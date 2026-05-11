@@ -1528,7 +1528,9 @@ class TCDDetector(LightningDetector):
             try:
                 from huggingface_hub import hf_hub_download
 
-                logging.info("Downloading TCD checkpoint from HuggingFace Hub: %s", weights)
+                logging.info(
+                    "Downloading TCD checkpoint from HuggingFace Hub: %s", weights
+                )
                 weights = hf_hub_download(repo_id=weights, filename="model.pth")
                 self.cfg.MODEL.WEIGHTS = weights
             except Exception as exc:
