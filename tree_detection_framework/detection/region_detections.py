@@ -754,7 +754,9 @@ class RegionDetectionsSet:
 
         region_detections = []
         for i in range(n_tiles):
-            bounds_geom = bounds_gdf.loc[i, "geometry"] if i in bounds_gdf.index else None
+            bounds_geom = (
+                bounds_gdf.loc[i, "geometry"] if i in bounds_gdf.index else None
+            )
 
             # Get the detections for this tile if they exist
             if i in detections_by_tile:
