@@ -674,8 +674,8 @@ class RegionDetectionsSet:
         """Save to a GPKG file with a single detections layer (all tiles) and a bounds layer.
 
         Layout:
-          - "detections": one layer holding all detections with a "tile_id" column
-          - "bounds": one layer holding all tile bounds with a "tile_id" column
+          - "detections": one layer holding all detections with a "region_ID" column
+          - "bounds": one layer holding all tile bounds with a "region_ID" column
 
         This preserves tile structure (including empty tiles).
         Use from_tiled_file to reconstruct the RegionDetectionsSet exactly.
