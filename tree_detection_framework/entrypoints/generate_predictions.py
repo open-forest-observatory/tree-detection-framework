@@ -14,13 +14,12 @@ from tree_detection_framework.constants import (
 )
 from tree_detection_framework.detection.detector import (
     DeepForestDetector,
-    Detectree2Detector,
-    TCDDetector,
+    MaskRCNNDetector,
 )
 from tree_detection_framework.detection.models import (
     DeepForestModule,
     Detectree2Module,
-    TCDMaskRCNNModule,
+    TCDModule,
 )
 from tree_detection_framework.detection.SAM2_detector import SAMV2Detector
 from tree_detection_framework.detection.SAM3_detector import SAM3Detector
@@ -134,7 +133,7 @@ def generate_predictions(
         param_dict = {"update_model": detectree2_weights_path}
 
         dtree2_module = Detectree2Module(param_dict)
-        detector = Detectree2Detector(dtree2_module, **detector_kwargs)
+        detector = MaskRCNNDetector(dtree2_module, **detector_kwargs)
 
     elif tree_detection_model == "sam2":
         detector = SAMV2Detector(
@@ -151,8 +150,8 @@ def generate_predictions(
         )
 
     elif tree_detection_model == "tcd":
-        tcd_module = TCDMaskRCNNModule()
-        detector = TCDDetector(tcd_module, **detector_kwargs)
+        tcd_module = TCDModule()
+        detector = MaskRCNNDetector(tcd_module, **detector_kwargs)
 
     else:
         raise ValueError(
