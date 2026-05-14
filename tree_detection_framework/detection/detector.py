@@ -1,3 +1,4 @@
+import os
 import logging
 from abc import abstractmethod
 from itertools import groupby
@@ -1362,8 +1363,6 @@ class MaskRCNNDetector(LightningDetector):
         If cfg.MODEL.WEIGHTS is a HuggingFace repo ID (not a local path),
         downloads model.pth from the Hub before loading.
         """
-        import os
-
         self.cfg = self.module.cfg.clone()
 
         weights = self.cfg.MODEL.WEIGHTS
