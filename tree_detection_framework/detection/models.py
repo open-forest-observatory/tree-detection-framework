@@ -277,8 +277,9 @@ class Detectree2Module:
         return cfg
 
 
-class TCDMaskRCNNModule:
+class TCDModule:
     """Configuration module for the TCD (Restor Foundation) Mask R-CNN model.
+    Source: https://github.com/Restor-Foundation/tcd
 
     Builds a Detectron2 config matching the settings used to train the TCD Mask R-CNN
     R50-FPN checkpoint (`restor/tcd-mask-rcnn-r50` on HuggingFace Hub). The weights

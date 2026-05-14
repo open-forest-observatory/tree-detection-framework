@@ -54,7 +54,7 @@ try:
     DETECTRON2_AVAILABLE = True
 except ImportError:
     DETECTRON2_AVAILABLE = False
-    logging.warning("detectron2 not found. Detectree2Detector will be disabled.")
+    logging.warning("detectron2 not found. MaskRCNNDetector will be disabled.")
 
 # Set up logging configuration
 logging.basicConfig(
@@ -1334,181 +1334,24 @@ class DeepForestDetector(LightningDetector):
         raise NotImplementedError()
 
 
-class Detectree2Detector(LightningDetector):
+class MaskRCNNDetector(LightningDetector):
+    """Detectron2 Mask R-CNN detector supporting any module with a `.cfg` attribute.
 
-    def __init__(self, module, postprocessors=None):
-        """
-        Create a Detectree2Detector object
-        Args:
-            module (Detectree2Module): Module for Detectree2
-            postprocessors (list, optional): See docstring for Detector class. Defaults to None.
-        """
-        super().__init__(postprocessors=postprocessors)
-        # TODO: Add lightning module implementation
-        # Note: For now, `module` only references to `cfg`
-        if DETECTRON2_AVAILABLE is False:
-            raise ImportError(
-                "Detectree2Detector requires detectron2. Please install it to use this detector."
-            )
-        self.module = module
-        self.setup_predictor()
-
-    def setup_predictor(self):
-        """Build predictor model architecture and load model weights from config.
-        Based on `__init__` of `DefaultPredictor` from `detectron2`"""
-
-        self.cfg = self.module.cfg.clone()  # cfg can be modified by model
-        self.model = build_model(self.cfg)
-
-        self.model.to(self.cfg.MODEL.DEVICE)
-
-        # Set the model to eval mode
-        self.model.eval()
-        if len(self.module.cfg.DATASETS.TEST):
-            self.metadata = MetadataCatalog.get(self.module.cfg.DATASETS.TEST[0])
-
-        checkpointer = DetectionCheckpointer(self.model)
-        checkpointer.load(self.module.cfg.MODEL.WEIGHTS)
-
-        self.aug = T.ResizeShortestEdge(
-            [self.module.cfg.INPUT.MIN_SIZE_TEST, self.module.cfg.INPUT.MIN_SIZE_TEST],
-            self.module.cfg.INPUT.MAX_SIZE_TEST,
-        )
-
-        self.input_format = self.module.cfg.INPUT.FORMAT
-        assert self.input_format in ["RGB", "BGR"], self.input_format
-
-    def call_predict(self, batch):
-        """
-        Largely based on `__call__` method of `DefaultPredictor` from `detectron2` for single image prediction.
-        Modifications have been made to preprocess images from the torchgeo dataloader and predict for a batch of images.
-
-        Args:
-            batch (Tensor): 4 dims Tensor with the first dimension having number of images in the batch
-
-        Returns:
-            batch_preds (List[Dict[str, Instances]]): An iterable with a dictionary per image having "instances" value
-            as an `Instances` object containing prediction results.
-        """
-
-        with torch.no_grad():
-            inputs = []
-            for original_image in batch:
-                # If this was originally float in the range 0-1, rescale
-                if original_image.min() >= 0 and original_image.max() <= 1:
-                    original_image = (original_image * 255).byte()
-
-                # If not an RGB image, ensure that it's no more than 3 channels
-                if batch.shape[1] != 3:
-                    original_image = original_image[:3, :, :]
-                # Permute so it's channel-last and transform to numpy
-                original_image = original_image.permute(1, 2, 0).numpy()
-                # It appears that the detectree2 model was trained on BGR data but our dataloader
-                # provides RGB. Flip the channel order to compensate.
-                # TODO these types of preprocessing steps should be standardized.
-                original_image = np.flip(original_image, axis=2)
-                # Get the original height and width since it may be transformed
-                height, width = original_image.shape[:2]
-                # Apply the augmentation transform to the original image
-                image = self.aug.get_transform(original_image).apply_image(
-                    original_image
-                )
-                # Cast back to tensort, channel-first, and move to device
-                image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
-                image = image.to(self.cfg.MODEL.DEVICE)
-                # Create a dict with each image and its properties
-                input = {"image": image, "height": height, "width": width}
-                # Add the dictionary to batch image list
-                inputs.append(input)
-
-            # Actually run inference
-            batch_preds = self.model(inputs)
-            return batch_preds
-
-    def predict_batch(self, batch):
-        """
-        Get predictions for a batch of images.
-
-        Args:
-            batch (defaultDict): A batch from the dataloader
-
-        Returns:
-            all_geometries (List[List[shapely.MultiPolygon]]):
-                A list of predictions one per image in the batch. The predictions for each image
-                are a list of shapely objects.
-            all_data_dicts (Union[None, List[dict]]):
-                Predicted scores and classes
-        """
-        # Get images from batch
-        images = batch["image"]
-        batch_preds = self.call_predict(images)
-
-        # To store all predicted polygons
-        all_geometries = []
-        # To store other related information such as scores and labels
-        all_data_dicts = []
-
-        # Iterate through predictions for each tile in the batch
-        for pred in batch_preds:
-
-            # Get the Instances object
-            instances = pred["instances"].to("cpu")
-
-            # Get the predicted masks for this tile
-            pred_masks = instances.pred_masks.numpy()
-            # Convert each mask to a shapely multipolygon
-            shapely_objects = [mask_to_shapely(pred_mask) for pred_mask in pred_masks]
-
-            # Get the model-predicted boxes, which may be larger than the axis-aligned bounding box
-            # from the mask.
-            np_bboxes = instances.pred_boxes.tensor.numpy()
-            shapely_bboxes = shapely.box(
-                xmin=np_bboxes[:, 0],
-                ymin=np_bboxes[:, 1],
-                xmax=np_bboxes[:, 2],
-                ymax=np_bboxes[:, 3],
-            )
-
-            # Get prediction scores
-            scores = instances.scores.numpy()
-            # Get predicted classes
-            labels = instances.pred_classes.numpy()
-
-            all_geometries.append(shapely_objects)
-            all_data_dicts.append(
-                {
-                    "score": scores,
-                    "labels": labels,
-                    "bbox": shapely_bboxes,
-                }
-            )
-
-        return all_geometries, all_data_dicts
-
-
-class TCDDetector(LightningDetector):
-    """Instance segmentation detector using the pretrained TCD (Restor Foundation) Mask R-CNN checkpoint.
-    This detector detecects 2 classes:
-    - Class 0: "canopy" class for contiguous canopy cover (including tree crowns and gaps between them)
-    - Class 1: "tree" class for individual tree crowns
-    The `label` column in the output detections gdf can be used to filter these classes.
-
-    Loads `restor/tcd-mask-rcnn-r50` from HuggingFace Hub and runs inference.
-    Note: This model was trained with 0.1m/px image resolution
-
-    Adapted from https://github.com/Restor-Foundation/tcd
+    Accepts both Detectree2Module and TCDModule. If cfg.MODEL.WEIGHTS is not
+    a local path it is treated as a HuggingFace Hub repo ID and model.pth is
+    downloaded automatically.
     """
 
     def __init__(self, module, postprocessors=None):
         """
         Args:
-            module (TCDMaskRCNNModule): Configuration module with the Detectron2 cfg.
+            module: A module with a `.cfg` attribute (e.g. Detectree2Module or TCDMModule).
             postprocessors (list, optional): See Detector base class. Defaults to None.
         """
         super().__init__(postprocessors=postprocessors)
         if DETECTRON2_AVAILABLE is False:
             raise ImportError(
-                "TCDDetector requires detectron2. Please install it to use this detector."
+                "MaskRCNNDetector requires detectron2. Please install it to use this detector."
             )
         self.module = module
         self.setup_predictor()
@@ -1529,7 +1372,7 @@ class TCDDetector(LightningDetector):
                 from huggingface_hub import hf_hub_download
 
                 logging.info(
-                    "Downloading TCD checkpoint from HuggingFace Hub: %s", weights
+                    "Downloading checkpoint from HuggingFace Hub: %s", weights
                 )
                 weights = hf_hub_download(repo_id=weights, filename="model.pth")
                 self.cfg.MODEL.WEIGHTS = weights
@@ -1578,7 +1421,7 @@ class TCDDetector(LightningDetector):
                 # HWC numpy for the Detectron2 augmentation API
                 image_np = image.permute(1, 2, 0).numpy()
 
-                # Detectron2 COCO base models expect BGR; flip from RGB dataloader output
+                # COCO-pretrained Detectron2 models expect BGR; flip from the RGB dataloader
                 if self.input_format == "BGR":
                     image_np = np.flip(image_np, axis=2)
 
