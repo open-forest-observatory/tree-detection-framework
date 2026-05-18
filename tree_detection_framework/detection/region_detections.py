@@ -752,7 +752,10 @@ class RegionDetectionsSet:
             # Build an empty GeoDataFrame with the same schema for tiles with no detections
             schema_cols = all_detections.drop(columns=["region_ID"])
             empty_tile_template = gpd.GeoDataFrame(
-                {col: pd.Series(dtype=schema_cols[col].dtype) for col in schema_cols.columns},
+                {
+                    col: pd.Series(dtype=schema_cols[col].dtype)
+                    for col in schema_cols.columns
+                },
                 geometry="geometry",
                 crs=crs,
             )
