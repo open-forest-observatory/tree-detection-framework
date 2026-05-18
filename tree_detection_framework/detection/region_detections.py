@@ -749,8 +749,16 @@ class RegionDetectionsSet:
                 region_id: group.drop(columns=["region_ID"]).reset_index(drop=True)
                 for region_id, group in all_detections.groupby("region_ID")
             }
+            # Build an empty GeoDataFrame with the same schema for tiles with no detections
+            schema_cols = all_detections.drop(columns=["region_ID"])
+            empty_tile_template = gpd.GeoDataFrame(
+                {col: pd.Series(dtype=schema_cols[col].dtype) for col in schema_cols.columns},
+                geometry="geometry",
+                crs=crs,
+            )
         else:
             detections_by_tile = {}
+            empty_tile_template = gpd.GeoDataFrame(geometry=gpd.GeoSeries([], crs=crs))
 
         region_detections = []
         for i in range(n_tiles):
@@ -762,8 +770,8 @@ class RegionDetectionsSet:
             if i in detections_by_tile:
                 tile_detections = detections_by_tile[i]
             else:
-                # tile was empty - reconstruct with an empty GeoDataFrame
-                tile_detections = gpd.GeoDataFrame(geometry=gpd.GeoSeries([], crs=crs))
+                # tile was empty - reconstruct with an empty GeoDataFrame matching the file schema
+                tile_detections = empty_tile_template.copy()
 
             # Create a RegionDetections object for this tile
             rd = RegionDetections(
