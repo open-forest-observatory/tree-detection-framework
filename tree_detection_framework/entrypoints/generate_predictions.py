@@ -174,10 +174,13 @@ def generate_predictions(
         outputs = multi_region_NMS(
             outputs, threshold=iou_threshold, min_confidence=min_confidence
         )
-
-    if predictions_save_path:
-        # Save predictions to disk
-        outputs.save(predictions_save_path)
+        if predictions_save_path:
+            # Save predictions to disk
+            outputs.save(predictions_save_path)
+    else:
+        if predictions_save_path:
+            # Save without merging tiles
+            outputs.save_tiled(predictions_save_path)
 
     if view_predictions_plot is True:
         logging.info("View plot. Kill the plot window to exit.")
