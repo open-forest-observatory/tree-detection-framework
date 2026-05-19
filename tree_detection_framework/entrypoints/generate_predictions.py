@@ -14,9 +14,13 @@ from tree_detection_framework.constants import (
 )
 from tree_detection_framework.detection.detector import (
     DeepForestDetector,
-    Detectree2Detector,
+    MaskRCNNDetector,
 )
-from tree_detection_framework.detection.models import DeepForestModule, Detectree2Module
+from tree_detection_framework.detection.models import (
+    DeepForestModule,
+    Detectree2Module,
+    TCDModule,
+)
 from tree_detection_framework.detection.SAM2_detector import SAMV2Detector
 from tree_detection_framework.detection.SAM3_detector import SAM3Detector
 from tree_detection_framework.postprocessing.postprocessing import multi_region_NMS
@@ -58,7 +62,7 @@ def generate_predictions(
             Stride of the chip. May be pixels or meters, based on `use_units_meters`. If used,
             `chip_overlap_percentage` should not be set. Defaults to None.
         tree_detection_model (str):
-            Selected model for detecting trees. One of "deepforest", "detectree2", "sam2", or "sam3".
+            Selected model for detecting trees. One of "deepforest", "detectree2", "sam2", "sam3", or "tcd".
         chip_overlap_percentage (Optional[float], optional):
             Percent overlap of the chip from 0-100. If used, `chip_stride` should not be set.
             Defaults to None.
@@ -129,7 +133,7 @@ def generate_predictions(
         param_dict = {"update_model": detectree2_weights_path}
 
         dtree2_module = Detectree2Module(param_dict)
-        detector = Detectree2Detector(dtree2_module, **detector_kwargs)
+        detector = MaskRCNNDetector(dtree2_module, **detector_kwargs)
 
     elif tree_detection_model == "sam2":
         detector = SAMV2Detector(
@@ -145,6 +149,10 @@ def generate_predictions(
             **detector_kwargs,
         )
 
+    elif tree_detection_model == "tcd":
+        tcd_module = TCDModule()
+        detector = MaskRCNNDetector(tcd_module, **detector_kwargs)
+
     else:
         raise ValueError(
             """Please enter a valid tree detection model. Currently supported models are:
@@ -152,6 +160,7 @@ def generate_predictions(
                 2. detectree2
                 3. sam2
                 4. sam3
+                5. tcd
                 """
         )
 
@@ -165,10 +174,13 @@ def generate_predictions(
         outputs = multi_region_NMS(
             outputs, threshold=iou_threshold, min_confidence=min_confidence
         )
-
-    if predictions_save_path:
-        # Save predictions to disk
-        outputs.save(predictions_save_path)
+        if predictions_save_path:
+            # Save predictions to disk
+            outputs.save(predictions_save_path)
+    else:
+        if predictions_save_path:
+            # Save without merging tiles
+            outputs.save_tiled(predictions_save_path)
 
     if view_predictions_plot is True:
         logging.info("View plot. Kill the plot window to exit.")
@@ -191,7 +203,12 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--raster-folder-path", required=True)
     parser.add_argument("--chip-size", type=float, required=True)
-    parser.add_argument("--tree-detection-model", type=str, required=True)
+    parser.add_argument(
+        "--tree-detection-model",
+        type=str,
+        required=True,
+        help="Tree detection model to use. One of: deepforest, detectree2, sam2, sam3, tcd.",
+    )
     parser.add_argument("--chip-stride", type=float)
     parser.add_argument("--chip-overlap-percentage", type=float)
     parser.add_argument("--use-units-meters", action="store_true")

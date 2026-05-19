@@ -56,13 +56,15 @@ COPY --from=builder /app/tree_detection_framework /app/tree_detection_framework
 WORKDIR /app
 ENV PYTHONPATH=/app
 
-# Download detectree2 and SAM2 weights; SAM3 weights must be mounted at runtime
+# Download detectree2, SAM2, and TCD weights; SAM3 weights must be mounted at runtime
 # (see --sam3-checkpoint-path or --sam3-huggingface-token arguments)
+# TCD MaskRCNN gets downloaded to ~/.cache/huggingface/hub/ at build time
 RUN mkdir -p /app/checkpoints && \
     curl -L -o /app/checkpoints/230103_randresize_full.pth \
         https://zenodo.org/records/10522461/files/230103_randresize_full.pth && \
     curl -L -o /app/checkpoints/sam2.1_hiera_large.pt \
-        https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
+        https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt && \
+    python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='restor/tcd-mask-rcnn-r50', filename='model.pth')"
 
 # Run the detector script
 CMD python /app/tree_detection_framework/entrypoints/generate_predictions.py

@@ -277,4 +277,85 @@ class Detectree2Module:
         return cfg
 
 
+class TCDModule:
+    """Configuration module for the TCD (Restor Foundation) Mask R-CNN model.
+    Source: https://github.com/Restor-Foundation/tcd
+
+    Builds a Detectron2 config matching the settings used to train the TCD Mask R-CNN
+    R50-FPN checkpoint (`restor/tcd-mask-rcnn-r50` on HuggingFace Hub). The weights
+    path is stored in cfg.MODEL.WEIGHTS; TCDDetector resolves HuggingFace repo IDs to
+    local paths at load time.
+    """
+
+    _ARCHITECTURE = "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
+    _HF_CHECKPOINT = "restor/tcd-mask-rcnn-r50"
+
+    def __init__(
+        self,
+        weights: Optional[str] = None,
+        score_thresh_test: float = 0.2,
+        max_detections: int = 512,
+        min_size_test: int = 0,
+        max_size_test: int = 2048,
+        num_classes: int = 2,
+        device: str = "cuda",
+    ):
+        """
+        Args:
+            weights: Local path to checkpoint or HuggingFace repo ID. Defaults to
+                `restor/tcd-mask-rcnn-r50`.
+            score_thresh_test: Minimum confidence threshold for detections.
+            max_detections: Maximum number of detections per image.
+            min_size_test: Minimum input size for inference (0 = unconstrained).
+            max_size_test: Maximum input size for inference.
+            num_classes: Number of output classes (2 for TCD: canopy and tree).
+            device: Torch device string ("cuda" or "cpu").
+        """
+        if DETECTRON2_AVAILABLE is False:
+            raise ImportError(
+                "detectron2 is not installed. Please install it to use TCDMaskRCNNModule."
+            )
+        self.cfg = self._setup_cfg(
+            weights=weights or self._HF_CHECKPOINT,
+            score_thresh_test=score_thresh_test,
+            max_detections=max_detections,
+            min_size_test=min_size_test,
+            max_size_test=max_size_test,
+            num_classes=num_classes,
+            device=device,
+        )
+
+    def _setup_cfg(
+        self,
+        weights: str,
+        score_thresh_test: float,
+        max_detections: int,
+        min_size_test: int,
+        max_size_test: int,
+        num_classes: int,
+        device: str,
+    ):
+        cfg = get_cfg()
+        cfg.merge_from_file(model_zoo.get_config_file(self._ARCHITECTURE))
+
+        # TCD inference settings (from tcd/config/model/detectron2/detectron_mask_rcnn.yaml)
+        cfg.INPUT.MIN_SIZE_TEST = min_size_test
+        cfg.INPUT.MAX_SIZE_TEST = max_size_test
+        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = score_thresh_test
+        cfg.MODEL.RPN.PRE_NMS_TOPK_TEST = 512
+        cfg.MODEL.RPN.POST_NMS_TOPK_TEST = 512
+        cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[32], [64], [128], [256], [512]]
+        cfg.MODEL.ANCHOR_GENERATOR.ASPECT_RATIOS = [[0.5, 1.0, 2.0]]
+        cfg.MODEL.ROI_HEADS.NUM_CLASSES = num_classes
+        cfg.MODEL.DEVICE = device
+        cfg.TEST.DETECTIONS_PER_IMAGE = max_detections
+        cfg.TEST.AUG.ENABLED = False
+
+        cfg.DATASETS.TRAIN = ()
+        cfg.DATASETS.TEST = ()
+        cfg.MODEL.WEIGHTS = weights
+
+        return cfg
+
+
 # future TODO: add module configs for sam2, currently implemented for default configs
