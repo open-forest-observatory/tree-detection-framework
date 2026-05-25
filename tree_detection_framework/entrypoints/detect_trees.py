@@ -18,8 +18,8 @@ def detect_trees(
     detectree2_weights_path: str,
     sam3_checkpoint_path: str,
 ):
-    ortho_path  = preprocessed_local_files["ortho"]
-    chm_path    = preprocessed_local_files["chm"]
+    ortho_path = preprocessed_local_files["ortho"]
+    chm_path = preprocessed_local_files["chm"]
     output_path = detector_dir / "raw_detections.gpkg"
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -27,7 +27,7 @@ def detect_trees(
     if detector == "geometric":
         detect_trees_two_stage(
             CHM_file=Path(chm_path),
-            tree_tops_save_path=output_path, # add tree_crowns_save_path if you want to save tree crowns too
+            tree_tops_save_path=output_path,  # add tree_crowns_save_path if you want to save tree crowns too
             chip_size=int(detection_params.get("chip_size", 2000)),
             chip_stride=int(detection_params.get("chip_stride", 1900)),
             resolution=float(detection_params.get("resolution", 0.2)),
@@ -40,10 +40,18 @@ def detect_trees(
             chip_size=float(detection_params["chip_size"]),
             chip_stride=float(detection_params["chip_stride"]),
             tree_detection_model=detector,
-            resolution=float(detection_params["resolution"]) if detection_params.get("resolution") else None,
+            resolution=(
+                float(detection_params["resolution"])
+                if detection_params.get("resolution")
+                else None
+            ),
             predictions_save_path=str(output_path),
             run_nms=False,
-            batch_size=int(detection_params["batch_size"]) if detection_params.get("batch_size") else None,
+            batch_size=(
+                int(detection_params["batch_size"])
+                if detection_params.get("batch_size")
+                else None
+            ),
             detectree2_weights_path=detectree2_weights_path,
             sam3_checkpoint_path=sam3_checkpoint_path,
         )

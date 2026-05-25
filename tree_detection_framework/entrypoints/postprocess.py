@@ -18,13 +18,13 @@ def postprocess(
     postproc_config_path: Path,
 ):
     raw_detections_path = detector_dir / "raw_detections.gpkg"
-    output_path         = detector_dir / "detections.gpkg"
+    output_path = detector_dir / "detections.gpkg"
 
     # Geometric: skip chain, just height filter
     if not postprocessing_id:
         detections = gpd.read_file(raw_detections_path)
         print(f"[postprocess] Loaded {len(detections)} raw detections.")
-        n_before   = len(detections)
+        n_before = len(detections)
         detections = detections[detections["height"] >= min_tree_height]
         print(f"[postprocess] Height filter: {n_before} -> {len(detections)} trees")
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,7 +49,7 @@ def postprocess(
 
         for step in steps:
             fn_name = step["name"]
-            kwargs  = step.get("args", {})
+            kwargs = step.get("args", {})
 
             fn = getattr(postprocessors, fn_name, None)
             if fn is None:
@@ -70,7 +70,7 @@ def postprocess(
         result = polygons_to_points(result, method="chm_max", chm_path=chm_path)
 
         n_before = len(result)
-        result   = result[result["height"] >= min_tree_height]
+        result = result[result["height"] >= min_tree_height]
         print(f"[postprocess] Height filter: {n_before} -> {len(result)} trees")
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
