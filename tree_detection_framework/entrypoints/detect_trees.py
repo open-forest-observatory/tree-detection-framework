@@ -1,8 +1,13 @@
 import argparse
 import json
 from pathlib import Path
-from tree_detection_framework.entrypoints.detect_geometric_two_stage import detect_trees_two_stage
-from tree_detection_framework.entrypoints.generate_predictions import generate_predictions
+
+from tree_detection_framework.entrypoints.detect_geometric_two_stage import (
+    detect_trees_two_stage,
+)
+from tree_detection_framework.entrypoints.generate_predictions import (
+    generate_predictions,
+)
 
 
 def detect_trees(
