@@ -254,7 +254,10 @@ def split_overlapping_region(
         return (poly1, poly2)
 
     # Compute the voronoi tesselation with the polygons ordered consistently with the input verts
-    voronoi = ordered_voronoi(all_verts)
+    try:
+        voronoi = ordered_voronoi(all_verts)
+    except shapely.errors.GEOSException:  # have a fallback case in case of any failure
+        return (poly1, poly2)
 
     voronoi_gdf = gpd.GeoDataFrame(data={"IDs": vert_IDs}, geometry=list(voronoi.geoms))
 
