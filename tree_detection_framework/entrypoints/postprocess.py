@@ -12,10 +12,12 @@ from tree_detection_framework.evaluation.evaluate import polygons_to_points
 
 def postprocess(
     postprocessing_id: str,
-    detector_dir: Path,
     chm_path: str,
     min_tree_height: float,
     postproc_config_path: Path,
+    detector_dir: Path | None = None,
+    raw_detections_path: Path | None = None,
+    output_path: Path | None = None,
 ):
     """
     Apply postprocessing chain to raw tree detections and save final detections as detections.gpkg
@@ -24,13 +26,20 @@ def postprocess(
     Args:
         postprocessing_id: Postprocessing config ID that corresponds to a chain of postprocessing steps
             defined in `postproc_config_path`. An empty string for geometric detector would apply only height filtering.
-        detector_dir: Directory containing raw_detections.gpkg. detections.gpkg is written here.
         chm_path: Path to the CHM raster (used for height filtering and polygon-to-point conversion).
         min_tree_height: Minimum tree height (meters) used to filter detections.
         postproc_config_path: Path to postprocessing_config.yaml.
+        detector_dir: Directory containing raw_detections.gpkg. detections.gpkg is written here.
+            Used to derive raw_detections_path and output_path if they are not provided.
+        raw_detections_path: Path to raw_detections.gpkg. If not provided, derived from detector_dir.
+        output_path: Path to write detections.gpkg. If not provided, derived from detector_dir.
     """
-    raw_detections_path = detector_dir / "raw_detections.gpkg"
-    output_path = detector_dir / "detections.gpkg"
+    if raw_detections_path is None or output_path is None:
+        if detector_dir is None:
+            raise ValueError("detector_dir must be provided if raw_detections_path or output_path are not specified.")
+    # detect_trees.py writes raw detections to detector_dir / "raw_detections.gpkg", so default to that if not provided 
+    raw_detections_path = raw_detections_path or detector_dir / "raw_detections.gpkg"
+    output_path = output_path or detector_dir / "detections.gpkg"
 
     # Geometric: skip chain, just height filter
     if not postprocessing_id:
@@ -130,8 +139,8 @@ if __name__ == "__main__":
     local_files = json.loads(args.preprocessed_local_files)
     postprocess(
         postprocessing_id=args.postprocessing_id,
-        detector_dir=args.detector_dir,
         chm_path=local_files["chm"],
         min_tree_height=args.min_tree_height,
         postproc_config_path=Path(args.postprocessing_config_file),
+        detector_dir=args.detector_dir,
     )
