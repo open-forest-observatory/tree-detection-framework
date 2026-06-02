@@ -3,10 +3,10 @@ import json
 from pathlib import Path
 
 from tree_detection_framework.entrypoints.detect_geometric_two_stage import (
-    detect_trees_two_stage,
     CHIP_SIZE,
     CHIP_STRIDE,
     RESOLUTION,
+    detect_trees_two_stage,
 )
 from tree_detection_framework.entrypoints.generate_predictions import (
     generate_predictions,
