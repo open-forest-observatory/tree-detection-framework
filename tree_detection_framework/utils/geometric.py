@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 from typing import List, Tuple
 
@@ -256,7 +257,10 @@ def split_overlapping_region(
     # Compute the voronoi tesselation with the polygons ordered consistently with the input verts
     try:
         voronoi = ordered_voronoi(all_verts)
-    except shapely.errors.GEOSException:  # have a fallback case in case of any failure
+    except shapely.errors.GEOSException as e:
+        warnings.warn(
+            f"Voronoi tessellation failed ({e}); returning original polygons unchanged.",
+        )
         return (poly1, poly2)
 
     voronoi_gdf = gpd.GeoDataFrame(data={"IDs": vert_IDs}, geometry=list(voronoi.geoms))
