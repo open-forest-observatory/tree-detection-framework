@@ -36,8 +36,10 @@ def postprocess(
     """
     if raw_detections_path is None or output_path is None:
         if detector_dir is None:
-            raise ValueError("detector_dir must be provided if raw_detections_path or output_path are not specified.")
-    # detect_trees.py writes raw detections to detector_dir / "raw_detections.gpkg", so default to that if not provided 
+            raise ValueError(
+                "detector_dir must be provided if raw_detections_path or output_path are not specified."
+            )
+    # detect_trees.py writes raw detections to detector_dir / "raw_detections.gpkg", so default to that if not provided
     raw_detections_path = raw_detections_path or detector_dir / "raw_detections.gpkg"
     output_path = output_path or detector_dir / "detections.gpkg"
 
