@@ -17,6 +17,18 @@ def postprocess(
     min_tree_height: float,
     postproc_config_path: Path,
 ):
+    """
+    Apply postprocessing chain to raw tree detections and save final detections as detections.gpkg
+    in detector_dir. This script is meant to be run after detect_trees.py.
+
+    Args:
+        postprocessing_id: Postprocessing config ID that corresponds to a chain of postprocessing steps
+            defined in `postproc_config_path`. An empty string for geometric detector would apply only height filtering.
+        detector_dir: Directory containing raw_detections.gpkg. detections.gpkg is written here.
+        chm_path: Path to the CHM raster (used for height filtering and polygon-to-point conversion).
+        min_tree_height: Minimum tree height (meters) used to filter detections.
+        postproc_config_path: Path to postprocessing_config.yaml.
+    """
     raw_detections_path = detector_dir / "raw_detections.gpkg"
     output_path = detector_dir / "detections.gpkg"
 
