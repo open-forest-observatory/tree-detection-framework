@@ -18,6 +18,17 @@ def detect_trees(
     detectree2_weights_path: str,
     sam3_checkpoint_path: str,
 ):
+    """
+    Detect trees using the specified detector and save raw detections.
+
+    Args:
+        detector: Detector name: geometric, deepforest, detectree2, sam2, sam3, or tcd.
+        detection_params: Detection parameters (chip_size, chip_stride, resolution, batch_size, etc.).
+        detector_dir: Directory for detector outputs. raw_detections.gpkg is written here.
+        preprocessed_local_files: Preprocessed local file paths (should have keys "ortho" and "chm").
+        detectree2_weights_path: Path to detectree2 pretrained weights (.pth file).
+        sam3_checkpoint_path: Path to SAM3 checkpoint file.
+    """
     ortho_path = preprocessed_local_files["ortho"]
     chm_path = preprocessed_local_files["chm"]
     output_path = detector_dir / "raw_detections.gpkg"
