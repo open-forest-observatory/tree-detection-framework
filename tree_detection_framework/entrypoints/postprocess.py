@@ -45,12 +45,6 @@ def postprocess(
     if not postprocessing_id:
         detections = gpd.read_file(raw_detections_path)
         print(f"[postprocess] Loaded {len(detections)} raw detections.")
-        n_before = len(detections)
-        detections = detections[detections["height"] >= min_tree_height]
-        print(f"[postprocess] Height filter: {n_before} -> {len(detections)} trees")
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        detections.to_file(output_path)
-        print(f"[postprocess] Saved {len(detections)} detections to {output_path}")
 
     # CV detectors: full postprocessor chain
     else:
@@ -89,15 +83,15 @@ def postprocess(
         # Convert polygons to points, sampling CHM max within each crown
         print(f"[postprocess] Converting polygons to points via chm_max")
         result = polygons_to_points(result, method="chm_max", chm_path=chm_path)
+        detections = result.drop(columns="crown_geometry")
 
-        n_before = len(result)
-        result = result[result["height"] >= min_tree_height]
-        print(f"[postprocess] Height filter: {n_before} -> {len(result)} trees")
-
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        result = result.drop(columns="crown_geometry")
-        result.to_file(output_path)
-        print(f"[postprocess] Saved {len(result)} detections to {output_path}")
+    # Apply minimum height filter and save final detections
+    n_before = len(detections)
+    detections = detections[detections["height"] >= min_tree_height]
+    print(f"[postprocess] Height filter: {n_before} -> {len(detections)} trees")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    detections.to_file(output_path)
+    print(f"[postprocess] Saved {len(detections)} detections to {output_path}")
 
 
 def parse_args():
