@@ -80,6 +80,7 @@ def parse_args():
     parser.add_argument(
         "--detector",
         required=True,
+        choices=["geometric", "deepforest", "detectree2", "sam2", "sam3", "tcd"],
         help="Detector name: geometric, deepforest, detectree2, sam2, sam3, or tcd.",
     )
     parser.add_argument(
