@@ -4,6 +4,9 @@ from pathlib import Path
 
 from tree_detection_framework.entrypoints.detect_geometric_two_stage import (
     detect_trees_two_stage,
+    CHIP_SIZE,
+    CHIP_STRIDE,
+    RESOLUTION,
 )
 from tree_detection_framework.entrypoints.generate_predictions import (
     generate_predictions,
@@ -39,9 +42,9 @@ def detect_trees(
         detect_trees_two_stage(
             CHM_file=Path(chm_path),
             tree_tops_save_path=output_path,  # add tree_crowns_save_path if you want to save tree crowns too
-            chip_size=int(detection_params.get("chip_size", 2000)),
-            chip_stride=int(detection_params.get("chip_stride", 1900)),
-            resolution=float(detection_params.get("resolution", 0.2)),
+            chip_size=int(detection_params.get("chip_size", CHIP_SIZE)),
+            chip_stride=int(detection_params.get("chip_stride", CHIP_STRIDE)),
+            resolution=float(detection_params.get("resolution", RESOLUTION)),
         )
 
     else:
