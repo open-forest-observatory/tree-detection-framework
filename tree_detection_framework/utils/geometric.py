@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 from typing import List, Tuple
 
@@ -210,6 +211,16 @@ def split_overlapping_region(
     p1_min_inter = poly1.difference(intersection)
     p2_min_inter = poly2.difference(intersection)
 
+    # If either differenced region is not a proper Polygon with area, the Voronoi
+    # approach can't work. Then, return the originals unchanged rather than crashing.
+    if (
+        not isinstance(p1_min_inter, shapely.Polygon)
+        or not isinstance(p2_min_inter, shapely.Polygon)
+        or p1_min_inter.area == 0
+        or p2_min_inter.area == 0
+    ):
+        return (poly1, poly2)
+
     # Compute the scale of the objects to understand how densely to sample
     p1_size = max(
         p1_min_inter.bounds[2] - p1_min_inter.bounds[0],
@@ -239,8 +250,18 @@ def split_overlapping_region(
     # Create a multipoint with the vertices from both polygons
     all_verts = shapely.MultiPoint(boundary1 + boundary2)
 
+    # If all points are collinear, voronoi_polygons fails with a GEOS LinearRing error
+    if all_verts.convex_hull.area == 0:
+        return (poly1, poly2)
+
     # Compute the voronoi tesselation with the polygons ordered consistently with the input verts
-    voronoi = ordered_voronoi(all_verts)
+    try:
+        voronoi = ordered_voronoi(all_verts)
+    except shapely.errors.GEOSException as e:
+        warnings.warn(
+            f"Voronoi tessellation failed ({e}); returning original polygons unchanged.",
+        )
+        return (poly1, poly2)
 
     voronoi_gdf = gpd.GeoDataFrame(data={"IDs": vert_IDs}, geometry=list(voronoi.geoms))
 
