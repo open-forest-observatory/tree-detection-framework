@@ -2,6 +2,7 @@ import argparse
 import json
 from pathlib import Path
 
+from tree_detection_framework.constants import CHECKPOINTS_FOLDER
 from tree_detection_framework.entrypoints.detect_geometric_two_stage import (
     CHIP_SIZE,
     CHIP_STRIDE,
@@ -62,8 +63,14 @@ def detect_trees(
                 if detection_params.get("batch_size")
                 else None
             ),
-            detectree2_weights_path=detection_params.get("detectree2_weights_path"),
-            sam3_checkpoint_path=detection_params.get("sam3_checkpoint_path"),
+            detectree2_weights_path=detection_params.get(
+                "detectree2_weights_path",
+                Path(CHECKPOINTS_FOLDER, "230103_randresize_full.pth"),
+            ),
+            sam3_checkpoint_path=detection_params.get(
+                "sam3_checkpoint_path",
+                Path(CHECKPOINTS_FOLDER, "sam3.pt"),
+            ),
         )
 
     print(f"[detect] Detections saved to {output_path}")
