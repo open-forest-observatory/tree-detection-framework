@@ -2,6 +2,7 @@ import argparse
 import json
 from pathlib import Path
 
+from tree_detection_framework.constants import CHECKPOINTS_FOLDER
 from tree_detection_framework.entrypoints.detect_geometric_two_stage import (
     CHIP_SIZE,
     CHIP_STRIDE,
@@ -18,19 +19,15 @@ def detect_trees(
     detection_params: dict,
     detector_dir: Path,
     preprocessed_local_files: dict,
-    detectree2_weights_path: str,
-    sam3_checkpoint_path: str,
 ):
     """
     Detect trees using the specified detector and save raw detections.
 
     Args:
         detector: Detector name: geometric, deepforest, detectree2, sam2, sam3, or tcd.
-        detection_params: Detection parameters (chip_size, chip_stride, resolution, batch_size, etc.).
+        detection_params: Detection parameters (chip_size, chip_stride, resolution, batch_size, detectree2_weights_path, sam3_checkpoint_path, etc.).
         detector_dir: Directory for detector outputs. raw_detections.gpkg is written here.
         preprocessed_local_files: Preprocessed local file paths (should have keys "ortho" and "chm").
-        detectree2_weights_path: Path to detectree2 pretrained weights (.pth file).
-        sam3_checkpoint_path: Path to SAM3 checkpoint file.
     """
     ortho_path = preprocessed_local_files["ortho"]
     chm_path = preprocessed_local_files["chm"]
@@ -66,8 +63,14 @@ def detect_trees(
                 if detection_params.get("batch_size")
                 else None
             ),
-            detectree2_weights_path=detectree2_weights_path,
-            sam3_checkpoint_path=sam3_checkpoint_path,
+            detectree2_weights_path=detection_params.get(
+                "detectree2_weights_path",
+                Path(CHECKPOINTS_FOLDER, "230103_randresize_full.pth"),
+            ),
+            sam3_checkpoint_path=detection_params.get(
+                "sam3_checkpoint_path",
+                Path(CHECKPOINTS_FOLDER, "sam3.pt"),
+            ),
         )
 
     print(f"[detect] Detections saved to {output_path}")
@@ -99,16 +102,6 @@ def parse_args():
         required=True,
         help="JSON string of preprocessed local file paths (ortho, chm, etc.).",
     )
-    parser.add_argument(
-        "--detectree2-weights-path",
-        required=True,
-        help="Path to detectree2 pretrained weights (.pth file).",
-    )
-    parser.add_argument(
-        "--sam3-checkpoint-path",
-        required=True,
-        help="Path to SAM3 checkpoint file.",
-    )
     return parser.parse_args()
 
 
@@ -119,6 +112,4 @@ if __name__ == "__main__":
         detection_params=json.loads(args.detection_params_json),
         detector_dir=args.detector_dir,
         preprocessed_local_files=json.loads(args.preprocessed_local_files),
-        detectree2_weights_path=args.detectree2_weights_path,
-        sam3_checkpoint_path=args.sam3_checkpoint_path,
     )
