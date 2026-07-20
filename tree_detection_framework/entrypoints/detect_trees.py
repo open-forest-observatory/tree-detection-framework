@@ -42,8 +42,16 @@ def detect_trees(
             chip_size=int(detection_params.get("chip_size", CHIP_SIZE)),
             chip_stride=int(detection_params.get("chip_stride", CHIP_STRIDE)),
             resolution=float(detection_params.get("resolution", RESOLUTION)),
-            raster_blur_sigma=float(detection_params["raster_blur_sigma"]) if detection_params.get("raster_blur_sigma") else None,
-            edge_suppression_meters=float(detection_params["edge_suppression_meters"]) if detection_params.get("edge_suppression_meters") else None,
+            raster_blur_sigma=(
+                float(detection_params["raster_blur_sigma"])
+                if detection_params.get("raster_blur_sigma")
+                else None
+            ),
+            edge_suppression_meters=(
+                float(detection_params["edge_suppression_meters"])
+                if detection_params.get("edge_suppression_meters")
+                else None
+            ),
         )
 
     else:
