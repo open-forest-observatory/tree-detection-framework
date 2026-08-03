@@ -13,6 +13,31 @@ from tree_detection_framework.entrypoints.generate_predictions import (
     generate_predictions,
 )
 
+# Main required parameters by detect_trees or generate_predictions; everything
+# else in detection_params is forwarded to the detector constructor via detector_kwargs.
+_STANDARD_PARAMS = {
+    "chip_size",
+    "chip_stride",
+    "chip_overlap_percentage",
+    "resolution",
+    "batch_size",
+    "detectree2_weights_path",
+    "sam2_checkpoint_path",
+    "sam3_checkpoint_path",
+    "sam3_huggingface_token",
+}
+
+
+def _coerce_numeric(value):
+    """Convert a string to int or float if possible; return the original value otherwise."""
+    try:
+        f = float(value)
+        if f == int(f):
+            return int(f)
+        return f
+    except (ValueError, TypeError):
+        return value
+
 
 def detect_trees(
     detector: str,
@@ -46,6 +71,11 @@ def detect_trees(
 
     else:
         # CV-based detectors: deepforest, detectree2, sam2, sam3, tcd
+        detector_kwargs = {
+            k: _coerce_numeric(v)
+            for k, v in detection_params.items()
+            if k not in _STANDARD_PARAMS
+        }
         generate_predictions(
             raster_folder_path=ortho_path,
             chip_size=float(detection_params["chip_size"]),
@@ -71,6 +101,7 @@ def detect_trees(
                 "sam3_checkpoint_path",
                 Path(CHECKPOINTS_FOLDER, "sam3.pt"),
             ),
+            detector_kwargs=detector_kwargs,
         )
 
     print(f"[detect] Detections saved to {output_path}")
