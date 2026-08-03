@@ -29,6 +29,17 @@ class SAMV2Detector(Detector):
         sam2_checkpoint=Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt"),
         model_cfg="configs/sam2.1/sam2.1_hiera_l.yaml",
         postprocessors=None,
+        score_metric="stability_score",
+        points_per_side=64,
+        points_per_batch=128,
+        pred_iou_thresh=0.7,
+        stability_score_thresh=0.92,
+        stability_score_offset=0.7,
+        crop_n_layers=1,
+        box_nms_thresh=0.7,
+        crop_n_points_downscale_factor=2,
+        min_mask_region_area=25.0,
+        use_m2m=True,
     ):
         """
         Create a SAM2 detector.
@@ -37,14 +48,31 @@ class SAMV2Detector(Detector):
             sam2_checkpoint (Path): Path to the SAM2 checkpoint.
             model_cfg (str): Path to the SAM2 model config.
             postprocessors (list, optional): See docstring for Detector class. Defaults to None.
+            score_metric (str): Metric to use as prediction score. Either "stability_score" or
+                "predicted_iou". Defaults to "stability_score".
+            points_per_side (int): Number of points sampled along each side of the image.
+            points_per_batch (int): Number of points processed simultaneously.
+            pred_iou_thresh (float): Threshold for filtering masks by predicted IoU.
+            stability_score_thresh (float): Threshold for filtering masks by stability score.
+            stability_score_offset (float): Offset applied when computing stability score.
+            crop_n_layers (int): Number of crop layers to use.
+            box_nms_thresh (float): NMS threshold for bounding boxes.
+            crop_n_points_downscale_factor (int): Point downscale factor per crop layer.
+            min_mask_region_area (float): Minimum area (pixels) for mask regions.
+            use_m2m (bool): Whether to use mask-to-mask refinement.
         """
         if not SAM2_AVAILABLE:
             raise ImportError(
                 "SAMV2Detector requires SAM2. Please install it to use this detector."
             )
+        if score_metric not in ("stability_score", "predicted_iou"):
+            raise ValueError(
+                f"score_metric must be 'stability_score' or 'predicted_iou', got '{score_metric}'"
+            )
         super().__init__(postprocessors=postprocessors)
 
         self.device = device
+        self.score_metric = score_metric
 
         self.sam2 = build_sam2(
             model_cfg, sam2_checkpoint, device=self.device, apply_postprocessing=False
@@ -53,16 +81,16 @@ class SAMV2Detector(Detector):
         # Michelle Chen & Jane Wu based on qualitative experiments
         self.mask_generator = SAM2AutomaticMaskGenerator(
             model=self.sam2,
-            points_per_side=64,
-            points_per_batch=128,
-            pred_iou_thresh=0.7,
-            stability_score_thresh=0.92,
-            stability_score_offset=0.7,
-            crop_n_layers=1,
-            box_nms_thresh=0.7,
-            crop_n_points_downscale_factor=2,
-            min_mask_region_area=25.0,
-            use_m2m=True,
+            points_per_side=points_per_side,
+            points_per_batch=points_per_batch,
+            pred_iou_thresh=pred_iou_thresh,
+            stability_score_thresh=stability_score_thresh,
+            stability_score_offset=stability_score_offset,
+            crop_n_layers=crop_n_layers,
+            box_nms_thresh=box_nms_thresh,
+            crop_n_points_downscale_factor=crop_n_points_downscale_factor,
+            min_mask_region_area=min_mask_region_area,
+            use_m2m=use_m2m,
         )
 
     def call_predict(self, batch):
@@ -136,7 +164,7 @@ class SAMV2Detector(Detector):
             bounding_boxes = [box(*polygon.bounds) for polygon in shapely_objects]
 
             # Get prediction scores
-            scores = [dic["stability_score"] for dic in pred]
+            scores = [dic[self.score_metric] for dic in pred]
             all_data_dicts.append({"score": scores, "bbox": bounding_boxes})
 
         return all_geometries, all_data_dicts
