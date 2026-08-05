@@ -165,12 +165,13 @@ class SAMV2Detector(Detector):
 
             # Get prediction scores
             scores = [dic[self.score_metric] for dic in pred]
-            all_data_dicts.append({
-                "score": scores,
-                "bbox": bounding_boxes,
-                "predicted_iou": [dic["predicted_iou"] for dic in pred],
-                "stability_score": [dic["stability_score"] for dic in pred],
-            })
-
+            all_data_dicts.append(
+                {
+                    "score": scores,
+                    "bbox": bounding_boxes,
+                    "predicted_iou": [dic["predicted_iou"] for dic in pred],
+                    "stability_score": [dic["stability_score"] for dic in pred],
+                }
+            )
 
         return all_geometries, all_data_dicts
