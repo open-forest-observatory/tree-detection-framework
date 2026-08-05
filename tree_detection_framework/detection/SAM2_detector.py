@@ -29,7 +29,7 @@ class SAMV2Detector(Detector):
         sam2_checkpoint=Path(CHECKPOINTS_FOLDER, "sam2.1_hiera_large.pt"),
         model_cfg="configs/sam2.1/sam2.1_hiera_l.yaml",
         postprocessors=None,
-        score_metric="stability_score",
+        score_metric="predicted_iou",
         points_per_side=64,
         points_per_batch=128,
         pred_iou_thresh=0.7,
@@ -49,7 +49,7 @@ class SAMV2Detector(Detector):
             model_cfg (str): Path to the SAM2 model config.
             postprocessors (list, optional): See docstring for Detector class. Defaults to None.
             score_metric (str): Metric to use as prediction score. Either "stability_score" or
-                "predicted_iou". Defaults to "stability_score".
+                "predicted_iou". Defaults to "predicted_iou".
             points_per_side (int): Number of points sampled along each side of the image.
             points_per_batch (int): Number of points processed simultaneously.
             pred_iou_thresh (float): Threshold for filtering masks by predicted IoU.
