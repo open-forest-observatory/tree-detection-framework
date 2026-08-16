@@ -259,3 +259,24 @@ class TestRemoveMaskedDetections:
         expected_map = {10: [2], 30: [2, 3, 4, 5, 6], 50: [2, 3, 4, 5, 6, 7, 8, 9, 10]}
         for rds in filtered_detection_list:
             check_expected_rds(rds, use_rds, expected_map[ellipse_radius])
+
+    @pytest.mark.parametrize(
+        "use_rds,geo_extension",
+        ([True, None], [False, ".gpkg"], [False, ".geojson"], [False, ".shp"]),
+    )
+    def test_empty(self, tmp_path, use_rds, geo_extension):
+
+        # Make an empty set of detections
+        detection_list = get_detections([], use_rds, tmp_path, geo_extension)
+
+        # Create a mask
+        mask = np.ones(shape=(150, 150), dtype=bool)
+
+        # Filter the empty detections
+        filtered_detection_list = remove_masked_detections(
+            region_detection_sets=detection_list,
+            mask_iterator=repeat(mask),
+            threshold=0.5,
+        )
+        for rds in filtered_detection_list:
+            check_expected_rds(rds, use_rds, [])

@@ -465,7 +465,7 @@ class RegionDetectionsSet:
         self,
         region_ID_key: Optional[str] = "region_ID",
         CRS: Optional[pyproj.CRS] = None,
-    ):
+    ) -> RegionDetections:
         """Get the merged detections across all regions with an additional field specifying which region
         the detection came from.
 
@@ -478,7 +478,7 @@ class RegionDetectionsSet:
                 be used. Defaults to None.
 
         Returns:
-            gpd.GeoDataFrame: Detections in the requested CRS
+            RegionDetections: Detections in the requested CRS
         """
 
         # Get the detections from each region detection object as geodataframes
