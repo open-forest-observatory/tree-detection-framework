@@ -139,7 +139,11 @@ Follow steps in `tree-detection-framework/examples/predict_detections_sam3.ipynb
 
 
 ## Docker
-An alternative approach to a local installation is using the pre-built docker image. At this point, this image only supports the dependencies for the DeepForest and geometric detectors. The [packages](david-paired-photogrammetry/default-run) tab of the repository provides the command to pull the image.
+An alternative approach to a local installation is using the pre-built docker image. At this point, this image only supports the dependencies for the DeepForest and geometric detectors. The image is published to the GitHub Container Registry and can be pulled with:
+```
+docker pull ghcr.io/open-forest-observatory/tree-detection-framework:latest
+```
+The `latest` tag tracks the `main` branch. All available tags are listed on the [packages](https://github.com/orgs/open-forest-observatory/packages?repo_name=tree-detection-framework) tab of the repository.
 
 ## Use
 The module code is in the `tree_detection_framework` folder. Once installed using the `poetry`
