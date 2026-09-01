@@ -1,12 +1,8 @@
 # Running with Docker
 
-Every command in this section can be run from the pre-built Docker image instead of a local
+Every command in this section can be run from the pre-built Docker image (`ghcr.io/open-forest-observatory/tree-detection-framework:latest`) instead of a local
 installation. This avoids installing Poetry, conda, Detectron2, SAM2, and SAM3 on your own machine,
-and it is the quickest way to run a detector on a new system.
-
-```
-docker pull ghcr.io/open-forest-observatory/tree-detection-framework:latest
-```
+and it is the quickest way to run a detector on a new system. It does require having Docker installed on your machine, which is assumed to be already completed.
 
 ## The general form
 
