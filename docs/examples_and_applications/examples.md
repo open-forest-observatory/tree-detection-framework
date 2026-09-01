@@ -117,3 +117,4 @@ before and after makes the difference visible — and the crowns are saved.
 
 The same two-stage workflow is available as a command line script; see
 [`detect_geometric_two_stage`](../command_line_usage/detect_geometric_two_stage.md).
+
