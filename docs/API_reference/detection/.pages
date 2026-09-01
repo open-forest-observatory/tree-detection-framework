@@ -1,0 +1,8 @@
+title: Detection
+nav:
+  - index.md
+  - detector.md
+  - models.md
+  - SAM2_detector.md
+  - SAM3_detector.md
+  - region_detections.md

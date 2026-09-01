@@ -1,0 +1,7 @@
+nav:
+  - "← OFO home": https://openforestobservatory.org/
+  - index.md
+  - getting_started
+  - examples_and_applications
+  - command_line_usage
+  - API_reference

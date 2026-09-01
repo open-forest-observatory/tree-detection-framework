@@ -1,0 +1,8 @@
+title: Utils
+nav:
+  - index.md
+  - raster.md
+  - geometric.md
+  - geospatial.md
+  - detection.md
+  - benchmarking.md

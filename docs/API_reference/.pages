@@ -1,0 +1,9 @@
+title: API Reference
+nav:
+  - entrypoints.md
+  - preprocessing
+  - detection
+  - postprocessing.md
+  - evaluation.md
+  - utils
+  - constants.md

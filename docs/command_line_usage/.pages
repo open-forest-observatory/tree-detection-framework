@@ -1,0 +1,10 @@
+title: Command Line Usage
+nav:
+  - index.md
+  - generate_predictions.md
+  - detect_geometric_two_stage.md
+  - detect_in_raw_images.md
+  - tile_data.md
+  - visualize_detections.md
+  - detect_trees.md
+  - postprocess.md
