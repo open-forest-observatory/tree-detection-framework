@@ -1,0 +1,61 @@
+/* Previous/next links rendered at the end of the page content.
+   Colors come from Material's CSS variables so both the light and dark
+   schemes are handled without a second rule set. */
+
+.tdf-page-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin: 2.4rem 0 0.8rem;
+  padding-top: 1.2rem;
+  border-top: 0.05rem solid var(--md-default-fg-color--lightest);
+}
+
+.tdf-page-nav__link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.8rem 1rem;
+  border: 0.05rem solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  color: var(--md-default-fg-color);
+  text-decoration: none;
+  transition: border-color 125ms, background-color 125ms;
+}
+
+.tdf-page-nav__link:hover,
+.tdf-page-nav__link:focus-visible {
+  border-color: var(--md-accent-fg-color);
+  background-color: var(--md-code-bg-color);
+  color: var(--md-default-fg-color);
+}
+
+/* Anchor the "next" card to the right column, so it stays right-aligned even
+   on the first page of the site where there is no "previous" card. */
+.tdf-page-nav__link--next {
+  grid-column: 2;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.tdf-page-nav__direction {
+  font-size: 0.7rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.tdf-page-nav__title {
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* Stack the cards on narrow screens. */
+@media screen and (max-width: 44.9375em) {
+  .tdf-page-nav {
+    grid-template-columns: 1fr;
+  }
+  .tdf-page-nav__link--next {
+    grid-column: 1;
+    align-items: flex-start;
+    text-align: left;
+  }
+}
