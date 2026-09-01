@@ -2,12 +2,12 @@ site_name: Tree Detection Framework Documentation
 
 theme:
   name: material
+  custom_dir: overrides
   features:
     - navigation.tabs
     - navigation.sections
     - navigation.instant
     - navigation.indexes
-    - navigation.footer
     - navigation.top
     - search.suggest
     - search.highlight
@@ -26,6 +26,9 @@ theme:
         icon: material/toggle-switch
         name: Switch to light mode
       accent: lime
+
+extra_css:
+  - stylesheets/page-nav.css
 
 markdown_extensions:
   - pymdownx.highlight:
