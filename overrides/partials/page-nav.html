@@ -1,0 +1,46 @@
+{#-
+  Previous/next links, rendered at the end of the page content by main.html.
+
+  page.previous_page / page.next_page are the neighbors in the fully flattened
+  nav, so on their own they cross section boundaries: the last page of Getting
+  Started would link into Examples. The macro below walks up the nav tree to
+  find a page's top-level section (the tabs in the header), and each link is
+  only rendered when the neighbor shares that section. A page at the start or
+  end of its section therefore shows only one button, and a section with a
+  single page shows none.
+-#}
+{%- macro section_root(item) -%}
+  {%- set ns = namespace(node=item) -%}
+  {#- Nav nesting is only a few levels deep, so a bounded loop reaches the root. -#}
+  {%- for _ in range(8) -%}
+    {%- if ns.node is not none and ns.node.parent is not none -%}
+      {%- set ns.node = ns.node.parent -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{- ns.node.title if ns.node is not none else "" -}}
+{%- endmacro -%}
+
+{%- set current_root = section_root(page) if page else "" -%}
+{%- set previous_page = page.previous_page
+      if page and page.previous_page
+      and section_root(page.previous_page) == current_root -%}
+{%- set next_page = page.next_page
+      if page and page.next_page
+      and section_root(page.next_page) == current_root -%}
+
+{% if previous_page or next_page %}
+  <nav class="tdf-page-nav" aria-label="Page navigation">
+    {% if previous_page %}
+      <a class="tdf-page-nav__link tdf-page-nav__link--prev" href="{{ previous_page.url | url }}" rel="prev">
+        <span class="tdf-page-nav__direction">&larr; {{ lang.t("footer.previous") }}</span>
+        <span class="tdf-page-nav__title">{{ previous_page.title }}</span>
+      </a>
+    {% endif %}
+    {% if next_page %}
+      <a class="tdf-page-nav__link tdf-page-nav__link--next" href="{{ next_page.url | url }}" rel="next">
+        <span class="tdf-page-nav__direction">{{ lang.t("footer.next") }} &rarr;</span>
+        <span class="tdf-page-nav__title">{{ next_page.title }}</span>
+      </a>
+    {% endif %}
+  </nav>
+{% endif %}

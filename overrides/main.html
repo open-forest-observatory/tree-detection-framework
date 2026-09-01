@@ -1,0 +1,16 @@
+{#-
+  Renders the previous/next page links at the end of the page content, rather
+  than in the footer bar. Material's built-in `navigation.footer` feature puts
+  them below the content in the footer, where they read as site chrome and are
+  easy to miss; this block places the same links inside md-content__inner so
+  they sit with the prose.
+
+  `navigation.footer` is intentionally left out of theme.features in mkdocs.yml
+  so the links are not also rendered in the footer.
+-#}
+{% extends "base.html" %}
+
+{% block content %}
+  {{ super() }}
+  {% include "partials/page-nav.html" %}
+{% endblock %}

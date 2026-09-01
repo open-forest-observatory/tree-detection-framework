@@ -1,0 +1,5 @@
+title: Getting Started
+nav:
+  - installation.md
+  - data.md
+  - ...

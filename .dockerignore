@@ -3,3 +3,5 @@ sandbox/
 examples/
 checkpoints/
 train_outputs/
+docs/
+site/
