@@ -39,6 +39,9 @@ Every script accepts `--help`, which prints the same information from the script
 python -m tree_detection_framework.entrypoints.generate_predictions --help
 ```
 
+If you would rather not install anything, all of these commands can be run from the pre-built
+Docker image instead. See [Running with Docker](running_with_docker.md).
+
 ## Reading these pages
 
 Each argument is listed with:

@@ -112,8 +112,9 @@ line.
 
 ## Docker
 
-An alternative to a local installation is the pre-built Docker image. At this point, this image
-only supports the dependencies for the DeepForest and geometric detectors.
+An alternative to a local installation is the pre-built Docker image. It bundles the dependencies
+for every supported detector — including Detectron2, SAM2, and SAM3, which are the fiddliest parts
+of the local install — and ships with the Detectree2, SAM2, and TCD weights already downloaded.
 
 The image is published to the GitHub Container Registry and can be pulled with:
 
@@ -124,6 +125,16 @@ docker pull ghcr.io/open-forest-observatory/tree-detection-framework:latest
 The `latest` tag tracks the `main` branch. All available tags are listed on the
 [packages](https://github.com/orgs/open-forest-observatory/packages?repo_name=tree-detection-framework)
 tab of the repository.
+
+Two detectors still need something at runtime:
+
+* **DeepForest** downloads its own weights from GitHub the first time it runs, so the container
+  needs network access.
+* **SAM3** weights are gated behind a HuggingFace access request, so they must be mounted into the
+  container or downloaded with a token.
+
+See [Running with Docker](../command_line_usage/running_with_docker.md) for how to mount your data,
+get results back out, and run each entrypoint from the image.
 
 ## Building the documentation
 

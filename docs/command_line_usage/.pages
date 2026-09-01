@@ -1,6 +1,7 @@
 title: Command Line Usage
 nav:
   - index.md
+  - running_with_docker.md
   - generate_predictions.md
   - detect_geometric_two_stage.md
   - detect_in_raw_images.md
