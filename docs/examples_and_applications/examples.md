@@ -1,9 +1,10 @@
 # Examples
 
-The [`examples`](https://github.com/open-forest-observatory/tree-detection-framework/tree/main/examples)
-folder contains the maintained, end-to-end workflows for TDF. All of them use the Emerald Point
-example data described in [Data](../getting_started/data.md), and all of them follow the same
-overall shape:
+The
+[`examples`](https://github.com/open-forest-observatory/tree-detection-framework/tree/main/examples)
+folder contains the maintained, end-to-end workflows for TDF, in the form of Jupyter notebooks. All
+of them use the Emerald Point example data described in [Data](../getting_started/data.md), and all
+of them follow the same overall shape:
 
 1. Build a dataloader that chips a large georeferenced raster on the fly.
 2. Construct a detector.
