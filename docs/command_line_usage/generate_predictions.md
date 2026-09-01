@@ -69,8 +69,7 @@ python -m tree_detection_framework.entrypoints.generate_predictions \
 
 !!! note "How the output file is written depends on `--run-nms`"
     With `--run-nms`, the tiles are merged and a single flat layer of detections is written. Without
-    it, the per-tile structure is preserved in the output file instead, which is what
-    [`postprocess`](postprocess.md) expects to read back.
+    it, the per-tile structure is preserved in the output file instead. See [Output](#output) below.
 
 ## Model checkpoint options
 
@@ -105,3 +104,44 @@ Example:
 ```
 --detector-kwargs '{"points_per_side": 32, "pred_iou_thresh": 0.6}'
 ```
+
+## Output
+
+One file, written to the path you give as `--predictions-save-path`. **If you omit that argument,
+nothing is saved** — the detections are computed and discarded (useful only with
+`--view-predictions-plot`). Parent directories are created if needed. The format is inferred from
+the extension: use `.gpkg` for GeoPackage or `.geojson` for GeoJSON.
+
+Everything is written in the CRS of the input raster, unless `--output-CRS` overrides it.
+
+**The structure of the file depends on `--run-nms`**, and the two forms are not interchangeable.
+
+### With `--run-nms`
+
+A single flat layer: overlapping tiles are merged, duplicates suppressed, and low-confidence
+detections dropped. This is the form you want for analysis or for loading into QGIS.
+
+| Column | Description |
+| --- | --- |
+| `geometry` | Bounding box (DeepForest) or polygon (Detectree2, SAM2, SAM3, TCD) for each tree. |
+| `score` | Confidence score. All rows satisfy `score >= --min-confidence`. |
+| `unique_ID` | Identifier assigned during the merge. |
+| `region_ID` | Zero-based index of the tile the detection came from. |
+
+Detector-specific columns are carried through as well: SAM2 adds `predicted_iou` and
+`stability_score`, and DeepForest adds `labels`.
+
+### Without `--run-nms`
+
+A GeoPackage with **two layers**, preserving the tile structure:
+
+| Layer | Contents |
+| --- | --- |
+| `detections` | All detections from all tiles, each tagged with a `region_ID` column identifying its tile. Still contains the same tree detected once per overlapping chip. |
+| `bounds` | The footprint of each tile, one row per tile with a matching `region_ID`. Tiles that produced no detections still appear here. |
+
+This is the form [`postprocess`](postprocess.md) expects to read back, since reconstructing the
+per-tile set is what allows boundary-aware cleanup. Note that `.geojson` cannot hold multiple
+layers, so use `.gpkg` in this mode.
+
+`--view-predictions-plot` writes nothing to disk; it opens a window and blocks until you close it.

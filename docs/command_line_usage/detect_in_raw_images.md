@@ -54,8 +54,29 @@ These are positional: give them in this order, with no flag in front.
 * After prediction, detections extending past the bounds of the image are removed, and overlapping
   detections within each image are suppressed with non-maximum suppression. Both steps are automatic
   and have no flags.
-* Results are written as one `.gpkg` per input image, named after the image, under the mirrored
-  subdirectory structure.
 
-To render these detections on top of the source images, see
-[`visualize_detections`](visualize_detections.md), which is designed to consume this output.
+## Output
+
+**One GeoPackage per input image**, written under `out_dir` (the second positional argument), which
+is created if it does not exist. There is no single combined file — if you need one, merge them
+afterwards.
+
+| | |
+| --- | --- |
+| Path | `<out_dir>/<same relative path as the image>/<image name>.gpkg` |
+| Naming | The image's extension is replaced with `.gpkg`, so `DJI_0123.JPG` produces `DJI_0123.gpkg`. |
+| Structure | The subdirectory layout of `image_dir` is mirrored. An image at `image_dir/flight1/north/DJI_0123.JPG` produces `out_dir/flight1/north/DJI_0123.gpkg`. Intermediate directories are created as needed. |
+
+Each file is a single-layer GeoPackage with one row per detection: a `geometry` column (bounding
+box for DeepForest, polygon for Detectree2 and SAM2), a `score` column, and any detector-specific
+columns — SAM2 adds `predicted_iou` and `stability_score`.
+
+!!! warning "These coordinates are not geospatial"
+    Raw drone images are not georeferenced, so the geometries are in **pixel coordinates relative to
+    each image**, and the files carry no CRS. They cannot be overlaid on a map or combined across
+    images without first being projected. For detections in real-world coordinates, run
+    [`generate_predictions`](generate_predictions.md) against an orthomosaic instead.
+
+The output path is printed on completion. To render these detections on top of the source images,
+see [`visualize_detections`](visualize_detections.md), which is designed to consume this output —
+it pairs files by name, which is why the naming convention above matters.

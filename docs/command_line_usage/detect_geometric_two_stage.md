@@ -96,6 +96,42 @@ Passed via `--crown-segmentation-kwargs`, as a quoted JSON object. Only relevant
 
 ## Output
 
-The tree tops are written as points. If crowns were requested, they are written as polygons, one
-crown per tree top, each carrying the `treetop_unique_ID` of the tree top that seeded it — so the
-two files can be joined.
+Between one and two files, written to the paths you gave as arguments. Nothing else is written, and
+no directory structure is created beyond the parent folders of those two paths (which are created
+if they do not exist).
+
+| File | Path | When |
+| --- | --- | --- |
+| Tree tops | the second positional argument, `tree_tops_save_path` | always |
+| Tree crowns | the value of `--tree-crowns-save-path` | only if that flag is given |
+
+The file format is inferred from the extension you use, via GeoPandas' `to_file`. Use `.gpkg` for
+GeoPackage or `.geojson` for GeoJSON. Both files are written in the CRS of the input CHM.
+
+**Tree tops** — one **point** per detected tree, with these columns:
+
+| Column | Description |
+| --- | --- |
+| `geometry` | Point at the detected treetop location. |
+| `height` | Height of the tree at that point, in the units of the CHM (normally meters). |
+| `score` | Confidence score. By default this is the `"distance"` feature, meaning distance from the tile edge, so detections nearer the middle of their tile score higher. |
+| `unique_ID` | Identifier assigned when the per-tile detections are merged. This is the key that the crowns file refers back to. |
+| `region_ID` | Zero-based index of the tile the detection came from. |
+
+If `--edge-suppression-meters` was given, tree tops within that distance of the valid raster edge
+have already been removed from this file.
+
+**Tree crowns** — one **polygon** per tree top, with these columns:
+
+| Column | Description |
+| --- | --- |
+| `geometry` | Polygon boundary of the crown. |
+| `height` | Height of the tree top that seeded this crown. |
+| `score` | Confidence score, `"distance"` by default. |
+| `treetop_unique_ID` | The `unique_ID` of the tree top that seeded this crown. |
+
+Exactly one crown is kept per tree top — where several tiles produced a crown for the same tree,
+the one whose tree top sat closest to the center of its tile wins. Because `treetop_unique_ID`
+matches `unique_ID` in the tree tops file, the two can be joined on that key to get height and
+crown geometry together. If `--edge-suppression-meters` was given, crowns belonging to suppressed
+tree tops are dropped from this file too, so the two files stay consistent.

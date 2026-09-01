@@ -52,5 +52,16 @@ not. If you see that error, the usual cause is a wrong `--image-ext`.
 
 ## Output
 
-One PNG per visualized image, named after the detection file's stem, written at 300 dpi into
-`out_dir`.
+One **PNG image** per visualized detection file, written directly into `out_dir` (the third
+positional argument). The directory is created if it does not exist; it is not cleared first, so
+PNGs from an earlier run with different settings remain unless you remove them.
+
+| | |
+| --- | --- |
+| Path | `<out_dir>/<name>.png` |
+| Naming | `<name>` is the stem of the detection file, so `DJI_0123.gpkg` produces `DJI_0123.png`. Files are flat — the subdirectory structure of `detection_dir` is not mirrored. |
+| Format | PNG at 300 dpi, cropped to the figure with no surrounding whitespace. |
+| Contents | The source image at full resolution with the detection polygons drawn over it, and the centroid of each detection marked unless `--no-centroid` was given. |
+| How many | At most `--n-images`, taken every `--step` files through the sorted list of `.gpkg` files. Fewer are written if `detection_dir` runs out of files first. |
+
+Nothing is written to `image_dir` or `detection_dir`; both are only read.

@@ -86,7 +86,36 @@ the same.
 
 ## Output
 
-`<detector-dir>/raw_detections.gpkg`. For the deep learning detectors, non-maximum suppression is
-deliberately **not** run at this stage, so the file keeps its per-tile structure and still contains
-duplicate detections from overlapping chips. Cleaning that up is the job of
-[`postprocess`](postprocess.md).
+A single file, at a path this script chooses for you rather than one you pass in:
+
+```
+<the value you gave for --detector-dir>/raw_detections.gpkg
+```
+
+So `--detector-dir runs/deepforest` writes `runs/deepforest/raw_detections.gpkg`. The filename
+`raw_detections.gpkg` is hardcoded and cannot be changed; the directory is created if it does not
+exist. This fixed convention is the point of the script — [`postprocess`](postprocess.md) looks for
+exactly that filename in the same directory, so the two commands chain without either being told
+where the intermediate file is. The path is printed on completion.
+
+**What is inside depends on which detector ran**, and the two forms are not interchangeable:
+
+*For the deep learning detectors* (`deepforest`, `detectree2`, `sam2`, `sam3`, `tcd`), the file is
+a GeoPackage with **two layers**, written by `save_tiled`:
+
+| Layer | Geometry | Contents |
+| --- | --- | --- |
+| `detections` | polygons or boxes | Every detection from every tile, each tagged with a `region_ID` column giving the zero-based index of the tile it came from. Also carries `score`, plus any detector-specific columns — SAM2 adds `predicted_iou` and `stability_score`. |
+| `bounds` | polygons | The footprint of each tile, one row per tile with a matching `region_ID`. Tiles that produced no detections still appear here. |
+
+Non-maximum suppression is deliberately **not** run at this stage, so the file still contains the
+same tree detected once per overlapping chip. Keeping the tile structure and the empty tiles is what
+lets `postprocess` reconstruct the exact per-tile set and apply boundary-aware cleanup. Opening this
+file in QGIS shows both layers; the `detections` layer is the one with the trees in it.
+
+*For `--detector geometric`*, the file is an ordinary single-layer GeoPackage of **tree top points**
+with `geometry`, `height`, `score`, `unique_ID`, and `region_ID` columns — the same tree tops
+described under [`detect_geometric_two_stage`](detect_geometric_two_stage.md#output). No crowns are
+produced in this mode, and there is no `bounds` layer.
+
+Everything is written in the CRS of the input raster.

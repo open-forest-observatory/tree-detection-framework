@@ -80,5 +80,30 @@ automatically from `--preprocessed-local-files`, so do not specify it in the YAM
 
 ## Output
 
-`<detector-dir>/detections.gpkg`, containing one point per tree with a `height` column. Progress is
-printed as each step runs, including the detection count before and after the height filter.
+A single file, at a path derived from `--detector-dir` rather than one you pass in:
+
+```
+<the value you gave for --detector-dir>/detections.gpkg
+```
+
+So `--detector-dir runs/deepforest` writes `runs/deepforest/detections.gpkg`, alongside the
+`raw_detections.gpkg` that [`detect_trees`](detect_trees.md) left there. The input file is not
+modified or deleted, so you can re-run postprocessing with different settings without re-running
+detection. The filename is hardcoded; the directory is created if needed.
+
+The output is a **single-layer GeoPackage with one point per tree** — not the two-layer tiled
+structure of the input. The per-tile layout is consumed and collapsed during postprocessing:
+
+| Column | Description |
+| --- | --- |
+| `geometry` | A **point**, not a polygon. For the deep learning detectors each crown polygon is reduced to the location of maximum canopy height within it, using the CHM. |
+| `height` | Tree height in meters, sampled from the CHM. Every row satisfies `height >= --min-tree-height`. |
+| `score` | Confidence score carried through from the detector. |
+
+Other columns from the raw detections are carried through as well; the intermediate
+`crown_geometry` column is dropped, so the crown outlines do **not** survive into this file. If you
+need the polygons, keep `raw_detections.gpkg`.
+
+Progress is printed as the run proceeds — each postprocessor as it is applied with its arguments,
+the count of raw detections loaded, the before-and-after counts for the height filter, and the final
+path written.
