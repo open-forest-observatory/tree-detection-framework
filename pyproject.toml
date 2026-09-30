@@ -3,7 +3,7 @@ name = "tree-detection-framework"
 version = "0.1.0"
 description = "Framework for detecting trees in remote sensing data"
 authors = ["David Russell <djrussell@ucdavis.edu>"]
-license = "BSD-3"
+license = "GPL-3.0-only"
 readme = "README.md"
 packages = [{include = "tree_detection_framework"}]
 
