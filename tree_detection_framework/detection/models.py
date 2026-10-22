@@ -12,6 +12,7 @@ from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_Weights,
 )
 
+from tree_detection_framework.constants import DEFAULT_DEVICE
 from tree_detection_framework.utils.detection import use_release_df
 
 try:
@@ -215,6 +216,7 @@ class Detectree2Module:
         eval_period=100,
         out_dir="./train_outputs",
         resize=True,
+        device=None,
     ):
         """Set up config object.
         Args:
@@ -236,6 +238,8 @@ class Detectree2Module:
             eval_period: number of iterations between evaluations
             out_dir: directory to save outputs
             resize: whether to resize input images
+            device: device to run the model on, e.g. "cuda" or "cpu". If None, "cuda" is
+                used if available, otherwise "cpu" (see DEFAULT_DEVICE).
         """
         # Initialize configuration
         cfg = get_cfg()
@@ -265,6 +269,7 @@ class Detectree2Module:
         cfg.TEST.EVAL_PERIOD = self.param_dict.get("eval_period", eval_period)
         cfg.RESIZE = self.param_dict.get("resize", resize)
         cfg.INPUT.MIN_SIZE_TRAIN = 1000
+        cfg.MODEL.DEVICE = str(self.param_dict.get("device", device) or DEFAULT_DEVICE)
 
         # Create output directory if it doesn't exist
         Path(cfg.OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
