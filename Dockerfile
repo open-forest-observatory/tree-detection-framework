@@ -56,15 +56,24 @@ COPY --from=builder /app/tree_detection_framework /app/tree_detection_framework
 WORKDIR /app
 ENV PYTHONPATH=/app
 
+# Unnamed UIDs have no passwd entry and thus no home directory, so point HOME and the
+# HuggingFace cache at /home, which is made world read/writable below
+ENV HOME=/home
+ENV HF_HOME=/home/.cache/huggingface
+
 # Download detectree2, SAM2, and TCD weights; SAM3 weights must be mounted at runtime
 # (see --sam3-checkpoint-path or --sam3-huggingface-token arguments)
-# TCD MaskRCNN gets downloaded to ~/.cache/huggingface/hub/ at build time
+# TCD MaskRCNN gets downloaded to $HF_HOME/hub/ at build time
 RUN mkdir -p /app/checkpoints && \
     curl -L -o /app/checkpoints/230103_randresize_full.pth \
         https://zenodo.org/records/10522461/files/230103_randresize_full.pth && \
     curl -L -o /app/checkpoints/sam2.1_hiera_large.pt \
         https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt && \
     python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='restor/tcd-mask-rcnn-r50', filename='model.pth')"
+
+# Make /home readable and writable by all users, including unnamed UIDs (e.g. 1001)
+# that have no passwd entry, so they can use it as a scratch/cache location
+RUN chmod -R a+rwX /home
 
 # Run the detector script
 CMD python /app/tree_detection_framework/entrypoints/generate_predictions.py
