@@ -271,9 +271,6 @@ class Detectree2Module:
         cfg.INPUT.MIN_SIZE_TRAIN = 1000
         cfg.MODEL.DEVICE = str(self.param_dict.get("device", device) or DEFAULT_DEVICE)
 
-        # Create output directory if it doesn't exist
-        Path(cfg.OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
-
         # Set model weights
         cfg.MODEL.WEIGHTS = self.param_dict.get(
             "update_model", update_model
