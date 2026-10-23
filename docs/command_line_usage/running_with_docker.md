@@ -48,7 +48,6 @@ docker run --rm --gpus all \
         --chip-stride 768 \
         --resolution 0.05 \
         --tree-detection-model deepforest \
-        --run-nms \
         --predictions-save-path /data/detections.gpkg
 ```
 

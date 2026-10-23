@@ -217,7 +217,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-CRS")
     parser.add_argument("--predictions-save-path")
     parser.add_argument("--view-predictions-plot", action="store_true")
-    parser.add_argument("--run-nms", action="store_true")
+    parser.add_argument(
+        "--run-nms", action=argparse.BooleanOptionalAction, default=True
+    )
     parser.add_argument("--iou-threshold", type=float, default=0.3)
     parser.add_argument("--min-confidence", type=float, default=0.3)
     parser.add_argument("--batch-size", type=int, default=1)

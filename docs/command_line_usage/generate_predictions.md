@@ -26,7 +26,6 @@ python -m tree_detection_framework.entrypoints.generate_predictions \
     --resolution 0.05 \
     --tree-detection-model deepforest \
     --batch-size 4 \
-    --run-nms \
     --iou-threshold 0.3 \
     --min-confidence 0.3 \
     --predictions-save-path data/emerald-point-predictions.gpkg
@@ -63,13 +62,13 @@ python -m tree_detection_framework.entrypoints.generate_predictions \
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `--run-nms` | flag | off | Run non-maximum suppression across all tiles, merging them into a single set of detections. Recommended whenever chips overlap, since the same tree is otherwise detected once per chip that contains it. |
-| `--iou-threshold` | number | `0.3` | Two detections overlapping by more than this intersection-over-union are treated as the same object, and the lower-scoring one is suppressed. Only applies when `--run-nms` is given. |
-| `--min-confidence` | number | `0.3` | Detections scoring below this are discarded. Only applies when `--run-nms` is given — except for SAM3, where this value is also passed to the detector as its confidence threshold regardless. |
+| `--run-nms` / `--no-run-nms` | flag | on | Run non-maximum suppression across all tiles, merging them into a single set of detections. On by default, since without it the same tree is detected once per chip that contains it. Pass `--no-run-nms` to keep the per-tile structure instead. |
+| `--iou-threshold` | number | `0.3` | Two detections overlapping by more than this intersection-over-union are treated as the same object, and the lower-scoring one is suppressed. Ignored with `--no-run-nms`. |
+| `--min-confidence` | number | `0.3` | Detections scoring below this are discarded. Ignored with `--no-run-nms` — except for SAM3, where this value is also passed to the detector as its confidence threshold regardless. |
 
 !!! note "How the output file is written depends on `--run-nms`"
-    With `--run-nms`, the tiles are merged and a single flat layer of detections is written. Without
-    it, the per-tile structure is preserved in the output file instead. See [Output](#output) below.
+    By default, the tiles are merged and a single flat layer of detections is written. With
+    `--no-run-nms`, the per-tile structure is preserved in the output file instead. See [Output](#output) below.
 
 ## Model checkpoint options
 
@@ -116,7 +115,7 @@ Everything is written in the CRS of the input raster, unless `--output-CRS` over
 
 **The structure of the file depends on `--run-nms`**, and the two forms are not interchangeable.
 
-### With `--run-nms`
+### With `--run-nms` (default)
 
 A single flat layer: overlapping tiles are merged, duplicates suppressed, and low-confidence
 detections dropped. This is the form you want for analysis or for loading into QGIS.
@@ -131,7 +130,7 @@ detections dropped. This is the form you want for analysis or for loading into Q
 Detector-specific columns are carried through as well: SAM2 adds `predicted_iou` and
 `stability_score`, and DeepForest adds `labels`.
 
-### Without `--run-nms`
+### With `--no-run-nms`
 
 A GeoPackage with **two layers**, preserving the tile structure:
 
@@ -140,8 +139,8 @@ A GeoPackage with **two layers**, preserving the tile structure:
 | `detections` | All detections from all tiles, each tagged with a `region_ID` column identifying its tile. Still contains the same tree detected once per overlapping chip. |
 | `bounds` | The footprint of each tile, one row per tile with a matching `region_ID`. Tiles that produced no detections still appear here. |
 
-This is the form [`postprocess`](postprocess.md) expects to read back, since reconstructing the
-per-tile set is what allows boundary-aware cleanup. Note that `.geojson` cannot hold multiple
+This is the form [`postprocess`](postprocess.md) expects to read back, so pass `--no-run-nms` when its output will feed that step.
+Reconstructing the per-tile set is what allows boundary-aware cleanup. Note that `.geojson` cannot hold multiple
 layers, so use `.gpkg` in this mode.
 
 `--view-predictions-plot` writes nothing to disk; it opens a window and blocks until you close it.

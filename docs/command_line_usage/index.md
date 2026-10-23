@@ -29,8 +29,7 @@ python -m tree_detection_framework.entrypoints.generate_predictions \
     --raster-folder-path data/emerald-point-ortho \
     --chip-size 1024 \
     --tree-detection-model deepforest \
-    --predictions-save-path detections.gpkg \
-    --run-nms
+    --predictions-save-path detections.gpkg
 ```
 
 Every script accepts `--help`, which prints the same information from the script itself:
