@@ -22,3 +22,5 @@ For flag-by-flag documentation of the command line form, including which argumen
 ::: tree_detection_framework.entrypoints.detect_trees.detect_trees
 
 ::: tree_detection_framework.entrypoints.postprocess.postprocess
+
+::: tree_detection_framework.entrypoints.polygons_to_points.polygons_to_points

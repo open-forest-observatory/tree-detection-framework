@@ -9,3 +9,4 @@ nav:
   - visualize_detections.md
   - detect_trees.md
   - postprocess.md
+  - polygons_to_points.md
