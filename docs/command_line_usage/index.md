@@ -91,3 +91,4 @@ by hand. They pass structured information as JSON strings and use fixed filename
 | --- | --- |
 | [`detect_trees`](detect_trees.md) | You are driving detection from a pipeline and want one command that dispatches to any detector, including the geometric one. |
 | [`postprocess`](postprocess.md) | You want to apply a named, YAML-configured chain of postprocessing steps to the output of `detect_trees`. |
+| [`polygons_to_points`](polygons_to_points.md) | You have crown polygons and want one point per tree, placed at the centroid or at the highest CHM pixel, with heights from the CHM. |
